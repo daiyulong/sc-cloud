@@ -7,10 +7,12 @@ const eslintConfig = defineConfig([
   ...nextTs,
   globalIgnores([
     ".next/**",
+    "**/.next/**", // 嵌套构建产物（如 .claude/worktrees/*/.next）
     "out/**",
     "build/**",
     "next-env.d.ts",
     "node_modules/**",
+    ".claude/**", // 工具目录（skills / worktrees / plans），非项目源码
   ]),
   {
     rules: {

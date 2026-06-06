@@ -51,3 +51,26 @@ export const nullableNonNegativeInt = z.preprocess(
     .nullable()
     .optional()
 )
+
+/** 内部：把空串/空值归一为 null，字符串尝试转数字 */
+function preprocessNullableNumber(value: unknown) {
+  if (value === undefined) return undefined
+  if (value === null || value === "") return null
+  if (typeof value === "string") {
+    const num = Number(value)
+    return Number.isNaN(num) ? value : num
+  }
+  return value
+}
+
+/** 非负数（允许小数，如悬液浓度），允许为空 */
+export const nullableNonNegativeNumber = z.preprocess(
+  preprocessNullableNumber,
+  z.number("必须为数字").nonnegative("不能为负数").nullable().optional()
+)
+
+/** 0-100 百分比（活率 / 结团率，规格 §8.4），允许为空 */
+export const nullablePercent = z.preprocess(
+  preprocessNullableNumber,
+  z.number("必须为数字").min(0, "不能小于 0").max(100, "不能大于 100").nullable().optional()
+)

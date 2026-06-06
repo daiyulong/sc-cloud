@@ -479,16 +479,18 @@ export default async function DashboardPage() {
                 {metrics.todayExpectedSamples}
               </Badge>
             </Link>
-            {/* 实验任务模块落地后补跳转链接 */}
-            <div className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+            <Link
+              href="/experiment-tasks?status=waiting_feedback"
+              className="group flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-sm font-medium group-hover:underline">
                 <FlaskConical aria-hidden="true" />
                 待实验反馈
               </span>
               <Badge variant={metrics.waitingFeedbackTasks > 0 ? "default" : "secondary"}>
                 {metrics.waitingFeedbackTasks}
               </Badge>
-            </div>
+            </Link>
           </CardContent>
         </Card>
       </section>

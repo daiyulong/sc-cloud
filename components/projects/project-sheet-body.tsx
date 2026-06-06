@@ -68,7 +68,13 @@ export function ProjectSheetBody({ detail, role }: { detail: ProjectDetail; role
         >
           样本 {project._count.samples}
         </Link>
-        {" · "}实验任务 {project._count.experimentTasks}
+        {" · "}
+        <Link
+          href={`/experiment-tasks?projectId=${project.id}`}
+          className="font-medium text-foreground hover:underline"
+        >
+          实验任务 {project._count.experimentTasks}
+        </Link>
         {" · "}生信任务 {project._count.bioinfoTasks}
       </p>
 

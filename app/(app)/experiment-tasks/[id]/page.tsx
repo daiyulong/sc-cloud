@@ -1,0 +1,124 @@
+import Link from "next/link"
+import { notFound, redirect } from "next/navigation"
+import { Edit } from "lucide-react"
+import { auth } from "@/lib/auth"
+import {
+  EXPERIMENT_TASK_STATUS_LABELS,
+  ExperimentTaskStatus,
+  PROJECT_STATUS_LABELS,
+  type ExperimentTaskStatus as ExperimentTaskStatusValue,
+  type ProjectStatus as ProjectStatusValue,
+  type UserRole as UserRoleValue,
+} from "@/lib/enums"
+import { getOperatorOptions } from "@/lib/experiment-tasks/options"
+import { getExperimentTaskDetail } from "@/lib/experiment-tasks/service"
+import { OperationTimeline } from "@/components/detail/operation-timeline"
+import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
+import { ExperimentTaskFields } from "@/components/experiment-tasks/experiment-task-fields"
+import { QcSection } from "@/components/experiment-tasks/qc-section"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
+export const dynamic = "force-dynamic"
+
+type ExperimentTaskDetailPageProps = {
+  params: Promise<{ id: string }>
+}
+
+export default async function ExperimentTaskDetailPage({ params }: ExperimentTaskDetailPageProps) {
+  const session = await auth()
+  if (!session?.user?.id) redirect("/login")
+
+  const { id } = await params
+  const [detail, operatorOptions] = await Promise.all([
+    getExperimentTaskDetail(
+      { id: session.user.id, role: session.user.role as UserRoleValue },
+      id
+    ).catch(() => null),
+    getOperatorOptions(),
+  ])
+  if (!detail) notFound()
+
+  const { task, operationLogs } = detail
+  const status = task.status as ExperimentTaskStatusValue
+
+  return (
+    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-normal">{task.taskNo}</h1>
+            <Badge variant={status === ExperimentTaskStatus.abnormal ? "destructive" : "secondary"}>
+              {EXPERIMENT_TASK_STATUS_LABELS[status]}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            <Link href={`/projects/${task.project.id}`} className="hover:underline">
+              {task.project.projectNo}
+            </Link>{" "}
+            · {task.project.customerOrg} ·{" "}
+            {PROJECT_STATUS_LABELS[task.project.status as ProjectStatusValue]}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <ExperimentTaskActionMenu
+            taskId={task.id}
+            taskNo={task.taskNo}
+            status={status}
+            role={session.user.role}
+            operatorOptions={operatorOptions}
+          />
+          <Button asChild variant="outline">
+            <Link href={`/experiment-tasks/${task.id}/edit`}>
+              <Edit data-icon="inline-start" aria-hidden="true" />
+              编辑
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>任务信息</CardTitle>
+          <CardDescription>排期与执行的核心字段</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ExperimentTaskFields task={task} columns={3} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>质控</CardTitle>
+          <CardDescription>结构化质量判断（可多条）</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <QcSection
+            taskId={task.id}
+            taskNo={task.taskNo}
+            status={status}
+            role={session.user.role}
+            records={task.qcRecords}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>时间线</CardTitle>
+          <CardDescription>来自操作日志</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <OperationTimeline logs={operationLogs} />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

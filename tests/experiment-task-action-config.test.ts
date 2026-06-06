@@ -1,0 +1,53 @@
+import { describe, expect, it } from "vitest"
+import { partitionExperimentTaskActions } from "@/components/experiment-tasks/experiment-task-action-config"
+import { ExperimentTaskStatus, UserRole } from "@/lib/enums"
+
+describe("partitionExperimentTaskActions", () => {
+  it("待排期：主动作 schedule（排期 Dialog），无溢出", () => {
+    const { primary, overflow } = partitionExperimentTaskActions(
+      ExperimentTaskStatus.waiting_schedule,
+      UserRole.lab_operator
+    )
+    expect(primary?.action).toBe("schedule")
+    expect(primary?.kind).toBe("scheduleDialog")
+    expect(overflow).toEqual([])
+  })
+
+  it("已排期：主动作 start（direct）", () => {
+    const { primary, overflow } = partitionExperimentTaskActions(
+      ExperimentTaskStatus.scheduled,
+      UserRole.lab_operator
+    )
+    expect(primary?.action).toBe("start")
+    expect(primary?.kind).toBe("direct")
+    expect(overflow).toEqual([])
+  })
+
+  it("进行中：主动作 feedback，溢出 finish + qc", () => {
+    const { primary, overflow } = partitionExperimentTaskActions(
+      ExperimentTaskStatus.in_progress,
+      UserRole.lab_operator
+    )
+    expect(primary?.action).toBe("feedback")
+    expect(primary?.kind).toBe("feedbackDialog")
+    expect(overflow.map((d) => d.action)).toEqual(["finish", "qc"])
+  })
+
+  it("待反馈：主动作 feedback，溢出 qc", () => {
+    const { primary, overflow } = partitionExperimentTaskActions(
+      ExperimentTaskStatus.waiting_feedback,
+      UserRole.lab_operator
+    )
+    expect(primary?.action).toBe("feedback")
+    expect(overflow.map((d) => d.action)).toEqual(["qc"])
+  })
+
+  it("无权限角色：主/溢出均空", () => {
+    const { primary, overflow } = partitionExperimentTaskActions(
+      ExperimentTaskStatus.in_progress,
+      UserRole.viewer
+    )
+    expect(primary).toBeUndefined()
+    expect(overflow).toEqual([])
+  })
+})
