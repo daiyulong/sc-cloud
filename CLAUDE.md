@@ -4,13 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目状态
 
-**当前为实现前阶段（pre-implementation）**：仓库只有需求规格和样例数据，尚无任何代码、`package.json` 或脚手架。
+**当前为实现中阶段**：Next.js 16 + Prisma + NextAuth + shadcn/ui 项目骨架已建立，已完成登录、主布局、工作台、项目模块基础 API/UI 与项目状态动作。
 
-- 需求唯一权威来源：`docs/单细胞云平台-完善版需求规格说明书.md`。动手前先读它；本文件只做导航和补充设计意图，不重复规格细节。
+- 需求唯一权威来源：`docs/单细胞云平台-完善版需求规格说明书.md`。动手前先读相关章节；本文件只做导航和补充设计意图，不重复规格细节。
 - 需求评审结论（2026-06，已据此修订规格）：`docs/需求评审报告-2026-06.md`，记录 81 条审核发现的修订决策与老板拍板的业务口径。
 - 样例/导入数据：`data/拜谱单细胞实验预约.xlsx`（→ 项目/样本/实验任务/反馈）、`data/单细胞项目经验.xlsx`（→ 经验库）。这两份是第一期初始化导入的真实数据源，也是字段映射的事实依据。
-
-> 一旦初始化了 Next.js 项目，需把本节替换为真实的 build / lint / test / 单测运行命令（届时参考 `pd-web` 的 `package.json` scripts）。
+- 常用命令：`npm run lint`、`npm run test:run`、`npm run build`、`npm run db:push`、`npm run db:seed`。
 
 ## 一句话目标
 

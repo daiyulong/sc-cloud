@@ -1,0 +1,107 @@
+import { z } from "zod"
+import {
+  ProjectStatus,
+  ServiceLevel,
+  type ProjectStatus as ProjectStatusValue,
+  type ServiceLevel as ServiceLevelValue,
+} from "@/lib/enums"
+
+const serviceLevelValues = Object.values(ServiceLevel) as [
+  ServiceLevelValue,
+  ...ServiceLevelValue[],
+]
+const projectStatusValues = Object.values(ProjectStatus) as [
+  ProjectStatusValue,
+  ...ProjectStatusValue[],
+]
+
+const requiredString = (message: string) => z.string().trim().min(1, message)
+
+const optionalString = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.string().trim().optional()
+)
+
+const nullableString = z.preprocess((value) => {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    return trimmed === "" ? null : trimmed
+  }
+  return value
+}, z.string().trim().nullable().optional())
+
+const nullableDate = z.preprocess((value) => {
+  if (value === undefined) return undefined
+  if (value === null || value === "") return null
+  if (value instanceof Date) return value
+  if (typeof value === "string") {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? value : date
+  }
+  return value
+}, z.date("日期格式不正确").nullable().optional())
+
+export const serviceLevelSchema = z.enum(serviceLevelValues)
+export const projectStatusSchema = z.enum(projectStatusValues)
+
+export const createProjectSchema = z.object({
+  projectNo: optionalString,
+  contractNo: requiredString("请输入合同编号"),
+  orderNo: requiredString("请输入委托单编号"),
+  customerOrg: requiredString("请输入客户单位"),
+  customerName: requiredString("请输入客户姓名"),
+  customerContact: nullableString,
+  salesOwnerId: nullableString,
+  projectManagerId: nullableString,
+  projectType: requiredString("请输入项目类型"),
+  serviceItems: requiredString("请输入服务内容"),
+  serviceLevel: serviceLevelSchema,
+  sequencingPlatform: nullableString,
+  priority: z.string().trim().min(1).default("普通"),
+  expectedDeliveryDate: nullableDate,
+  remark: nullableString,
+})
+export type CreateProjectInput = z.infer<typeof createProjectSchema>
+
+export const updateProjectSchema = createProjectSchema
+  .partial()
+  .refine((value) => Object.keys(value).some((key) => value[key as keyof typeof value] !== undefined), {
+    message: "至少提供一个要更新的字段",
+  })
+export type UpdateProjectInput = z.infer<typeof updateProjectSchema>
+
+export const confirmProjectSchema = z.object({
+  projectManagerId: nullableString,
+  serviceLevel: serviceLevelSchema.optional(),
+  priority: optionalString,
+  expectedDeliveryDate: nullableDate,
+})
+export type ConfirmProjectInput = z.infer<typeof confirmProjectSchema>
+
+export const projectReasonSchema = z.object({
+  reason: requiredString("请输入原因").max(1000, "原因最多 1000 字"),
+})
+export type ProjectReasonInput = z.infer<typeof projectReasonSchema>
+
+export const optionalProjectReasonSchema = z.object({
+  reason: optionalString,
+})
+export type OptionalProjectReasonInput = z.infer<typeof optionalProjectReasonSchema>
+
+export const deliverProjectSchema = z.object({
+  deliveredAt: nullableDate,
+})
+export type DeliverProjectInput = z.infer<typeof deliverProjectSchema>
+
+export const projectListQuerySchema = z.object({
+  q: optionalString,
+  status: projectStatusSchema.optional(),
+  serviceLevel: serviceLevelSchema.optional(),
+  salesOwnerId: optionalString,
+  projectManagerId: optionalString,
+  page: optionalString,
+  limit: optionalString,
+})
+export type ProjectListQuery = z.infer<typeof projectListQuerySchema>

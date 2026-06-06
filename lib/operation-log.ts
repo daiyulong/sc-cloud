@@ -14,9 +14,8 @@ export interface RecordOperationParams {
 }
 
 function toJson(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
-  return value === undefined || value === null
-    ? Prisma.JsonNull
-    : (value as Prisma.InputJsonValue)
+  if (value === undefined || value === null) return Prisma.JsonNull
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
 }
 
 /**
