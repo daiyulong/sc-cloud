@@ -1,0 +1,430 @@
+// 单细胞云平台数据模型（规格 §9）
+// 约定：Prisma 字段用 camelCase（TS 惯例），DB 列/表用 snake_case（@map/@@map，对齐规格、Excel 导入与直读）。
+// NextAuth 认证三表（Account/Session/VerificationToken）保留官方字段名（adapter 按字段名访问），仅映射列/表名。
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 枚举（规格 §7）
+// ============================================================
+
+enum UserRole {
+  admin
+  sales_owner
+  project_manager
+  sample_receiver
+  lab_operator
+  bioinfo_analyst
+  viewer
+}
+
+// 服务档次，驱动交付流程分支（qc/library/run 实验完成直接待交付；standard/advanced 经生信）
+enum ServiceLevel {
+  qc
+  library
+  run
+  standard
+  advanced
+}
+
+enum ProjectStatus {
+  draft
+  confirmed
+  waiting_sample
+  sample_received
+  lab_in_progress
+  waiting_bioinfo
+  bioinfo_in_progress
+  waiting_delivery
+  delivered
+  completed
+  abnormal
+  terminated
+}
+
+enum SampleStatus {
+  waiting_arrival
+  received
+  received_abnormal
+  waiting_task
+  lab_in_progress
+  feedback_submitted
+  abnormal
+}
+
+enum ExperimentTaskStatus {
+  waiting_schedule
+  scheduled
+  in_progress
+  waiting_feedback
+  completed
+  cancelled
+  abnormal
+}
+
+enum BioinfoTaskStatus {
+  pending
+  in_progress
+  waiting_review
+  waiting_delivery
+  delivered
+  abnormal
+}
+
+// 样本接收状态（执行态，与质控业务判定正交）
+enum ReceiveStatus {
+  normal
+  abnormal
+}
+
+// 质控结论（业务判定态，不混进任务执行态）
+enum QCResult {
+  passed
+  low_risk_passed
+  failed
+}
+
+enum RiskLevel {
+  normal
+  low_risk
+  high_risk
+}
+
+// 实验结果状态（业务判定态）
+enum ResultStatus {
+  normal_run
+  low_risk_run
+  not_qualified
+  other
+}
+
+enum OperationAction {
+  create
+  update
+  status_change
+  assign
+  import
+  delete
+}
+
+// ============================================================
+// 用户与认证
+// ============================================================
+
+model User {
+  id          String    @id @default(cuid())
+  username    String    @unique
+  email       String    @unique
+  name        String
+  password    String // bcrypt 哈希
+  role        UserRole
+  department  String?
+  phone       String?   @unique
+  isActive    Boolean   @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // NextAuth adapter 关联（第一期 Credentials+JWT 下不写入，保留以备 OAuth/DB session）
+  accounts Account[]
+  sessions Session[]
+
+  // 业务反向关系（行级 scope §3.3 与时间线依赖）
+  salesProjects   Project[]        @relation("SalesOwner")
+  managedProjects Project[]        @relation("ProjectManager")
+  receivedSamples Sample[]
+  operatedTasks   ExperimentTask[]
+  analyzedTasks   BioinfoTask[]
+  qcRecords       QcRecord[]
+  operationLogs   OperationLog[]
+  importLogs      ImportLog[]
+  projectGrants   ProjectGrant[]
+
+  @@index([isActive, role])
+  @@map("users")
+}
+
+// NextAuth 官方模型，字段名为 adapter 契约不可改，仅映射列/表名
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================================
+// 业务实体（规格 §9）
+// ============================================================
+
+// 项目 = 委托单(order_no)粒度，一个合同可对应多个项目
+model Project {
+  id                   String         @id @default(cuid())
+  projectNo            String         @unique @map("project_no") // 唯一
+  contractNo           String         @map("contract_no") // 可重复，建索引
+  orderNo              String         @map("order_no")
+  customerOrg          String         @map("customer_org")
+  customerName         String         @map("customer_name")
+  customerContact      String?        @map("customer_contact")
+  salesOwnerId         String?        @map("sales_owner_id") // nullable：导入按人名匹配
+  projectManagerId     String?        @map("project_manager_id") // nullable：确认项目时指派
+  projectType          String         @map("project_type")
+  serviceItems         String         @map("service_items")
+  serviceLevel         ServiceLevel   @map("service_level")
+  sequencingPlatform   String?        @map("sequencing_platform")
+  priority             String
+  status               ProjectStatus  @default(draft)
+  statusBeforeAbnormal ProjectStatus? @map("status_before_abnormal")
+  expectedDeliveryDate DateTime?      @map("expected_delivery_date")
+  deliveredAt          DateTime?      @map("delivered_at")
+  remark               String?
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  salesOwner      User?            @relation("SalesOwner", fields: [salesOwnerId], references: [id])
+  projectManager  User?            @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  samples         Sample[]
+  experimentTasks ExperimentTask[]
+  bioinfoTasks    BioinfoTask[]
+  projectGrants   ProjectGrant[]
+
+  @@index([contractNo])
+  @@index([salesOwnerId])
+  @@index([projectManagerId])
+  @@index([status])
+  @@index([serviceLevel])
+  @@map("projects")
+}
+
+model Sample {
+  id                  String        @id @default(cuid())
+  sampleNo            String        @unique @map("sample_no") // 唯一
+  projectId           String        @map("project_id")
+  species             String
+  tissueType          String        @map("tissue_type")
+  sampleCount         Int?          @map("sample_count")
+  experimentType      String        @map("experiment_type")
+  transportCondition  String        @map("transport_condition")
+  samplingDate        DateTime?     @map("sampling_date")
+  expectedArrivalDate DateTime?     @map("expected_arrival_date")
+  receivedAt          DateTime?     @map("received_at")
+  receiverId          String?       @map("receiver_id") // nullable：接收时填充
+  receiveStatus       ReceiveStatus @default(normal) @map("receive_status")
+  abnormalNote        String?       @map("abnormal_note")
+  status              SampleStatus  @default(waiting_arrival)
+  remark              String?
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  project   Project          @relation(fields: [projectId], references: [id])
+  receiver  User?            @relation(fields: [receiverId], references: [id])
+  tasks     ExperimentTask[]
+  qcRecords QcRecord[]
+
+  @@index([projectId])
+  @@index([receiverId])
+  @@index([status])
+  @@map("samples")
+}
+
+// 实验任务。MVP：sampleId 单值 FK + loadedSampleCount；
+// 终局：引入 task_samples(task_id, sample_id) 关联表承接「一次上机多样品」，把捕获指标挂到 task_sample 粒度。本期预留接口位。
+model ExperimentTask {
+  id                String               @id @default(cuid())
+  taskNo            String               @map("task_no")
+  projectId         String               @map("project_id")
+  sampleId          String               @map("sample_id")
+  experimentType    String               @map("experiment_type")
+  runMethod         String?              @map("run_method") // 上机方式，排期/导入时由文本解析填充
+  plannedDate       DateTime?            @map("planned_date")
+  actualDate        DateTime?            @map("actual_date")
+  operatorId        String?              @map("operator_id") // nullable：排期时指派
+  department        String?
+  loadedSampleCount Int?                 @map("loaded_sample_count")
+  status            ExperimentTaskStatus @default(waiting_schedule)
+  resultStatus      ResultStatus?        @map("result_status")
+  resultFeedback    String?              @map("result_feedback") // 原文全量保留
+  rawBookingText    String?              @map("raw_booking_text") // 旧表「上机方式」原始文本，导入留存
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  project      Project       @relation(fields: [projectId], references: [id])
+  sample       Sample        @relation(fields: [sampleId], references: [id])
+  operator     User?         @relation(fields: [operatorId], references: [id])
+  qcRecords    QcRecord[]
+  bioinfoTasks BioinfoTask[]
+
+  @@index([projectId])
+  @@index([sampleId])
+  @@index([operatorId])
+  @@index([status])
+  @@map("experiment_tasks")
+}
+
+model QcRecord {
+  id              String    @id @default(cuid())
+  sampleId        String    @map("sample_id")
+  taskId          String    @map("task_id")
+  concentration   Float? // 悬液浓度
+  viability       Float? // 活率
+  aggregationRate Float?    @map("aggregation_rate") // 结团率
+  qcResult        QCResult  @map("qc_result")
+  riskLevel       RiskLevel @map("risk_level")
+  reason          String?
+  feedback        String?
+  createdBy       String    @map("created_by") // 录入人，NOT NULL
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  sample        Sample         @relation(fields: [sampleId], references: [id])
+  task          ExperimentTask @relation(fields: [taskId], references: [id])
+  createdByUser User           @relation(fields: [createdBy], references: [id])
+
+  @@index([sampleId])
+  @@index([taskId])
+  @@map("qc_records")
+}
+
+model BioinfoTask {
+  id               String            @id @default(cuid())
+  taskNo           String            @map("task_no")
+  projectId        String            @map("project_id")
+  experimentTaskId String            @map("experiment_task_id")
+  analysisType     String?           @map("analysis_type")
+  dataReceivedAt   DateTime?         @map("data_received_at")
+  analystId        String?           @map("analyst_id") // nullable：指派分析员
+  status           BioinfoTaskStatus @default(pending)
+  deliveredAt      DateTime?         @map("delivered_at")
+  deliverableNote  String?           @map("deliverable_note")
+  remark           String?
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  project        Project        @relation(fields: [projectId], references: [id])
+  experimentTask ExperimentTask @relation(fields: [experimentTaskId], references: [id])
+  analyst        User?          @relation(fields: [analystId], references: [id])
+
+  @@index([projectId])
+  @@index([experimentTaskId])
+  @@index([analystId])
+  @@index([status])
+  @@map("bioinfo_tasks")
+}
+
+// 经验库。project_no 实为委托单号、天然非唯一，与 projects.project_no 同名异义。
+// 历史脏数据原样导入、保留原文，规范化清洗推后。
+model ExperienceRecord {
+  id               String   @id @default(cuid())
+  projectNo        String?  @map("project_no") // 委托单号，非唯一
+  species          String?
+  tissuePart       String?  @map("tissue_part") // 部位，脏数据原样保留
+  projectType      String?  @map("project_type") // 与 projects.project_type 同名异义
+  cellType         String?  @map("cell_type")
+  concentration    Float?
+  viability        Float?
+  aggregationRate  Float?   @map("aggregation_rate")
+  sequencingAmount Int?     @map("sequencing_amount")
+  capturedCells    Int?     @map("captured_cells")
+  medianGenes      Int?     @map("median_genes")
+  remark           String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([projectNo])
+  @@map("experience_records")
+}
+
+// 只读用户(viewer)显式项目授权（§3.3）
+model ProjectGrant {
+  userId    String   @map("user_id")
+  projectId String   @map("project_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@map("project_grants")
+}
+
+// ============================================================
+// 审计与导入（追加写，仅 createdAt）
+// ============================================================
+
+model OperationLog {
+  id         String          @id @default(cuid())
+  entityType String          @map("entity_type")
+  entityId   String          @map("entity_id")
+  action     OperationAction
+  operatorId String          @map("operator_id") // 操作人，NOT NULL
+  beforeData Json?           @map("before_data")
+  afterData  Json?           @map("after_data")
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  operator User @relation(fields: [operatorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([operatorId])
+  @@index([createdAt])
+  @@map("operation_logs")
+}
+
+model ImportLog {
+  id           String   @id @default(cuid())
+  module       String
+  fileName     String   @map("file_name")
+  totalCount   Int      @map("total_count")
+  successCount Int      @map("success_count")
+  failedCount  Int      @map("failed_count")
+  errorDetail  Json?    @map("error_detail")
+  operatorId   String   @map("operator_id") // 导入人，NOT NULL
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  operator User @relation(fields: [operatorId], references: [id])
+
+  @@index([module])
+  @@index([operatorId])
+  @@map("import_logs")
+}

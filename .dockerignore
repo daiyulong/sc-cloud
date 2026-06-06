@@ -1,0 +1,52 @@
+# 依赖目录
+node_modules
+
+# 构建产物
+.next
+out
+build
+dist
+
+# 版本控制
+.git
+.gitignore
+
+# 环境配置
+.env
+.env.local
+.env.prod
+
+# IDE 配置
+.vscode
+.idea
+*.swp
+*.swo
+
+# 调试文件
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 测试
+coverage
+test-results
+playwright-report
+tests
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+vitest.config.ts
+playwright.config.ts
+
+# 文档与样例数据
+*.md
+!README.md
+docs
+data
+tmp
+.agents
+
+# 其他
+.DS_Store
+*.log
