@@ -5,6 +5,12 @@ import {
   type ProjectStatus as ProjectStatusValue,
   type ServiceLevel as ServiceLevelValue,
 } from "@/lib/enums"
+import {
+  nullableDate,
+  nullableString,
+  optionalString,
+  requiredString,
+} from "@/lib/schemas/common"
 
 const serviceLevelValues = Object.values(ServiceLevel) as [
   ServiceLevelValue,
@@ -14,34 +20,6 @@ const projectStatusValues = Object.values(ProjectStatus) as [
   ProjectStatusValue,
   ...ProjectStatusValue[],
 ]
-
-const requiredString = (message: string) => z.string().trim().min(1, message)
-
-const optionalString = z.preprocess(
-  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-  z.string().trim().optional()
-)
-
-const nullableString = z.preprocess((value) => {
-  if (value === undefined) return undefined
-  if (value === null) return null
-  if (typeof value === "string") {
-    const trimmed = value.trim()
-    return trimmed === "" ? null : trimmed
-  }
-  return value
-}, z.string().trim().nullable().optional())
-
-const nullableDate = z.preprocess((value) => {
-  if (value === undefined) return undefined
-  if (value === null || value === "") return null
-  if (value instanceof Date) return value
-  if (typeof value === "string") {
-    const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? value : date
-  }
-  return value
-}, z.date("日期格式不正确").nullable().optional())
 
 export const serviceLevelSchema = z.enum(serviceLevelValues)
 export const projectStatusSchema = z.enum(projectStatusValues)

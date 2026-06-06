@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client"
-import { UserRole } from "@/lib/enums"
+import { SampleStatus, UserRole } from "@/lib/enums"
 
 /**
  * 行级数据可见范围（规格 §3.3）。返回 Project 的 where 片段，与用户筛选 AND 叠加：
@@ -30,5 +30,27 @@ export function buildProjectScope(
     default:
       // 未知 / 缺失角色：fail-closed，什么都看不到
       return { id: "__none__" }
+  }
+}
+
+/**
+ * 样本的行级可见范围。除接收员外都由项目 scope 推导（销售=自己项目下样本等）。
+ *
+ * 接收员特殊：§3.3 的项目 scope（samples.some.receiverId=me）在样本层会鸡生蛋——
+ * receiver_id 在接收动作时才填充，只按它过滤接收员永远看不到待接收样本、无法完成首次接收；
+ * 且工作台规格 §6.2 明确要求接收员可见「今日预计到样、待接收样本」。
+ * 因此接收员可见 = 自己接收过的样本 ∪ 全部待到样样本。
+ */
+export function buildSampleScope(
+  role: UserRole | undefined,
+  userId: string
+): Prisma.SampleWhereInput {
+  switch (role) {
+    case UserRole.sample_receiver:
+      return {
+        OR: [{ receiverId: userId }, { status: SampleStatus.waiting_arrival }],
+      }
+    default:
+      return { project: buildProjectScope(role, userId) }
   }
 }

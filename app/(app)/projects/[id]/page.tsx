@@ -1,16 +1,20 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { Edit } from "lucide-react"
+import { Edit, Plus } from "lucide-react"
 import { auth } from "@/lib/auth"
 import {
   PROJECT_STATUS_LABELS,
+  SAMPLE_STATUS_LABELS,
   SERVICE_LEVEL_LABELS,
   USER_ROLE_LABELS,
   type ProjectStatus as ProjectStatusValue,
+  type SampleStatus as SampleStatusValue,
   type ServiceLevel as ServiceLevelValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { getProjectDetail } from "@/lib/projects/service"
+import { sampleCreateRoles } from "@/lib/samples/rules"
+import { listSamples } from "@/lib/samples/service"
 import { formatDate, formatDateTime } from "@/lib/utils"
 import { ProjectActions } from "@/components/projects/project-actions"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +27,14 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 export const dynamic = "force-dynamic"
 
@@ -44,13 +56,15 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   if (!session?.user?.id) redirect("/login")
 
   const { id } = await params
-  const detail = await getProjectDetail(
-    { id: session.user.id, role: session.user.role as UserRoleValue },
-    id
-  ).catch(() => null)
+  const operator = { id: session.user.id, role: session.user.role as UserRoleValue }
+  const detail = await getProjectDetail(operator, id).catch(() => null)
   if (!detail) notFound()
 
   const { project, operationLogs } = detail
+  const { data: samples } = await listSamples(operator, { projectId: id }, { skip: 0, limit: 20 })
+  const canCreateSample = sampleCreateRoles.includes(
+    operator.role as (typeof sampleCreateRoles)[number]
+  )
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
@@ -118,15 +132,17 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>样本</CardTitle>
-            <CardDescription>后续接入样本接收模块</CardDescription>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold tabular-nums">
-            {project._count.samples}
-          </CardContent>
-        </Card>
+        <Link href={`/samples?projectId=${project.id}`} className="group">
+          <Card className="transition-colors group-hover:border-primary/40">
+            <CardHeader>
+              <CardTitle>样本</CardTitle>
+              <CardDescription>点击查看该项目全部样本</CardDescription>
+            </CardHeader>
+            <CardContent className="text-3xl font-semibold tabular-nums">
+              {project._count.samples}
+            </CardContent>
+          </Card>
+        </Link>
         <Card>
           <CardHeader>
             <CardTitle>实验任务</CardTitle>
@@ -146,6 +162,73 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           </CardContent>
         </Card>
       </section>
+
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1.5">
+            <CardTitle>样本列表</CardTitle>
+            <CardDescription>该项目下的样本与接收进度（最多展示 20 条）</CardDescription>
+          </div>
+          {canCreateSample && (
+            <Button asChild size="sm">
+              <Link href={`/samples/new?projectId=${project.id}`}>
+                <Plus data-icon="inline-start" aria-hidden="true" />
+                登记样本
+              </Link>
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>样品编号</TableHead>
+                <TableHead>物种 / 组织</TableHead>
+                <TableHead>实验类型</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>预计到样</TableHead>
+                <TableHead>实际接收</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {samples.map((sample) => (
+                <TableRow key={sample.id}>
+                  <TableCell className="font-medium">{sample.sampleNo}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span>{sample.species}</span>
+                      <span className="text-xs text-muted-foreground">{sample.tissueType}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{sample.experimentType}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={sample.status === "abnormal" ? "destructive" : "secondary"}
+                    >
+                      {SAMPLE_STATUS_LABELS[sample.status as SampleStatusValue]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{formatDate(sample.expectedArrivalDate)}</TableCell>
+                  <TableCell>{formatDateTime(sample.receivedAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/samples/${sample.id}`}>详情</Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {samples.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-20 text-center text-muted-foreground">
+                    暂无样本
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
