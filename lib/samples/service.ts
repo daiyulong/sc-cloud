@@ -40,6 +40,8 @@ const sampleUserSelect = {
   name: true,
   email: true,
   role: true,
+  department: true,
+  phone: true,
 } satisfies Prisma.UserSelect
 
 const sampleProjectSelect = {

@@ -111,8 +111,8 @@ export function SampleForm({ mode, sample, projectOptions = [], initialProjectId
       }
 
       toast.success(mode === "create" ? "样本已登记" : "样本已更新")
-      router.push(`/samples/${result.data.id}`)
-      router.refresh()
+      // 硬导航直达全页详情：软 push 会被 @sheet 拦截成「侧滑盖在表单上」
+      window.location.assign(`/samples/${result.data.id}`)
     })
   }
 

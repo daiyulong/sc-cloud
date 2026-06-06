@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { AppSidebar } from "@/components/app-sidebar"
-import { UserMenu } from "@/components/user-menu"
+import { PageTitle } from "@/components/page-title"
 import {
   SidebarInset,
   SidebarProvider,
@@ -11,8 +11,11 @@ import { Separator } from "@/components/ui/separator"
 
 export default async function AppLayout({
   children,
+  sheet,
 }: Readonly<{
   children: React.ReactNode
+  /** @sheet 平行路由：详情软导航的侧滑层 */
+  sheet: React.ReactNode
 }>) {
   const session = await auth()
 
@@ -33,17 +36,12 @@ export default async function AppLayout({
         <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-6" />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm font-medium">单细胞云平台</span>
-            <span className="truncate text-xs text-muted-foreground">
-              项目管理与交付跟踪
-            </span>
-          </div>
-          <UserMenu user={session.user} />
+          <PageTitle />
         </header>
         <main id="main-content" className="flex min-h-[calc(100svh-3.5rem)] flex-col">
           {children}
         </main>
+        {sheet}
       </SidebarInset>
     </SidebarProvider>
   )

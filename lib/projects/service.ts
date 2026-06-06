@@ -43,6 +43,8 @@ const projectUserSelect = {
   name: true,
   email: true,
   role: true,
+  department: true,
+  phone: true,
 } satisfies Prisma.UserSelect
 
 const projectInclude = {
@@ -85,6 +87,17 @@ function buildProjectListWhere(
   if (query.serviceLevel) filters.push({ serviceLevel: query.serviceLevel })
   if (query.salesOwnerId) filters.push({ salesOwnerId: query.salesOwnerId })
   if (query.projectManagerId) filters.push({ projectManagerId: query.projectManagerId })
+  if (query.due === "soon") {
+    // 与工作台 dueSoonProjects 口径一致：未来 7 个自然日内预计交付且未关闭
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 7)
+    filters.push({
+      expectedDeliveryDate: { gte: start, lt: end },
+      status: { notIn: [ProjectStatus.completed, ProjectStatus.terminated] },
+    })
+  }
 
   return { AND: filters }
 }

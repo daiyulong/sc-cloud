@@ -79,6 +79,8 @@ export const projectListQuerySchema = z.object({
   serviceLevel: serviceLevelSchema.optional(),
   salesOwnerId: optionalString,
   projectManagerId: optionalString,
+  /** soon = 未来 7 个自然日内预计交付且未关闭（工作台「7 天内交付」入口） */
+  due: z.enum(["soon"]).optional(),
   page: optionalString,
   limit: optionalString,
 })

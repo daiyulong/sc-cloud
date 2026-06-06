@@ -2,49 +2,50 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  BookOpen,
-  Dna,
-  FlaskConical,
-  FolderKanban,
-  LayoutDashboard,
-  Microscope,
-  PackageCheck,
-  Upload,
-  Users,
-} from "lucide-react"
 import type { Session } from "next-auth"
 import type { UserRole } from "@/lib/enums"
+import { adminNavItems, primaryNavItems, type NavItem } from "@/components/nav-items"
+import { UserMenu } from "@/components/user-menu"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
-
-const primaryItems = [
-  { title: "工作台", href: "/dashboard", icon: LayoutDashboard },
-  { title: "项目", href: "/projects", icon: FolderKanban },
-  { title: "样本接收", href: "/samples", icon: Microscope },
-  { title: "实验排期", href: "/experiment-tasks", icon: FlaskConical },
-  { title: "生信分析", href: "/bioinfo-tasks", icon: Dna },
-  { title: "交付", href: "/delivery", icon: PackageCheck },
-  { title: "经验库", href: "/experiences", icon: BookOpen },
-]
-
-const adminItems = [
-  { title: "历史导入", href: "/imports", icon: Upload },
-  { title: "用户管理", href: "/system/users", icon: Users },
-]
 
 type AppSidebarProps = {
   user: Session["user"]
+}
+
+function NavGroup({ items, pathname }: { items: NavItem[]; pathname: string }) {
+  return (
+    <SidebarGroup>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+            return (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+                  <Link href={item.href} aria-current={isActive ? "page" : undefined}>
+                    <item.icon aria-hidden="true" />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  )
 }
 
 export function AppSidebar({ user }: AppSidebarProps) {
@@ -74,64 +75,17 @@ export function AppSidebar({ user }: AppSidebarProps) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>业务</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {primaryItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
-                  >
-                    <Link
-                      href={item.href}
-                      aria-current={
-                        pathname === item.href || pathname.startsWith(`${item.href}/`)
-                          ? "page"
-                          : undefined
-                      }
-                    >
-                      <item.icon aria-hidden="true" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
+        <NavGroup items={primaryNavItems} pathname={pathname} />
         {isAdmin && (
-          <SidebarGroup>
-            <SidebarGroupLabel>管理</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {adminItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
-                    >
-                      <Link
-                        href={item.href}
-                        aria-current={
-                          pathname === item.href || pathname.startsWith(`${item.href}/`)
-                            ? "page"
-                            : undefined
-                        }
-                      >
-                        <item.icon aria-hidden="true" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <>
+            <SidebarSeparator />
+            <NavGroup items={adminNavItems} pathname={pathname} />
+          </>
         )}
       </SidebarContent>
+      <SidebarFooter>
+        <UserMenu user={user} />
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

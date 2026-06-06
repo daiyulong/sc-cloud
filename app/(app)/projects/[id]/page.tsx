@@ -4,19 +4,21 @@ import { Edit, Plus } from "lucide-react"
 import { auth } from "@/lib/auth"
 import {
   PROJECT_STATUS_LABELS,
-  SAMPLE_STATUS_LABELS,
-  SERVICE_LEVEL_LABELS,
-  USER_ROLE_LABELS,
   type ProjectStatus as ProjectStatusValue,
   type SampleStatus as SampleStatusValue,
-  type ServiceLevel as ServiceLevelValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { getProjectDetail } from "@/lib/projects/service"
 import { sampleCreateRoles } from "@/lib/samples/rules"
 import { listSamples } from "@/lib/samples/service"
 import { formatDate, formatDateTime } from "@/lib/utils"
-import { ProjectActions } from "@/components/projects/project-actions"
+import { ClickableRow } from "@/components/list/clickable-row"
+import { OperationTimeline } from "@/components/detail/operation-timeline"
+import { ProjectActionMenu } from "@/components/projects/project-action-menu"
+import { ProjectFields } from "@/components/projects/project-fields"
+import { SampleActionMenu } from "@/components/samples/sample-action-menu"
+import { SAMPLE_STATUS_DOT, StatusDot } from "@/components/status-dot"
+import { SAMPLE_STATUS_LABELS } from "@/lib/enums"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,7 +28,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import {
   Table,
   TableBody,
@@ -40,15 +41,6 @@ export const dynamic = "force-dynamic"
 
 type ProjectDetailPageProps = {
   params: Promise<{ id: string }>
-}
-
-function FieldLine({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-sm">{value || "-"}</span>
-    </div>
-  )
 }
 
 export default async function ProjectDetailPage({ params }: ProjectDetailPageProps) {
@@ -80,56 +72,31 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
             {project.customerOrg} · {project.customerName}
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href={`/projects/${project.id}/edit`}>
-            <Edit data-icon="inline-start" aria-hidden="true" />
-            编辑
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <ProjectActionMenu
+            projectId={project.id}
+            projectNo={project.projectNo}
+            status={project.status as ProjectStatusValue}
+            role={session.user.role}
+          />
+          <Button asChild variant="outline">
+            <Link href={`/projects/${project.id}/edit`}>
+              <Edit data-icon="inline-start" aria-hidden="true" />
+              编辑
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
-        <Card>
-          <CardHeader>
-            <CardTitle>基础信息</CardTitle>
-            <CardDescription>委托单粒度的项目主数据</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-5 md:grid-cols-3">
-            <FieldLine label="合同编号" value={project.contractNo} />
-            <FieldLine label="委托单编号" value={project.orderNo} />
-            <FieldLine
-              label="服务档次"
-              value={SERVICE_LEVEL_LABELS[project.serviceLevel as ServiceLevelValue]}
-            />
-            <FieldLine label="项目类型" value={project.projectType} />
-            <FieldLine label="服务内容" value={project.serviceItems} />
-            <FieldLine label="优先级" value={project.priority} />
-            <FieldLine label="销售负责人" value={project.salesOwner?.name} />
-            <FieldLine label="项目经理" value={project.projectManager?.name} />
-            <FieldLine label="预计交付" value={formatDate(project.expectedDeliveryDate)} />
-            <FieldLine label="测序平台" value={project.sequencingPlatform} />
-            <FieldLine label="实际交付" value={formatDateTime(project.deliveredAt)} />
-            <FieldLine label="创建时间" value={formatDateTime(project.createdAt)} />
-            <div className="md:col-span-3">
-              <FieldLine label="备注" value={project.remark} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>项目动作</CardTitle>
-            <CardDescription>状态只能通过语义化动作推进</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProjectActions
-              projectId={project.id}
-              status={project.status as ProjectStatusValue}
-              role={session.user.role}
-            />
-          </CardContent>
-        </Card>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>基础信息</CardTitle>
+          <CardDescription>委托单粒度的项目主数据</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProjectFields project={project} columns={3} />
+        </CardContent>
+      </Card>
 
       <section className="grid gap-4 md:grid-cols-3">
         <Link href={`/samples?projectId=${project.id}`} className="group">
@@ -193,30 +160,39 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
             </TableHeader>
             <TableBody>
               {samples.map((sample) => (
-                <TableRow key={sample.id}>
-                  <TableCell className="font-medium">{sample.sampleNo}</TableCell>
+                <ClickableRow key={sample.id} href={`/samples/${sample.id}`}>
                   <TableCell>
-                    <div className="flex flex-col">
-                      <span>{sample.species}</span>
-                      <span className="text-xs text-muted-foreground">{sample.tissueType}</span>
-                    </div>
+                    <Link
+                      href={`/samples/${sample.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {sample.sampleNo}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    {sample.species} · {sample.tissueType}
                   </TableCell>
                   <TableCell>{sample.experimentType}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant={sample.status === "abnormal" ? "destructive" : "secondary"}
-                    >
+                    <span className="flex items-center gap-2 whitespace-nowrap">
+                      <StatusDot
+                        className={SAMPLE_STATUS_DOT[sample.status as SampleStatusValue]}
+                      />
                       {SAMPLE_STATUS_LABELS[sample.status as SampleStatusValue]}
-                    </Badge>
+                    </span>
                   </TableCell>
                   <TableCell>{formatDate(sample.expectedArrivalDate)}</TableCell>
                   <TableCell>{formatDateTime(sample.receivedAt)}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/samples/${sample.id}`}>详情</Link>
-                    </Button>
+                    <SampleActionMenu
+                      sampleId={sample.id}
+                      sampleNo={sample.sampleNo}
+                      status={sample.status as SampleStatusValue}
+                      role={session.user.role}
+                      compact
+                    />
                   </TableCell>
-                </TableRow>
+                </ClickableRow>
               ))}
               {samples.length === 0 && (
                 <TableRow>
@@ -235,27 +211,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           <CardTitle>时间线</CardTitle>
           <CardDescription>来自操作日志</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {operationLogs.map((log) => (
-            <div key={log.id} className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{log.action}</Badge>
-                  <span className="text-sm font-medium">{log.operator.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {USER_ROLE_LABELS[log.operator.role as UserRoleValue]}
-                  </span>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {formatDateTime(log.createdAt)}
-                </span>
-              </div>
-              <Separator />
-            </div>
-          ))}
-          {operationLogs.length === 0 && (
-            <p className="text-sm text-muted-foreground">暂无操作日志。</p>
-          )}
+        <CardContent>
+          <OperationTimeline logs={operationLogs} />
         </CardContent>
       </Card>
     </div>

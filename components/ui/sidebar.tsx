@@ -363,7 +363,11 @@ function SidebarSeparator({
     <Separator
       data-slot="sidebar-separator"
       data-sidebar="separator"
-      className={cn("mx-2 w-auto bg-sidebar-border", className)}
+      className={cn(
+        // data-orientation 变体覆盖 Separator 基类的 w-full，否则 w-full+mx-2 在 overflow-auto 容器里产生横向滚动条
+        "mx-2 w-auto bg-sidebar-border data-[orientation=horizontal]:w-auto",
+        className
+      )}
       {...props}
     />
   )

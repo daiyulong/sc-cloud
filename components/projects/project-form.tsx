@@ -143,8 +143,8 @@ export function ProjectForm({
       }
 
       toast.success(mode === "create" ? "项目已创建" : "项目已更新")
-      router.push(`/projects/${result.data.id}`)
-      router.refresh()
+      // 硬导航直达全页详情：软 push 会被 @sheet 拦截成「侧滑盖在表单上」
+      window.location.assign(`/projects/${result.data.id}`)
     })
   }
 

@@ -2,12 +2,9 @@ import Link from "next/link"
 import {
   AlertTriangle,
   ArrowRight,
-  CalendarClock,
-  CheckCircle2,
-  ClipboardList,
   Clock,
   FlaskConical,
-  PackageCheck,
+  Microscope,
 } from "lucide-react"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
@@ -15,9 +12,7 @@ import { buildProjectScope } from "@/lib/auth/role-scope"
 import {
   PROJECT_STATUS_LABELS,
   ProjectStatus,
-  SERVICE_LEVEL_LABELS,
-  ServiceLevel,
-  USER_ROLE_LABELS,
+  SampleStatus,
   type UserRole,
 } from "@/lib/enums"
 import { cn } from "@/lib/utils"
@@ -52,6 +47,7 @@ type DashboardData = {
     openBioinfoTasks: number
     receivedSamples: number
     dueSoonProjects: number
+    todayExpectedSamples: number
   }
 }
 
@@ -102,6 +98,7 @@ async function getDashboardData(): Promise<DashboardData | null> {
       openBioinfoTasks,
       receivedSamples,
       dueSoonProjects,
+      todayExpectedSamples,
     ] = await Promise.all([
       prisma.project.count({
         where: {
@@ -176,6 +173,13 @@ async function getDashboardData(): Promise<DashboardData | null> {
           ],
         },
       }),
+      prisma.sample.count({
+        where: {
+          project: projectScope,
+          status: SampleStatus.waiting_arrival,
+          expectedArrivalDate: { gte: start, lt: end },
+        },
+      }),
     ])
 
     return {
@@ -197,6 +201,7 @@ async function getDashboardData(): Promise<DashboardData | null> {
         openBioinfoTasks,
         receivedSamples,
         dueSoonProjects,
+        todayExpectedSamples,
       },
     }
   } catch (error) {
@@ -218,6 +223,12 @@ function buildWorkQueue(role: UserRole | undefined, metrics: DashboardData["metr
       count: metrics.waitingSample,
       caption: "收样前置",
       href: "/projects?status=waiting_sample",
+    },
+    {
+      title: "待交付项目",
+      count: metrics.waitingDelivery,
+      caption: "交付确认",
+      href: "/projects?status=waiting_delivery",
     },
     {
       title: "异常项目",
@@ -356,23 +367,16 @@ const pipelineStages = [
   ProjectStatus.completed,
 ] as const
 
-const serviceRoutes = [
-  ServiceLevel.qc,
-  ServiceLevel.library,
-  ServiceLevel.run,
-  ServiceLevel.standard,
-  ServiceLevel.advanced,
-] as const
-
 function QueueRow({ item }: { item: WorkQueueItem }) {
   return (
-    <div className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-md border px-3 py-2.5">
+    <div className="grid grid-cols-[1fr_auto] items-center gap-3 py-3 first:pt-0 last:pb-0">
       <div className="flex min-w-0 items-center gap-3">
         <span
           className={cn(
             "flex size-9 shrink-0 items-center justify-center rounded-md bg-accent text-sm font-semibold text-accent-foreground tabular-nums",
-            item.tone === "danger" && "bg-destructive text-destructive-foreground",
-            item.tone === "warning" && "bg-secondary text-secondary-foreground"
+            // 计数为 0 时保持中性色，仅有实际数量才用警示色
+            item.count > 0 && item.tone === "danger" && "bg-destructive text-destructive-foreground",
+            item.count > 0 && item.tone === "warning" && "bg-secondary text-secondary-foreground"
           )}
         >
           {item.count}
@@ -383,7 +387,7 @@ function QueueRow({ item }: { item: WorkQueueItem }) {
         </div>
       </div>
       <Button variant="ghost" size="sm" asChild>
-        <Link href={item.href}>
+        <Link href={item.href} aria-label={`进入${item.title}`}>
           进入
           <ArrowRight data-icon="inline-end" aria-hidden="true" />
         </Link>
@@ -413,33 +417,20 @@ export default async function DashboardPage() {
       openBioinfoTasks: 0,
       receivedSamples: 0,
       dueSoonProjects: 0,
+      todayExpectedSamples: 0,
     } satisfies DashboardData["metrics"])
   const workQueue = buildWorkQueue(data?.role, metrics)
-  const roleLabel = data?.role ? USER_ROLE_LABELS[data.role] : "当前用户"
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-pretty text-2xl font-semibold tracking-normal">工作台</h1>
-          <Badge variant="secondary">{roleLabel}</Badge>
-        </div>
-        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-          <span>活跃项目 {metrics.activeProjects}</span>
-          <span>·</span>
-          <span>今日实验 {metrics.todayExperimentTasks}</span>
-          <span>·</span>
-          <span>待交付 {metrics.waitingDelivery}</span>
-        </div>
-      </div>
-
+      <h1 className="sr-only">工作台</h1>
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader>
             <CardTitle>待办队列</CardTitle>
             <CardDescription>按当前角色收敛</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3">
+          <CardContent className="divide-y">
             {workQueue.map((item) => (
               <QueueRow key={item.title} item={item} />
             ))}
@@ -448,33 +439,54 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>今日节奏</CardTitle>
-            <CardDescription>实验、反馈、交付</CardDescription>
+            <CardTitle>需要关注</CardTitle>
+            <CardDescription>异常、临期与今日到样</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
-              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                <CalendarClock aria-hidden="true" />
-                今日实验任务
+          <CardContent className="divide-y">
+            <Link
+              href="/projects?status=abnormal"
+              className="group flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-sm font-medium group-hover:underline">
+                <AlertTriangle aria-hidden="true" />
+                异常项目
               </span>
-              <Badge variant="secondary">{metrics.todayExperimentTasks}</Badge>
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
+              <Badge variant={metrics.abnormalProjects > 0 ? "destructive" : "secondary"}>
+                {metrics.abnormalProjects}
+              </Badge>
+            </Link>
+            <Link
+              href="/projects?due=soon"
+              className="group flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-sm font-medium group-hover:underline">
+                <Clock aria-hidden="true" />
+                7 天内交付
+              </span>
+              <Badge variant={metrics.dueSoonProjects > 0 ? "default" : "secondary"}>
+                {metrics.dueSoonProjects}
+              </Badge>
+            </Link>
+            <Link
+              href="/samples?status=waiting_arrival"
+              className="group flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-sm font-medium group-hover:underline">
+                <Microscope aria-hidden="true" />
+                今日预计到样
+              </span>
+              <Badge variant={metrics.todayExpectedSamples > 0 ? "default" : "secondary"}>
+                {metrics.todayExpectedSamples}
+              </Badge>
+            </Link>
+            {/* 实验任务模块落地后补跳转链接 */}
+            <div className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
               <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
                 <FlaskConical aria-hidden="true" />
                 待实验反馈
               </span>
               <Badge variant={metrics.waitingFeedbackTasks > 0 ? "default" : "secondary"}>
                 {metrics.waitingFeedbackTasks}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
-              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                <Clock aria-hidden="true" />
-                7 天内交付
-              </span>
-              <Badge variant={metrics.dueSoonProjects > 0 ? "default" : "secondary"}>
-                {metrics.dueSoonProjects}
               </Badge>
             </div>
           </CardContent>
@@ -506,7 +518,7 @@ export default async function DashboardPage() {
                   <Link
                     key={status}
                     href={`/projects?status=${status}`}
-                    className="group flex min-h-24 flex-col justify-between rounded-md border bg-background p-3 outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
+                    className="group flex min-h-24 flex-col justify-between rounded-md bg-muted/50 p-3 outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <span className="text-xs text-muted-foreground">
                       {PROJECT_STATUS_LABELS[status]}
@@ -521,73 +533,6 @@ export default async function DashboardPage() {
           </div>
         </CardContent>
       </Card>
-
-      <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>重点关注</CardTitle>
-            <CardDescription>异常与临近交付</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
-              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                <AlertTriangle aria-hidden="true" />
-                异常项目
-              </span>
-              <Badge variant={metrics.abnormalProjects > 0 ? "destructive" : "secondary"}>
-                {metrics.abnormalProjects}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
-              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                <PackageCheck aria-hidden="true" />
-                待交付项目
-              </span>
-              <Badge variant={metrics.waitingDelivery > 0 ? "default" : "secondary"}>
-                {metrics.waitingDelivery}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
-              <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                <CheckCircle2 aria-hidden="true" />
-                已完成项目
-              </span>
-              <Badge variant="secondary">{metrics.completedProjects}</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>服务路径</CardTitle>
-            <CardDescription>实验后交付 / 经生信交付</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            {serviceRoutes.map((level) => (
-              <div key={level} className="rounded-md border px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <ClipboardList aria-hidden="true" />
-                  <span className="truncate text-sm font-medium">
-                    {SERVICE_LEVEL_LABELS[level]}
-                  </span>
-                </div>
-                <Badge
-                  className="mt-3"
-                  variant={
-                    level === ServiceLevel.standard || level === ServiceLevel.advanced
-                      ? "default"
-                      : "secondary"
-                  }
-                >
-                  {level === ServiceLevel.standard || level === ServiceLevel.advanced
-                    ? "经生信"
-                    : "实验后交付"}
-                </Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </section>
 
       {data === null && (
         <p className="text-sm text-muted-foreground" aria-live="polite">
