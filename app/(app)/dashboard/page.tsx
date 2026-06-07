@@ -326,7 +326,7 @@ function buildWorkQueue(role: UserRole | undefined, metrics: DashboardData["metr
           title: "待交付",
           count: metrics.waitingDelivery,
           caption: "报告交付",
-          href: "/delivery?status=waiting_delivery",
+          href: "/bioinfo-tasks?status=waiting_delivery",
         },
       ] satisfies WorkQueueItem[]
     case "viewer":

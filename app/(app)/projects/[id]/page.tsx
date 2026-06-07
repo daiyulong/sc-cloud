@@ -3,8 +3,10 @@ import { notFound, redirect } from "next/navigation"
 import { Edit, Plus } from "lucide-react"
 import { auth } from "@/lib/auth"
 import {
+  BIOINFO_TASK_STATUS_LABELS,
   EXPERIMENT_TASK_STATUS_LABELS,
   PROJECT_STATUS_LABELS,
+  type BioinfoTaskStatus as BioinfoTaskStatusValue,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
   type SampleStatus as SampleStatusValue,
@@ -16,14 +18,18 @@ import { listSamples } from "@/lib/samples/service"
 import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
+import { bioinfoCreateRoles } from "@/lib/bioinfo-tasks/rules"
+import { listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
 import { ProjectActionMenu } from "@/components/projects/project-action-menu"
 import { ProjectFields } from "@/components/projects/project-fields"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
+import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
 import { SampleActionMenu } from "@/components/samples/sample-action-menu"
 import {
+  BIOINFO_TASK_STATUS_DOT,
   EXPERIMENT_TASK_STATUS_DOT,
   SAMPLE_STATUS_DOT,
   StatusDot,
@@ -63,16 +69,21 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   if (!detail) notFound()
 
   const { project, operationLogs } = detail
-  const [{ data: samples }, { data: tasks }, operatorOptions] = await Promise.all([
-    listSamples(operator, { projectId: id }, { skip: 0, limit: 20 }),
-    listExperimentTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
-    getOperatorOptions(),
-  ])
+  const [{ data: samples }, { data: tasks }, { data: bioinfoTasks }, operatorOptions] =
+    await Promise.all([
+      listSamples(operator, { projectId: id }, { skip: 0, limit: 20 }),
+      listExperimentTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
+      listBioinfoTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
+      getOperatorOptions(),
+    ])
   const canCreateSample = sampleCreateRoles.includes(
     operator.role as (typeof sampleCreateRoles)[number]
   )
   const canCreateTask = experimentManageRoles.includes(
     operator.role as (typeof experimentManageRoles)[number]
+  )
+  const canCreateBioinfo = bioinfoCreateRoles.includes(
+    operator.role as (typeof bioinfoCreateRoles)[number]
   )
 
   return (
@@ -138,15 +149,17 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
             </CardContent>
           </Card>
         </Link>
-        <Card>
-          <CardHeader>
-            <CardTitle>生信任务</CardTitle>
-            <CardDescription>后续接入分析与报告</CardDescription>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold tabular-nums">
-            {project._count.bioinfoTasks}
-          </CardContent>
-        </Card>
+        <Link href={`/bioinfo-tasks?projectId=${project.id}`} className="group">
+          <Card className="transition-colors group-hover:border-primary/40">
+            <CardHeader>
+              <CardTitle>生信任务</CardTitle>
+              <CardDescription>点击查看分析与报告</CardDescription>
+            </CardHeader>
+            <CardContent className="text-3xl font-semibold tabular-nums">
+              {project._count.bioinfoTasks}
+            </CardContent>
+          </Card>
+        </Link>
       </section>
 
       <Card>
@@ -296,6 +309,86 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                 <TableRow>
                   <TableCell colSpan={7} className="h-20 text-center text-muted-foreground">
                     暂无实验任务
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1.5">
+            <CardTitle>生信任务</CardTitle>
+            <CardDescription>该项目下的分析与报告进度（最多展示 20 条）</CardDescription>
+          </div>
+          {canCreateBioinfo && (
+            <Button asChild size="sm">
+              <Link href="/bioinfo-tasks/new">
+                <Plus data-icon="inline-start" aria-hidden="true" />
+                新建任务
+              </Link>
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>任务编号</TableHead>
+                <TableHead>实验任务</TableHead>
+                <TableHead>分析类型</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>分析负责人</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bioinfoTasks.map((task) => (
+                <ClickableRow key={task.id} href={`/bioinfo-tasks/${task.id}`}>
+                  <TableCell>
+                    <Link
+                      href={`/bioinfo-tasks/${task.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {task.taskNo}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      href={`/experiment-tasks/${task.experimentTask.id}`}
+                      className="hover:underline"
+                    >
+                      {task.experimentTask.taskNo}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{task.analysisType ?? "-"}</TableCell>
+                  <TableCell>
+                    <span className="flex items-center gap-2 whitespace-nowrap">
+                      <StatusDot
+                        className={BIOINFO_TASK_STATUS_DOT[task.status as BioinfoTaskStatusValue]}
+                      />
+                      {BIOINFO_TASK_STATUS_LABELS[task.status as BioinfoTaskStatusValue]}
+                    </span>
+                  </TableCell>
+                  <TableCell>{task.analyst?.name ?? "-"}</TableCell>
+                  <TableCell className="text-right">
+                    <BioinfoTaskActionMenu
+                      taskId={task.id}
+                      taskNo={task.taskNo}
+                      status={task.status as BioinfoTaskStatusValue}
+                      role={session.user.role}
+                      analysisType={task.analysisType}
+                      compact
+                    />
+                  </TableCell>
+                </ClickableRow>
+              ))}
+              {bioinfoTasks.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
+                    暂无生信任务
                   </TableCell>
                 </TableRow>
               )}

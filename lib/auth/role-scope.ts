@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client"
-import { ExperimentTaskStatus, SampleStatus, UserRole } from "@/lib/enums"
+import { BioinfoTaskStatus, ExperimentTaskStatus, SampleStatus, UserRole } from "@/lib/enums"
 
 /**
  * 行级数据可见范围（规格 §3.3）。返回 Project 的 where 片段，与用户筛选 AND 叠加：
@@ -70,6 +70,26 @@ export function buildExperimentTaskScope(
     case UserRole.lab_operator:
       return {
         OR: [{ operatorId: userId }, { status: ExperimentTaskStatus.waiting_schedule }],
+      }
+    default:
+      return { project: buildProjectScope(role, userId) }
+  }
+}
+
+/**
+ * 生信任务的行级可见范围。除生信分析员外都由项目 scope 推导。
+ *
+ * 生信分析员特殊（同实验员鸡生蛋）：项目 scope（bioinfo_tasks.some.analystId=me）对
+ * 刚创建、尚未指派分析员的待开始任务恒为假。因此分析员可见 = 自己负责 ∪ 全部待开始任务池。
+ */
+export function buildBioinfoTaskScope(
+  role: UserRole | undefined,
+  userId: string
+): Prisma.BioinfoTaskWhereInput {
+  switch (role) {
+    case UserRole.bioinfo_analyst:
+      return {
+        OR: [{ analystId: userId }, { status: BioinfoTaskStatus.pending }],
       }
     default:
       return { project: buildProjectScope(role, userId) }

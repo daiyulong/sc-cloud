@@ -75,7 +75,13 @@ export function ProjectSheetBody({ detail, role }: { detail: ProjectDetail; role
         >
           实验任务 {project._count.experimentTasks}
         </Link>
-        {" · "}生信任务 {project._count.bioinfoTasks}
+        {" · "}
+        <Link
+          href={`/bioinfo-tasks?projectId=${project.id}`}
+          className="font-medium text-foreground hover:underline"
+        >
+          生信任务 {project._count.bioinfoTasks}
+        </Link>
       </p>
 
       <Separator />

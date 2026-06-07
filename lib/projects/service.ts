@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import { recordOperation } from "@/lib/operation-log"
 import {
+  BioinfoTaskStatus,
   OperationAction,
   ProjectStatus,
   UserRole,
@@ -433,10 +434,45 @@ export async function deliverProject(
   ensureProjectRole(operator.role, [UserRole.admin, UserRole.project_manager], "确认交付")
   const before = await getWritableProject(id)
   ensureProjectStatus(before.status, [ProjectStatus.waiting_delivery], "确认交付")
+  const deliveredAt = input.deliveredAt ?? new Date()
 
-  return updateProjectStatusWithLog(operator, before, {
-    status: ProjectStatus.delivered,
-    deliveredAt: input.deliveredAt ?? new Date(),
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.project.update({
+      where: { id: before.id },
+      data: { status: ProjectStatus.delivered, deliveredAt },
+      include: projectInclude,
+    })
+    await recordOperation({
+      tx,
+      entityType: "project",
+      entityId: before.id,
+      action: OperationAction.status_change,
+      operatorId: operator.id,
+      before,
+      after: updated,
+    })
+
+    // 级联：项目下待交付的生信任务 → 已交付，统一落报告交付日期（§7.4 / §8.9）
+    const pendingBioinfo = await tx.bioinfoTask.findMany({
+      where: { projectId: before.id, status: BioinfoTaskStatus.waiting_delivery },
+    })
+    for (const bioinfoTask of pendingBioinfo) {
+      const bioinfoAfter = await tx.bioinfoTask.update({
+        where: { id: bioinfoTask.id },
+        data: { status: BioinfoTaskStatus.delivered, deliveredAt },
+      })
+      await recordOperation({
+        tx,
+        entityType: "bioinfo_task",
+        entityId: bioinfoTask.id,
+        action: OperationAction.status_change,
+        operatorId: operator.id,
+        before: bioinfoTask,
+        after: { task: bioinfoAfter, trigger: `project:${updated.projectNo}:deliver` },
+      })
+    }
+
+    return updated
   })
 }
 

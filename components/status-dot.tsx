@@ -1,5 +1,10 @@
 import { cn } from "@/lib/utils"
-import type { ExperimentTaskStatus, ProjectStatus, SampleStatus } from "@/lib/enums"
+import type {
+  BioinfoTaskStatus,
+  ExperimentTaskStatus,
+  ProjectStatus,
+  SampleStatus,
+} from "@/lib/enums"
 
 /**
  * 状态彩点（Vercel 式「● Ready」）。色彩语义：
@@ -37,6 +42,15 @@ export const EXPERIMENT_TASK_STATUS_DOT: Record<ExperimentTaskStatus, string> = 
   waiting_feedback: "bg-amber-400",
   completed: "bg-emerald-500",
   cancelled: "bg-zinc-400",
+  abnormal: "bg-red-500",
+}
+
+export const BIOINFO_TASK_STATUS_DOT: Record<BioinfoTaskStatus, string> = {
+  pending: "bg-amber-400",
+  in_progress: "bg-violet-500",
+  waiting_review: "bg-amber-400",
+  waiting_delivery: "bg-amber-400",
+  delivered: "bg-emerald-500",
   abnormal: "bg-red-500",
 }
 
