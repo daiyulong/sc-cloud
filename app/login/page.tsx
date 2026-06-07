@@ -18,7 +18,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-svh items-start bg-muted/30 px-4 py-6 sm:py-10 lg:place-items-center">
+    <main className="grid min-h-svh items-start px-4 py-6 sm:py-10 lg:place-items-center">
       <div className="grid w-full max-w-5xl gap-5 sm:gap-6 lg:grid-cols-[1fr_420px] lg:items-center">
         <section className="flex flex-col gap-5">
           <div className="flex items-center gap-3">

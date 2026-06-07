@@ -5,12 +5,16 @@
 /*
  * 单细胞云平台主题：冷调中性 + 深青(teal)主色，偏「科研工具」气质。
  * 颜色用 OKLCH；语义 token 驱动全站，组件不写裸色值。
+ *
+ * 明度结构对齐 Vercel dashboard（2026-06 实测取色）：
+ * 页面/侧边栏同为 ≈#fafafa 灰底，白色表面（card/popover）靠明度差浮起，
+ * 边框只剩一层极浅 1px ≈#ebebeb；灰阶保留 hue 250 轻冷调以配 teal 主色。
  */
 :root {
   color-scheme: light;
   --radius: 0.5rem;
 
-  --background: oklch(1 0 0);
+  --background: oklch(0.985 0.002 250);
   --foreground: oklch(0.21 0.02 250);
 
   --card: oklch(1 0 0);
@@ -35,8 +39,8 @@
   --destructive: oklch(0.58 0.22 27);
   --destructive-foreground: oklch(0.985 0 0);
 
-  --border: oklch(0.922 0.01 250);
-  --input: oklch(0.922 0.01 250);
+  --border: oklch(0.94 0.005 250);
+  --input: oklch(0.94 0.005 250);
   --ring: oklch(0.52 0.1 194);
 
   /* 数据可视化调色板（青/蓝/靛/琥珀/玫红，区分度高） */
@@ -46,14 +50,14 @@
   --chart-4: oklch(0.75 0.15 75);
   --chart-5: oklch(0.63 0.18 14);
 
-  /* 侧边栏 */
-  --sidebar: oklch(0.985 0.004 240);
+  /* 侧边栏：与页面同底，仅靠 1px 分割线区分（Vercel 形态） */
+  --sidebar: oklch(0.985 0.002 250);
   --sidebar-foreground: oklch(0.21 0.02 250);
   --sidebar-primary: oklch(0.52 0.1 194);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.95 0.025 194);
   --sidebar-accent-foreground: oklch(0.3 0.05 194);
-  --sidebar-border: oklch(0.922 0.01 250);
+  --sidebar-border: oklch(0.94 0.005 250);
   --sidebar-ring: oklch(0.52 0.1 194);
 }
 
