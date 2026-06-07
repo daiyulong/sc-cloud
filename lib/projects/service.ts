@@ -59,13 +59,6 @@ const projectInclude = {
   },
 } satisfies Prisma.ProjectInclude
 
-function projectLogSelect(id: string) {
-  return {
-    entityType: "project",
-    entityId: id,
-  } satisfies Prisma.OperationLogWhereInput
-}
-
 function buildProjectListWhere(
   operator: ProjectOperator,
   query: ProjectListQuery
@@ -190,20 +183,32 @@ export async function listProjects(
 }
 
 export async function getProjectDetail(operator: ProjectOperator, id: string) {
-  const [project, operationLogs] = await Promise.all([
-    prisma.project.findFirst({
-      where: projectVisibleWhere(operator, id),
-      include: projectInclude,
-    }),
-    prisma.operationLog.findMany({
-      where: projectLogSelect(id),
-      include: { operator: { select: projectUserSelect } },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    }),
-  ])
-
+  const project = await prisma.project.findFirst({
+    where: projectVisibleWhere(operator, id),
+    include: projectInclude,
+  })
   if (!project) throw new ProjectDomainError("项目不存在或无权访问", 404)
+
+  // 时间线 = 项目自身日志 + 子实体（样本/实验任务/生信任务）日志汇总（CLAUDE.md / §6.10）
+  const [samples, tasks, bioinfos] = await Promise.all([
+    prisma.sample.findMany({ where: { projectId: id }, select: { id: true } }),
+    prisma.experimentTask.findMany({ where: { projectId: id }, select: { id: true } }),
+    prisma.bioinfoTask.findMany({ where: { projectId: id }, select: { id: true } }),
+  ])
+  const operationLogs = await prisma.operationLog.findMany({
+    where: {
+      OR: [
+        { entityType: "project", entityId: id },
+        { entityType: "sample", entityId: { in: samples.map((s) => s.id) } },
+        { entityType: "experiment_task", entityId: { in: tasks.map((t) => t.id) } },
+        { entityType: "bioinfo_task", entityId: { in: bioinfos.map((b) => b.id) } },
+      ],
+    },
+    include: { operator: { select: projectUserSelect } },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  })
+
   return { project, operationLogs }
 }
 
