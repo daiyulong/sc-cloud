@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { getAvailableExperimentTaskActions } from "@/lib/experiment-tasks/rules"
+import { canRecordQc, getAvailableExperimentTaskActions } from "@/lib/experiment-tasks/rules"
 import { ExperimentTaskStatus, UserRole } from "@/lib/enums"
 
 describe("getAvailableExperimentTaskActions", () => {
@@ -54,5 +54,33 @@ describe("getAvailableExperimentTaskActions", () => {
         getAvailableExperimentTaskActions(ExperimentTaskStatus.in_progress, role)
       ).toEqual([])
     }
+  })
+})
+
+describe("canRecordQc（含 completed 补录）", () => {
+  it("进行中/待反馈/已完成 + 管理角色可录（已完成为补录）", () => {
+    for (const status of [
+      ExperimentTaskStatus.in_progress,
+      ExperimentTaskStatus.waiting_feedback,
+      ExperimentTaskStatus.completed,
+    ]) {
+      expect(canRecordQc(status, UserRole.lab_operator)).toBe(true)
+    }
+  })
+
+  it("未开始/取消/异常不可录", () => {
+    for (const status of [
+      ExperimentTaskStatus.waiting_schedule,
+      ExperimentTaskStatus.scheduled,
+      ExperimentTaskStatus.cancelled,
+      ExperimentTaskStatus.abnormal,
+    ]) {
+      expect(canRecordQc(status, UserRole.lab_operator)).toBe(false)
+    }
+  })
+
+  it("无关角色/空角色不可录", () => {
+    expect(canRecordQc(ExperimentTaskStatus.completed, UserRole.viewer)).toBe(false)
+    expect(canRecordQc(ExperimentTaskStatus.completed, undefined)).toBe(false)
   })
 })

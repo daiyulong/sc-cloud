@@ -9,7 +9,7 @@ import {
   type QCResult as QCResultValue,
   type RiskLevel as RiskLevelValue,
 } from "@/lib/enums"
-import { getAvailableExperimentTaskActions } from "@/lib/experiment-tasks/rules"
+import { canRecordQc } from "@/lib/experiment-tasks/rules"
 import { formatDateTime } from "@/lib/utils"
 import { useEntityAction } from "@/components/detail/use-entity-action"
 import { QcDialog, type QcRecordBody } from "@/components/experiment-tasks/qc-dialog"
@@ -52,11 +52,11 @@ function metric(label: string, value: number | null, suffix = "") {
   )
 }
 
-/** 质控记录区：展示既有记录 + 录入入口（进行中/待反馈可录，§6.6 一任务可多条） */
+/** 质控记录区：展示既有记录 + 录入入口（进行中/待反馈/已完成可录，已完成为补录，§6.6 一任务可多条） */
 export function QcSection({ taskId, taskNo, status, role, records }: QcSectionProps) {
   const { run, isPending } = useEntityAction()
   const [open, setOpen] = React.useState(false)
-  const canRecord = getAvailableExperimentTaskActions(status, role).includes("qc")
+  const canRecord = canRecordQc(status, role)
 
   function onConfirm(body: QcRecordBody) {
     run(`/api/experiment-tasks/${taskId}/qc`, "录入质控", body, () => setOpen(false))

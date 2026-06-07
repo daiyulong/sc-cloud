@@ -30,10 +30,14 @@ export const experimentManageRoles = [
   UserRole.lab_operator,
 ] as const
 
-/** 录入质控允许的任务执行态（进行中 / 待反馈；质控是业务判定，不改执行态） */
+/**
+ * 录入质控允许的任务执行态：进行中 / 待反馈 / 已完成。质控是业务判定、不改执行态。
+ * 含 completed 是为「补录」——若提交反馈（→已完成）前漏填质控，仍可事后补，避免一旦完成就再也填不了。
+ */
 export const qcRecordableTaskStatuses: readonly ExperimentTaskStatusValue[] = [
   ExperimentTaskStatus.in_progress,
   ExperimentTaskStatus.waiting_feedback,
+  ExperimentTaskStatus.completed,
 ]
 
 /** 提交实验反馈允许的前置态（进行中可直接提交，待反馈也可补提交） */
@@ -152,5 +156,20 @@ export function canRecordRunMetrics(
     !!role &&
     metricsRecordRoles.includes(role as (typeof metricsRecordRoles)[number]) &&
     metricsRecordableTaskStatuses.includes(status)
+  )
+}
+
+/**
+ * UI 判断：当前状态+角色是否可录入质控。与产出指标同为 section 级补录入口
+ * （含 completed 补录），独立于工作流动作菜单 `getAvailableExperimentTaskActions`。
+ */
+export function canRecordQc(
+  status: ExperimentTaskStatusValue,
+  role: string | undefined
+): boolean {
+  return (
+    !!role &&
+    experimentManageRoles.includes(role as (typeof experimentManageRoles)[number]) &&
+    qcRecordableTaskStatuses.includes(status)
   )
 }
