@@ -71,20 +71,29 @@ describe("updateSampleSchema", () => {
 })
 
 describe("receiveSampleSchema", () => {
+  // 登记接收同时补全样本信息：物种/组织/实验类型/运输条件必填
+  const info = { species: "人", tissueType: "肺", experimentType: "scRNA", transportCondition: "干冰" }
+
+  it("requires sample info fields", () => {
+    expect(() => receiveSampleSchema.parse({})).toThrow()
+    expect(() => receiveSampleSchema.parse({ ...info, species: "" })).toThrow()
+  })
+
   it("defaults to normal receive", () => {
-    const result = receiveSampleSchema.parse({})
+    const result = receiveSampleSchema.parse({ ...info })
     expect(result.receiveStatus).toBe("normal")
+    expect(result.species).toBe("人")
   })
 
   it("requires abnormalNote when receive status is abnormal", () => {
-    expect(() => receiveSampleSchema.parse({ receiveStatus: "abnormal" })).toThrow()
+    expect(() => receiveSampleSchema.parse({ ...info, receiveStatus: "abnormal" })).toThrow()
     expect(() =>
-      receiveSampleSchema.parse({ receiveStatus: "abnormal", abnormalNote: "运输破损" })
+      receiveSampleSchema.parse({ ...info, receiveStatus: "abnormal", abnormalNote: "运输破损" })
     ).not.toThrow()
   })
 
   it("parses receivedAt datetime", () => {
-    const result = receiveSampleSchema.parse({ receivedAt: "2026-06-07T10:30" })
+    const result = receiveSampleSchema.parse({ ...info, receivedAt: "2026-06-07T10:30" })
     expect(result.receivedAt).toBeInstanceOf(Date)
   })
 })

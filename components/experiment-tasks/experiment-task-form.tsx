@@ -21,9 +21,9 @@ import {
 export type TaskSampleOption = {
   id: string
   sampleNo: string
-  species: string
-  tissueType: string
-  experimentType: string
+  species: string | null
+  tissueType: string | null
+  experimentType: string | null
   project: { id: string; projectNo: string | null; customerOrg: string }
 }
 
@@ -71,7 +71,7 @@ export function ExperimentTaskForm({
     // 选中样本后，实验类型为空则用样本的实验类型预填（可改）
     if (!experimentType.trim()) {
       const picked = sampleOptions.find((option) => option.id === next)
-      if (picked) setExperimentType(picked.experimentType)
+      if (picked?.experimentType) setExperimentType(picked.experimentType)
     }
   }
 

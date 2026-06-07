@@ -118,6 +118,13 @@ export function ProjectForm({
       priority,
       expectedDeliveryDate: formString(formData, "expectedDeliveryDate"),
       remark: formString(formData, "remark"),
+      // 一委托单一组样本：仅创建时填 样本编号 + 数量（编辑时样本独立管理）
+      ...(mode === "create"
+        ? {
+            sampleNo: formString(formData, "sampleNo"),
+            sampleCount: formString(formData, "sampleCount"),
+          }
+        : {}),
     }
 
     startTransition(async () => {
@@ -264,6 +271,26 @@ export function ProjectForm({
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+              </Field>
+            </>
+          )}
+          {mode === "create" && (
+            <>
+              <Field>
+                <FieldLabel htmlFor="sampleNo">样本编号</FieldLabel>
+                <Input id="sampleNo" name="sampleNo" placeholder="如 YP20260504587" required />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="sampleCount">样本数量</FieldLabel>
+                <Input
+                  id="sampleCount"
+                  name="sampleCount"
+                  type="number"
+                  min={1}
+                  step={1}
+                  defaultValue={1}
+                  required
+                />
               </Field>
             </>
           )}

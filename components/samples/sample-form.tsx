@@ -34,11 +34,11 @@ export type SampleProjectOption = {
 type SampleFormValue = {
   id?: string
   sampleNo?: string
-  species?: string
-  tissueType?: string
+  species?: string | null
+  tissueType?: string | null
   sampleCount?: number | null
-  experimentType?: string
-  transportCondition?: string
+  experimentType?: string | null
+  transportCondition?: string | null
   samplingDate?: Date | string | null
   expectedArrivalDate?: Date | string | null
   remark?: string | null
@@ -159,7 +159,7 @@ export function SampleForm({ mode, sample, projectOptions = [], initialProjectId
             <Input
               id="species"
               name="species"
-              defaultValue={sample?.species}
+              defaultValue={textValue(sample?.species)}
               placeholder="人 / 小鼠 / 大鼠…"
               required
             />
@@ -169,7 +169,7 @@ export function SampleForm({ mode, sample, projectOptions = [], initialProjectId
             <Input
               id="tissueType"
               name="tissueType"
-              defaultValue={sample?.tissueType}
+              defaultValue={textValue(sample?.tissueType)}
               placeholder="肺组织 / 肝脏组织…"
               required
             />
@@ -190,7 +190,7 @@ export function SampleForm({ mode, sample, projectOptions = [], initialProjectId
             <Input
               id="experimentType"
               name="experimentType"
-              defaultValue={sample?.experimentType}
+              defaultValue={textValue(sample?.experimentType)}
               placeholder="组织解离 / 细胞核 / 建库 / 上机…"
               required
             />
@@ -200,7 +200,7 @@ export function SampleForm({ mode, sample, projectOptions = [], initialProjectId
             <Input
               id="transportCondition"
               name="transportCondition"
-              defaultValue={sample?.transportCondition}
+              defaultValue={textValue(sample?.transportCondition)}
               placeholder="4℃ / 冷链 / 干冰…"
               required
             />

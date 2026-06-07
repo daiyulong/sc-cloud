@@ -19,7 +19,7 @@ export type SampleActionDescriptor = {
 const descriptors: Record<SampleAction, SampleActionDescriptor> = {
   receive: {
     action: "receive",
-    label: "接收样本",
+    label: "登记接收",
     path: "receive",
     icon: PackageCheck,
     kind: "formDialog",

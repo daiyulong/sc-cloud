@@ -39,6 +39,12 @@ export const createProjectSchema = z.object({
   priority: z.string().trim().min(1).default("普通"),
   expectedDeliveryDate: nullableDate,
   remark: nullableString,
+  // 一委托单一组样本：销售建项目时填 样本编号(YP) + 样本数量，创建即生成 1 条待到样样本
+  sampleNo: requiredString("请输入样本编号"),
+  sampleCount: z.preprocess(
+    (value) => (typeof value === "string" ? Number(value) : value),
+    z.number("样本数量必须为数字").int("样本数量必须为整数").positive("样本数量至少为 1")
+  ),
 })
 export type CreateProjectInput = z.infer<typeof createProjectSchema>
 

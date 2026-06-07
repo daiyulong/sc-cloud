@@ -219,6 +219,11 @@ export async function createProject(operator: ProjectOperator, input: CreateProj
   const projectManagerId =
     input.projectManagerId || (operator.role === UserRole.project_manager ? operator.id : null)
 
+  // 一委托单一组样本：建项目即生成 1 条待到样样本（编号唯一预检）
+  const sampleNo = input.sampleNo.trim()
+  const sampleClash = await prisma.sample.findUnique({ where: { sampleNo }, select: { id: true } })
+  if (sampleClash) throw new ProjectDomainError(`样本编号 ${sampleNo} 已存在`, 409)
+
   return prisma.$transaction(async (tx) => {
     const project = await tx.project.create({
       data: {
@@ -247,6 +252,19 @@ export async function createProject(operator: ProjectOperator, input: CreateProj
       action: OperationAction.create,
       operatorId: operator.id,
       after: project,
+    })
+
+    // 样本信息（物种/组织/实验类型/运输条件）收样时补，建项目仅录编号+数量
+    const sample = await tx.sample.create({
+      data: { sampleNo, projectId: project.id, sampleCount: input.sampleCount },
+    })
+    await recordOperation({
+      tx,
+      entityType: "sample",
+      entityId: sample.id,
+      action: OperationAction.create,
+      operatorId: operator.id,
+      after: sample,
     })
 
     return project

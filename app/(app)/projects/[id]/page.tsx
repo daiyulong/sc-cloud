@@ -13,7 +13,6 @@ import {
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { getProjectDetail } from "@/lib/projects/service"
-import { sampleCreateRoles } from "@/lib/samples/rules"
 import { listSamples } from "@/lib/samples/service"
 import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
@@ -76,9 +75,6 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       listBioinfoTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
       getOperatorOptions(),
     ])
-  const canCreateSample = sampleCreateRoles.includes(
-    operator.role as (typeof sampleCreateRoles)[number]
-  )
   const canCreateTask = experimentManageRoles.includes(
     operator.role as (typeof experimentManageRoles)[number]
   )
@@ -163,19 +159,9 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       </section>
 
       <Card>
-        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-          <div className="flex flex-col gap-1.5">
-            <CardTitle>样本列表</CardTitle>
-            <CardDescription>该项目下的样本与接收进度（最多展示 20 条）</CardDescription>
-          </div>
-          {canCreateSample && (
-            <Button asChild size="sm">
-              <Link href={`/samples/new?projectId=${project.id}`}>
-                <Plus data-icon="inline-start" aria-hidden="true" />
-                登记样本
-              </Link>
-            </Button>
-          )}
+        <CardHeader>
+          <CardTitle>样本列表</CardTitle>
+          <CardDescription>该项目下的样本与接收进度（最多展示 20 条）</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>

@@ -245,11 +245,12 @@ model Sample {
   id                  String        @id @default(cuid())
   sampleNo            String        @unique @map("sample_no") // 唯一
   projectId           String        @map("project_id")
-  species             String
-  tissueType          String        @map("tissue_type")
+  // 样本信息建项目时仅填 sampleNo + sampleCount（一编号=一组），其余收样时补，故可空
+  species             String?
+  tissueType          String?       @map("tissue_type")
   sampleCount         Int?          @map("sample_count")
-  experimentType      String        @map("experiment_type")
-  transportCondition  String        @map("transport_condition")
+  experimentType      String?       @map("experiment_type")
+  transportCondition  String?       @map("transport_condition")
   samplingDate        DateTime?     @map("sampling_date")
   expectedArrivalDate DateTime?     @map("expected_arrival_date")
   receivedAt          DateTime?     @map("received_at")

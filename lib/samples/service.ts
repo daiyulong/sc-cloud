@@ -266,6 +266,12 @@ export async function receiveSample(
     const updated = await tx.sample.update({
       where: { id },
       data: {
+        // 登记接收：补全建项目时缺的样本信息 + 记录到样
+        species: input.species,
+        tissueType: input.tissueType,
+        experimentType: input.experimentType,
+        transportCondition: input.transportCondition,
+        sampleCount: input.sampleCount ?? before.sampleCount,
         receivedAt: input.receivedAt ?? new Date(),
         receiverId: operator.id,
         receiveStatus: input.receiveStatus,

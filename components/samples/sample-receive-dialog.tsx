@@ -35,6 +35,11 @@ function nowInputValue() {
 }
 
 export type ReceiveSampleBody = {
+  species: string
+  tissueType: string
+  experimentType: string
+  transportCondition: string
+  sampleCount: string | null
   receivedAt: string | null
   receiveStatus: ReceiveStatusValue
   abnormalNote: string | null
@@ -48,7 +53,10 @@ type SampleReceiveDialogProps = {
   onConfirm: (body: ReceiveSampleBody) => void
 }
 
-/** 接收样本表单 Dialog：实际接收时间 + 接收状态 + 条件必填的异常说明 */
+/**
+ * 登记接收表单 Dialog：建项目时只有编号+数量，到样时由收样员一次补全
+ * 样本信息（物种/组织/实验类型/运输条件）+ 记录实际到样（时间/状态/异常说明）。
+ */
 export function SampleReceiveDialog({
   open,
   onOpenChange,
@@ -56,6 +64,11 @@ export function SampleReceiveDialog({
   isPending,
   onConfirm,
 }: SampleReceiveDialogProps) {
+  const [species, setSpecies] = React.useState("")
+  const [tissueType, setTissueType] = React.useState("")
+  const [experimentType, setExperimentType] = React.useState("")
+  const [transportCondition, setTransportCondition] = React.useState("")
+  const [sampleCount, setSampleCount] = React.useState("")
   const [receivedAt, setReceivedAt] = React.useState("")
   const [receiveStatus, setReceiveStatus] = React.useState<ReceiveStatusValue>(
     ReceiveStatus.normal
@@ -64,10 +77,15 @@ export function SampleReceiveDialog({
   const [showError, setShowError] = React.useState(false)
   const [prevOpen, setPrevOpen] = React.useState(open)
 
-  // 每次打开重置为「现在 + 正常接收」（渲染期间调整状态，避免 effect 级联渲染）
+  // 每次打开重置（渲染期间调整状态，避免 effect 级联渲染）
   if (open !== prevOpen) {
     setPrevOpen(open)
     if (open) {
+      setSpecies("")
+      setTissueType("")
+      setExperimentType("")
+      setTransportCondition("")
+      setSampleCount("")
       setReceivedAt(nowInputValue())
       setReceiveStatus(ReceiveStatus.normal)
       setAbnormalNote("")
@@ -76,37 +94,107 @@ export function SampleReceiveDialog({
   }
 
   const noteRequired = receiveStatus === ReceiveStatus.abnormal
-  const invalid = showError && noteRequired && !abnormalNote.trim()
+  const missingInfo =
+    !species.trim() || !tissueType.trim() || !experimentType.trim() || !transportCondition.trim()
+  const noteInvalid = showError && noteRequired && !abnormalNote.trim()
 
   function handleConfirm() {
-    if (noteRequired && !abnormalNote.trim()) {
+    if (missingInfo || (noteRequired && !abnormalNote.trim())) {
       setShowError(true)
       return
     }
     onConfirm({
+      species: species.trim(),
+      tissueType: tissueType.trim(),
+      experimentType: experimentType.trim(),
+      transportCondition: transportCondition.trim(),
+      sampleCount: sampleCount.trim() || null,
       receivedAt: receivedAt || null,
       receiveStatus,
       abnormalNote: abnormalNote.trim() || null,
     })
   }
 
+  function infoInvalid(value: string) {
+    return showError && !value.trim()
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>接收样本</DialogTitle>
-          <DialogDescription>{sampleNo} · 登记实际接收信息</DialogDescription>
+          <DialogTitle>登记接收</DialogTitle>
+          <DialogDescription>{sampleNo} · 补全样本信息并登记实际到样</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <Field>
-            <FieldLabel htmlFor="sample-received-at">实际接收时间</FieldLabel>
-            <Input
-              id="sample-received-at"
-              type="datetime-local"
-              value={receivedAt}
-              onChange={(event) => setReceivedAt(event.target.value)}
-            />
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field data-invalid={infoInvalid(species) || undefined}>
+              <FieldLabel htmlFor="receive-species">物种</FieldLabel>
+              <Input
+                id="receive-species"
+                value={species}
+                onChange={(event) => setSpecies(event.target.value)}
+                placeholder="人 / 小鼠…"
+                aria-invalid={infoInvalid(species) || undefined}
+              />
+            </Field>
+            <Field data-invalid={infoInvalid(tissueType) || undefined}>
+              <FieldLabel htmlFor="receive-tissue">组织类型</FieldLabel>
+              <Input
+                id="receive-tissue"
+                value={tissueType}
+                onChange={(event) => setTissueType(event.target.value)}
+                placeholder="肺 / 肝 / 外周血…"
+                aria-invalid={infoInvalid(tissueType) || undefined}
+              />
+            </Field>
+            <Field data-invalid={infoInvalid(experimentType) || undefined}>
+              <FieldLabel htmlFor="receive-exp-type">实验类型</FieldLabel>
+              <Input
+                id="receive-exp-type"
+                value={experimentType}
+                onChange={(event) => setExperimentType(event.target.value)}
+                placeholder="scRNA / snRNA / 空间…"
+                aria-invalid={infoInvalid(experimentType) || undefined}
+              />
+            </Field>
+            <Field data-invalid={infoInvalid(transportCondition) || undefined}>
+              <FieldLabel htmlFor="receive-transport">运输条件</FieldLabel>
+              <Input
+                id="receive-transport"
+                value={transportCondition}
+                onChange={(event) => setTransportCondition(event.target.value)}
+                placeholder="干冰 / 冰袋…"
+                aria-invalid={infoInvalid(transportCondition) || undefined}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="receive-count">样本数量</FieldLabel>
+              <Input
+                id="receive-count"
+                type="number"
+                min={0}
+                step={1}
+                value={sampleCount}
+                onChange={(event) => setSampleCount(event.target.value)}
+                placeholder="留空保持建项目时的数量"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="receive-at">实际接收时间</FieldLabel>
+              <Input
+                id="receive-at"
+                type="datetime-local"
+                value={receivedAt}
+                onChange={(event) => setReceivedAt(event.target.value)}
+              />
+            </Field>
+          </div>
+          {showError && missingInfo && (
+            <FieldDescription className="text-destructive">
+              物种 / 组织类型 / 实验类型 / 运输条件为必填。
+            </FieldDescription>
+          )}
           <Field>
             <FieldLabel>接收状态</FieldLabel>
             <Select
@@ -128,16 +216,16 @@ export function SampleReceiveDialog({
             </Select>
           </Field>
           {noteRequired && (
-            <Field data-invalid={invalid || undefined}>
-              <FieldLabel htmlFor="sample-abnormal-note">异常说明</FieldLabel>
+            <Field data-invalid={noteInvalid || undefined}>
+              <FieldLabel htmlFor="receive-abnormal-note">异常说明</FieldLabel>
               <Textarea
-                id="sample-abnormal-note"
+                id="receive-abnormal-note"
                 value={abnormalNote}
                 onChange={(event) => setAbnormalNote(event.target.value)}
                 placeholder="破损 / 超温 / 延迟 / 污染…"
-                aria-invalid={invalid || undefined}
+                aria-invalid={noteInvalid || undefined}
               />
-              <FieldDescription className={invalid ? "text-destructive" : undefined}>
+              <FieldDescription className={noteInvalid ? "text-destructive" : undefined}>
                 异常接收必填。
               </FieldDescription>
             </Field>
@@ -148,7 +236,7 @@ export function SampleReceiveDialog({
             取消
           </Button>
           <Button onClick={handleConfirm} disabled={isPending}>
-            接收样本
+            登记接收
           </Button>
         </DialogFooter>
       </DialogContent>

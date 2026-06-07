@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Microscope, Plus, SearchX } from "lucide-react"
+import { Microscope, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { parsePagination } from "@/lib/api-utils"
@@ -12,7 +12,6 @@ import {
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
 import { sampleListQuerySchema } from "@/lib/schemas/sample"
-import { sampleCreateRoles } from "@/lib/samples/rules"
 import { listSamples } from "@/lib/samples/service"
 import { formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
@@ -88,12 +87,6 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
     params.set("limit", String(limit))
     return `/samples?${params.toString()}`
   }
-  const canCreate = sampleCreateRoles.includes(
-    session.user.role as (typeof sampleCreateRoles)[number]
-  )
-  const createHref = query.projectId
-    ? `/samples/new?projectId=${query.projectId}`
-    : "/samples/new"
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定
   const hasActiveFilters = Boolean(query.q || query.status)
   const clearFiltersHref = query.projectId
@@ -128,16 +121,7 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
               }
             : undefined
         }
-      >
-        {canCreate && (
-          <Button asChild>
-            <Link href={createHref}>
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              登记样本
-            </Link>
-          </Button>
-        )}
-      </ListToolbar>
+      ></ListToolbar>
 
       {total === 0 ? (
         hasActiveFilters ? (
@@ -154,17 +138,8 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
           <ListEmpty
             icon={<Microscope />}
             title={query.projectId ? "该项目暂无样本" : "暂无样本"}
-            description="登记样本后，可在到样时执行接收并跟踪状态。"
-          >
-            {canCreate && (
-              <Button asChild>
-                <Link href={createHref}>
-                  <Plus data-icon="inline-start" aria-hidden="true" />
-                  登记样本
-                </Link>
-              </Button>
-            )}
-          </ListEmpty>
+            description="样本随项目创建生成，到样时由收样员登记接收。"
+          />
         )
       ) : (
         <>

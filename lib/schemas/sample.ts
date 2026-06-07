@@ -71,8 +71,14 @@ export const updateSampleSchema = z
   )
 export type UpdateSampleInput = z.infer<typeof updateSampleSchema>
 
+// 登记接收 = 补全样本信息（建项目时只有编号+数量）+ 记录到样。物种/组织/实验类型/运输条件收样时必填
 export const receiveSampleSchema = z
   .object({
+    species: requiredString("请输入样本物种"),
+    tissueType: requiredString("请输入组织类型"),
+    experimentType: requiredString("请输入实验类型"),
+    transportCondition: requiredString("请输入运输条件"),
+    sampleCount: nullableNonNegativeInt,
     receivedAt: nullableDate,
     receiveStatus: receiveStatusSchema.default(ReceiveStatus.normal),
     abnormalNote: nullableString,

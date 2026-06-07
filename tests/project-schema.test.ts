@@ -13,9 +13,12 @@ describe("project schemas", () => {
       serviceLevel: ServiceLevel.standard,
       priority: "普通",
       expectedDeliveryDate: "2026-06-10",
+      sampleNo: "YP20260504587",
+      sampleCount: "3",
     })
 
     expect(parsed.expectedDeliveryDate).toBeInstanceOf(Date)
+    expect(parsed.sampleCount).toBe(3)
   })
 
   it("rejects direct status writes in project create payload", () => {
@@ -27,6 +30,8 @@ describe("project schemas", () => {
       serviceItems: "10x 3' 转录组",
       serviceLevel: ServiceLevel.standard,
       priority: "普通",
+      sampleNo: "YP20260504587",
+      sampleCount: "1",
       status: ProjectStatus.completed,
     })
 
