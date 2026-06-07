@@ -46,7 +46,6 @@ const bioinfoUserSelect = {
 const bioinfoProjectSelect = {
   id: true,
   projectNo: true,
-  orderNo: true,
   customerOrg: true,
   customerName: true,
   status: true,
@@ -172,7 +171,7 @@ export async function createBioinfoTaskFromExperiment(
 
   return prisma.$transaction(async (tx) => {
     const count = await tx.bioinfoTask.count({ where: { projectId: expTask.projectId } })
-    const taskNo = `${expTask.project.orderNo}-B${String(count + 1).padStart(2, "0")}`
+    const taskNo = `${expTask.project.projectNo ?? expTask.project.id}-B${String(count + 1).padStart(2, "0")}`
 
     const task = await tx.bioinfoTask.create({
       data: {

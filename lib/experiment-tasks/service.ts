@@ -54,7 +54,6 @@ const taskUserSelect = {
 const taskProjectSelect = {
   id: true,
   projectNo: true,
-  orderNo: true,
   customerOrg: true,
   customerName: true,
   status: true,
@@ -218,7 +217,7 @@ export async function createExperimentTaskFromSample(
 
   return prisma.$transaction(async (tx) => {
     const taskCount = await tx.experimentTask.count({ where: { projectId: sample.projectId } })
-    const taskNo = `${sample.project.orderNo}-E${String(taskCount + 1).padStart(2, "0")}`
+    const taskNo = `${sample.project.projectNo ?? sample.project.id}-E${String(taskCount + 1).padStart(2, "0")}`
 
     const task = await tx.experimentTask.create({
       data: {

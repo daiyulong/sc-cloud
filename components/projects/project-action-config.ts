@@ -1,10 +1,8 @@
 import {
   AlertTriangle,
   Check,
-  CheckCircle2,
   PackageCheck,
   RotateCcw,
-  Send,
   XCircle,
   type LucideIcon,
 } from "lucide-react"
@@ -17,8 +15,8 @@ export type ProjectActionDescriptor = {
   /** API 路径段：POST /api/projects/[id]/<path> */
   path: string
   icon: LucideIcon
-  /** direct=点击即执行；confirmDialog=轻确认；reasonDialog=带原因输入 */
-  kind: "direct" | "confirmDialog" | "reasonDialog"
+  /** direct=点击即执行；confirmDialog=轻确认；confirmForm=确认并填项目编号；reasonDialog=带原因输入 */
+  kind: "direct" | "confirmDialog" | "confirmForm" | "reasonDialog"
   destructive?: boolean
   /** reasonDialog：原因是否必填（与对应 zod schema 对齐） */
   reasonRequired?: boolean
@@ -28,28 +26,14 @@ export type ProjectActionDescriptor = {
 }
 
 const descriptors: Record<ProjectAction, ProjectActionDescriptor> = {
-  confirm: { action: "confirm", label: "确认项目", path: "confirm", icon: Check, kind: "direct" },
-  markWaitingSample: {
-    action: "markWaitingSample",
-    label: "标记待到样",
-    path: "mark-waiting-sample",
-    icon: Send,
-    kind: "direct",
-  },
+  confirm: { action: "confirm", label: "确认项目", path: "confirm", icon: Check, kind: "confirmForm" },
   deliver: {
     action: "deliver",
     label: "确认交付",
     path: "deliver",
     icon: PackageCheck,
-    kind: "direct",
-  },
-  complete: {
-    action: "complete",
-    label: "完成项目",
-    path: "complete",
-    icon: CheckCircle2,
     kind: "confirmDialog",
-    description: "完成后项目进入终态，不可再执行任何动作。",
+    description: "确认交付后项目进入已完成终态，并级联交付项目下待交付的生信任务。",
   },
   recover: {
     action: "recover",

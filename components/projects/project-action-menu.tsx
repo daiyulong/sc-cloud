@@ -10,6 +10,10 @@ import {
   partitionProjectActions,
   type ProjectActionDescriptor,
 } from "@/components/projects/project-action-config"
+import {
+  ProjectConfirmDialog,
+  type ConfirmProjectBody,
+} from "@/components/projects/project-confirm-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -21,7 +25,7 @@ import {
 
 type ProjectActionMenuProps = {
   projectId: string
-  projectNo: string
+  projectNo: string | null
   status: ProjectStatusValue
   role?: string
   /** 列表行紧凑模式：sm outline 主按钮 + icon 溢出 */
@@ -80,7 +84,7 @@ export function ProjectActionMenu({
             <Button
               variant="ghost"
               size={compact ? "icon-sm" : "icon"}
-              aria-label={`项目 ${projectNo} 更多动作`}
+              aria-label={`项目 ${projectNo ?? "未编号草稿"} 更多动作`}
               disabled={isPending}
             >
               <MoreHorizontal aria-hidden="true" />
@@ -114,6 +118,12 @@ export function ProjectActionMenu({
         destructive={active?.destructive}
         isPending={isPending}
         onConfirm={() => active && execute(active)}
+      />
+      <ProjectConfirmDialog
+        open={active?.kind === "confirmForm"}
+        onOpenChange={(next) => !next && setActive(null)}
+        isPending={isPending}
+        onConfirm={(body: ConfirmProjectBody) => active && execute(active, body)}
       />
       <ReasonDialog
         open={active?.kind === "reasonDialog"}

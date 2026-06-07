@@ -65,7 +65,7 @@ describe("sample rules", () => {
     expect(() => ensureProjectCanReceiveSample(ProjectStatus.waiting_sample)).not.toThrow()
     expect(() => ensureProjectCanReceiveSample(ProjectStatus.sample_received)).not.toThrow()
     expect(() => ensureProjectCanReceiveSample(ProjectStatus.lab_in_progress)).not.toThrow()
-    expect(() => ensureProjectCanReceiveSample(ProjectStatus.confirmed)).toThrow(
+    expect(() => ensureProjectCanReceiveSample(ProjectStatus.draft)).toThrow(
       SampleDomainError
     )
     expect(() => ensureProjectCanReceiveSample(ProjectStatus.abnormal)).toThrow(SampleDomainError)

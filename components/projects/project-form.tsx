@@ -15,7 +15,6 @@ import { formatDate } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
@@ -38,9 +37,7 @@ export type ProjectUserOption = {
 
 type ProjectFormValue = {
   id?: string
-  projectNo?: string | null
   contractNo?: string
-  orderNo?: string
   customerOrg?: string
   customerName?: string
   customerContact?: string | null
@@ -84,11 +81,6 @@ function formString(formData: FormData, key: string) {
   return value || null
 }
 
-function formOptionalString(formData: FormData, key: string) {
-  const value = String(formData.get(key) || "").trim()
-  return value || undefined
-}
-
 export function ProjectForm({
   mode,
   project,
@@ -113,9 +105,7 @@ export function ProjectForm({
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     const payload = {
-      projectNo: formOptionalString(formData, "projectNo"),
       contractNo: formString(formData, "contractNo"),
-      orderNo: formString(formData, "orderNo"),
       customerOrg: formString(formData, "customerOrg"),
       customerName: formString(formData, "customerName"),
       customerContact: formString(formData, "customerContact"),
@@ -152,15 +142,6 @@ export function ProjectForm({
     <form onSubmit={onSubmit}>
       <FieldGroup>
         <div className="grid gap-5 md:grid-cols-2">
-          <Field>
-            <FieldLabel htmlFor="orderNo">委托单编号</FieldLabel>
-            <Input id="orderNo" name="orderNo" defaultValue={project?.orderNo} required />
-            <FieldDescription>项目默认以委托单编号作为业务项目编号。</FieldDescription>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="projectNo">项目编号</FieldLabel>
-            <Input id="projectNo" name="projectNo" defaultValue={textValue(project?.projectNo)} />
-          </Field>
           <Field>
             <FieldLabel htmlFor="contractNo">合同编号</FieldLabel>
             <Input id="contractNo" name="contractNo" defaultValue={project?.contractNo} required />

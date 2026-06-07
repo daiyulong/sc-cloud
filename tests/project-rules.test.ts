@@ -9,12 +9,10 @@ import {
 
 describe("project rules", () => {
   it("exposes project manager actions by status", () => {
+    // 确认项目直接进待到样（无 confirmed 中间态），确认交付直接关项目（无 delivered 中间态）
     expect(getAvailableProjectActions(ProjectStatus.draft, UserRole.project_manager)).toContain(
       "confirm"
     )
-    expect(
-      getAvailableProjectActions(ProjectStatus.confirmed, UserRole.project_manager)
-    ).toContain("markWaitingSample")
     expect(
       getAvailableProjectActions(ProjectStatus.waiting_delivery, UserRole.project_manager)
     ).toContain("deliver")
@@ -26,7 +24,7 @@ describe("project rules", () => {
 
   it("rejects invalid status transition preconditions", () => {
     expect(() =>
-      ensureProjectStatus(ProjectStatus.confirmed, [ProjectStatus.draft], "确认项目")
+      ensureProjectStatus(ProjectStatus.waiting_sample, [ProjectStatus.draft], "确认项目")
     ).toThrow(ProjectDomainError)
   })
 

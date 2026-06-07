@@ -12,14 +12,12 @@ import type {
  */
 export const PROJECT_STATUS_DOT: Record<ProjectStatus, string> = {
   draft: "bg-zinc-400",
-  confirmed: "bg-sky-500",
   waiting_sample: "bg-amber-400",
   sample_received: "bg-teal-500",
   lab_in_progress: "bg-orange-500",
   waiting_bioinfo: "bg-amber-400",
   bioinfo_in_progress: "bg-violet-500",
   waiting_delivery: "bg-amber-400",
-  delivered: "bg-emerald-500",
   completed: "bg-emerald-500",
   abnormal: "bg-red-500",
   terminated: "bg-zinc-400",

@@ -6,7 +6,6 @@ describe("project schemas", () => {
   it("accepts a valid project payload", () => {
     const parsed = createProjectSchema.parse({
       contractNo: "BPC202602144",
-      orderNo: "BP-G260505472",
       customerOrg: "示例客户",
       customerName: "张三",
       projectType: "单细胞转录组",
@@ -22,7 +21,6 @@ describe("project schemas", () => {
   it("rejects direct status writes in project create payload", () => {
     const parsed = createProjectSchema.safeParse({
       contractNo: "BPC202602144",
-      orderNo: "BP-G260505472",
       customerOrg: "示例客户",
       customerName: "张三",
       projectType: "单细胞转录组",

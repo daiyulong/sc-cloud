@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 export type SampleProjectOption = {
   id: string
-  projectNo: string
+  projectNo: string | null
   customerOrg: string
   status: ProjectStatusValue
 }
@@ -42,7 +42,7 @@ type SampleFormValue = {
   samplingDate?: Date | string | null
   expectedArrivalDate?: Date | string | null
   remark?: string | null
-  project?: { id: string; projectNo: string; customerOrg: string }
+  project?: { id: string; projectNo: string | null; customerOrg: string }
 }
 
 type SampleFormProps = {

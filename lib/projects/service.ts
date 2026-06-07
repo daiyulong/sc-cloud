@@ -35,7 +35,6 @@ export type ProjectOperator = {
 
 const salesEditableProjectStatuses = new Set<ProjectStatusValue>([
   ProjectStatus.draft,
-  ProjectStatus.confirmed,
   ProjectStatus.waiting_sample,
 ])
 
@@ -78,7 +77,6 @@ function buildProjectListWhere(
       OR: [
         { projectNo: { contains: query.q, mode: "insensitive" } },
         { contractNo: { contains: query.q, mode: "insensitive" } },
-        { orderNo: { contains: query.q, mode: "insensitive" } },
         { customerOrg: { contains: query.q, mode: "insensitive" } },
         { customerName: { contains: query.q, mode: "insensitive" } },
       ],
@@ -87,10 +85,8 @@ function buildProjectListWhere(
   if (query.status) {
     filters.push({ status: query.status })
   } else if (query.deliveryScope) {
-    // 交付队列默认：待交付 + 已交付（前者待确认交付，后者待完成关闭，均需项目经理动作）
-    filters.push({
-      status: { in: [ProjectStatus.waiting_delivery, ProjectStatus.delivered] },
-    })
+    // 交付队列默认：待交付（确认交付即关闭项目，无独立「已交付」中间态）
+    filters.push({ status: ProjectStatus.waiting_delivery })
   }
   if (query.serviceLevel) filters.push({ serviceLevel: query.serviceLevel })
   if (query.salesOwnerId) filters.push({ salesOwnerId: query.salesOwnerId })
@@ -117,10 +113,6 @@ function projectVisibleWhere(
   return { AND: [{ id }, buildProjectScope(operator.role, operator.id)] }
 }
 
-function getProjectNo(input: Pick<CreateProjectInput, "projectNo" | "orderNo">) {
-  return input.projectNo?.trim() || input.orderNo.trim()
-}
-
 function omitUndefined<T extends Record<string, unknown>>(value: T) {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined)
@@ -129,14 +121,7 @@ function omitUndefined<T extends Record<string, unknown>>(value: T) {
 
 function toProjectUpdateData(input: UpdateProjectInput): Prisma.ProjectUpdateInput {
   const data = omitUndefined({
-    projectNo:
-      input.projectNo !== undefined
-        ? input.projectNo
-        : input.orderNo !== undefined
-          ? input.orderNo
-          : undefined,
     contractNo: input.contractNo,
-    orderNo: input.orderNo,
     customerOrg: input.customerOrg,
     customerName: input.customerName,
     customerContact: input.customerContact,
@@ -237,9 +222,8 @@ export async function createProject(operator: ProjectOperator, input: CreateProj
   return prisma.$transaction(async (tx) => {
     const project = await tx.project.create({
       data: {
-        projectNo: getProjectNo(input),
+        // projectNo 草稿阶段为 null，PM 确认时录入
         contractNo: input.contractNo,
-        orderNo: input.orderNo,
         customerOrg: input.customerOrg,
         customerName: input.customerName,
         customerContact: input.customerContact ?? null,
@@ -329,11 +313,21 @@ export async function confirmProject(
   const before = await getWritableProject(id)
   ensureProjectStatus(before.status, [ProjectStatus.draft], "确认项目")
 
+  // 项目编号（委托单号）确认时录入并校验唯一
+  const projectNo = input.projectNo.trim()
+  const clash = await prisma.project.findFirst({
+    where: { projectNo, id: { not: id } },
+    select: { id: true },
+  })
+  if (clash) throw new ProjectDomainError(`项目编号 ${projectNo} 已存在`, 409)
+
   return prisma.$transaction(async (tx) => {
     const updated = await tx.project.update({
       where: { id },
       data: {
-        status: ProjectStatus.confirmed,
+        projectNo,
+        // 确认即进待到样（精简掉 confirmed 中间态 + 标记待到样空翻转）
+        status: ProjectStatus.waiting_sample,
         projectManagerId:
           input.projectManagerId || (operator.role === UserRole.project_manager ? operator.id : before.projectManagerId),
         serviceLevel: input.serviceLevel ?? before.serviceLevel,
@@ -357,16 +351,6 @@ export async function confirmProject(
     })
 
     return updated
-  })
-}
-
-export async function markProjectWaitingSample(operator: ProjectOperator, id: string) {
-  ensureProjectRole(operator.role, [UserRole.admin, UserRole.project_manager], "标记待到样")
-  const before = await getWritableProject(id)
-  ensureProjectStatus(before.status, [ProjectStatus.confirmed], "标记待到样")
-
-  return updateProjectStatusWithLog(operator, before, {
-    status: ProjectStatus.waiting_sample,
   })
 }
 
@@ -446,7 +430,8 @@ export async function deliverProject(
   return prisma.$transaction(async (tx) => {
     const updated = await tx.project.update({
       where: { id: before.id },
-      data: { status: ProjectStatus.delivered, deliveredAt },
+      // 确认交付直接进终态（精简掉 delivered 中间态 + 完成项目空翻转）；deliveredAt 仍记录
+      data: { status: ProjectStatus.completed, deliveredAt },
       include: projectInclude,
     })
     await recordOperation({
@@ -480,16 +465,6 @@ export async function deliverProject(
     }
 
     return updated
-  })
-}
-
-export async function completeProject(operator: ProjectOperator, id: string) {
-  ensureProjectRole(operator.role, [UserRole.admin, UserRole.project_manager], "完成项目")
-  const before = await getWritableProject(id)
-  ensureProjectStatus(before.status, [ProjectStatus.delivered], "完成项目")
-
-  return updateProjectStatusWithLog(operator, before, {
-    status: ProjectStatus.completed,
   })
 }
 

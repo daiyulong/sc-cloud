@@ -37,14 +37,12 @@ enum ServiceLevel {
 
 enum ProjectStatus {
   draft
-  confirmed
   waiting_sample
   sample_received
   lab_in_progress
   waiting_bioinfo
   bioinfo_in_progress
   waiting_delivery
-  delivered
   completed
   abnormal
   terminated
@@ -204,12 +202,12 @@ model VerificationToken {
 // 业务实体（规格 §9）
 // ============================================================
 
-// 项目 = 委托单(order_no)粒度，一个合同可对应多个项目
+// 项目 = 委托单粒度，一个合同可对应多个项目。projectNo 即委托单号（合并原 orderNo）。
 model Project {
   id                   String         @id @default(cuid())
-  projectNo            String         @unique @map("project_no") // 唯一
+  // 项目编号 = 委托单号，上游给定、由 PM 确认时录入；草稿阶段为 null（用内部 id 定位）
+  projectNo            String?        @unique @map("project_no")
   contractNo           String         @map("contract_no") // 可重复，建索引
-  orderNo              String         @map("order_no")
   customerOrg          String         @map("customer_org")
   customerName         String         @map("customer_name")
   customerContact      String?        @map("customer_contact")

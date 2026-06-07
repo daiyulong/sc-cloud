@@ -23,7 +23,7 @@ export function ProjectSheetBody({ detail, role }: { detail: ProjectDetail; role
     <div className="flex flex-col gap-5 p-6">
       <header className="flex flex-col gap-2 pr-8">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold">{project.projectNo}</h2>
+          <h2 className="text-lg font-semibold">{project.projectNo ?? "未编号草稿"}</h2>
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <StatusDot className={PROJECT_STATUS_DOT[status]} />
             {PROJECT_STATUS_LABELS[status]}

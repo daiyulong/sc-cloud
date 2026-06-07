@@ -47,7 +47,6 @@ const sampleUserSelect = {
 const sampleProjectSelect = {
   id: true,
   projectNo: true,
-  orderNo: true,
   customerOrg: true,
   customerName: true,
   status: true,
@@ -73,7 +72,6 @@ function buildSampleListWhere(
         { species: { contains: query.q, mode: "insensitive" } },
         { tissueType: { contains: query.q, mode: "insensitive" } },
         { project: { projectNo: { contains: query.q, mode: "insensitive" } } },
-        { project: { orderNo: { contains: query.q, mode: "insensitive" } } },
       ],
     })
   }

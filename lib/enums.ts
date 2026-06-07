@@ -53,14 +53,12 @@ export const BIOINFO_SERVICE_LEVELS: ServiceLevel[] = [
 // ---------- 项目状态 ----------
 export const ProjectStatus = {
   draft: "draft",
-  confirmed: "confirmed",
   waiting_sample: "waiting_sample",
   sample_received: "sample_received",
   lab_in_progress: "lab_in_progress",
   waiting_bioinfo: "waiting_bioinfo",
   bioinfo_in_progress: "bioinfo_in_progress",
   waiting_delivery: "waiting_delivery",
-  delivered: "delivered",
   completed: "completed",
   abnormal: "abnormal",
   terminated: "terminated",
@@ -69,14 +67,12 @@ export type ProjectStatus = (typeof ProjectStatus)[keyof typeof ProjectStatus]
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   draft: "草稿",
-  confirmed: "已确认",
   waiting_sample: "待到样",
   sample_received: "已到样",
   lab_in_progress: "实验中",
   waiting_bioinfo: "待生信",
   bioinfo_in_progress: "生信分析中",
   waiting_delivery: "待交付",
-  delivered: "已交付",
   completed: "已完成",
   abnormal: "异常",
   terminated: "已终止",

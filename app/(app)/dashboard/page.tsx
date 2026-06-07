@@ -33,7 +33,6 @@ type DashboardData = {
   metrics: {
     activeProjects: number
     pendingConfirmation: number
-    confirmedProjects: number
     waitingSample: number
     sampleReceived: number
     labInProgress: number
@@ -84,7 +83,6 @@ async function getDashboardData(): Promise<DashboardData | null> {
     const [
       activeProjects,
       pendingConfirmation,
-      confirmedProjects,
       waitingSample,
       sampleReceived,
       labInProgress,
@@ -110,9 +108,6 @@ async function getDashboardData(): Promise<DashboardData | null> {
       }),
       prisma.project.count({
         where: { AND: [projectScope, { status: ProjectStatus.draft }] },
-      }),
-      prisma.project.count({
-        where: { AND: [projectScope, { status: ProjectStatus.confirmed }] },
       }),
       prisma.project.count({
         where: { AND: [projectScope, { status: ProjectStatus.waiting_sample }] },
@@ -187,7 +182,6 @@ async function getDashboardData(): Promise<DashboardData | null> {
       metrics: {
         activeProjects,
         pendingConfirmation,
-        confirmedProjects,
         waitingSample,
         sampleReceived,
         labInProgress,
@@ -228,7 +222,7 @@ function buildWorkQueue(role: UserRole | undefined, metrics: DashboardData["metr
       title: "待交付项目",
       count: metrics.waitingDelivery,
       caption: "交付确认",
-      href: "/delivery?status=waiting_delivery",
+      href: "/delivery",
     },
     {
       title: "异常项目",
@@ -341,7 +335,7 @@ function buildWorkQueue(role: UserRole | undefined, metrics: DashboardData["metr
           title: "待交付",
           count: metrics.waitingDelivery,
           caption: "交付节点",
-          href: "/delivery?status=waiting_delivery",
+          href: "/delivery",
         },
         {
           title: "已完成",
@@ -357,7 +351,6 @@ function buildWorkQueue(role: UserRole | undefined, metrics: DashboardData["metr
 
 const pipelineStages = [
   ProjectStatus.draft,
-  ProjectStatus.confirmed,
   ProjectStatus.waiting_sample,
   ProjectStatus.sample_received,
   ProjectStatus.lab_in_progress,
@@ -403,7 +396,6 @@ export default async function DashboardPage() {
     ({
       activeProjects: 0,
       pendingConfirmation: 0,
-      confirmedProjects: 0,
       waitingSample: 0,
       sampleReceived: 0,
       labInProgress: 0,
@@ -502,11 +494,10 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-            <div className="grid min-w-[880px] grid-cols-9 gap-2">
+            <div className="grid min-w-[780px] grid-cols-8 gap-2">
               {pipelineStages.map((status) => {
                 const countByStatus: Record<(typeof pipelineStages)[number], number> = {
                   [ProjectStatus.draft]: metrics.pendingConfirmation,
-                  [ProjectStatus.confirmed]: metrics.confirmedProjects,
                   [ProjectStatus.waiting_sample]: metrics.waitingSample,
                   [ProjectStatus.sample_received]: metrics.sampleReceived,
                   [ProjectStatus.lab_in_progress]: metrics.labInProgress,

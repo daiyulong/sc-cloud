@@ -24,7 +24,7 @@ export type TaskSampleOption = {
   species: string
   tissueType: string
   experimentType: string
-  project: { id: string; projectNo: string; customerOrg: string }
+  project: { id: string; projectNo: string | null; customerOrg: string }
 }
 
 type TaskFormValue = {
@@ -36,7 +36,7 @@ type TaskFormValue = {
   operatorId?: string | null
   loadedSampleCount?: number | null
   sample?: { id: string; sampleNo: string }
-  project?: { projectNo: string }
+  project?: { projectNo: string | null }
 }
 
 type ExperimentTaskFormProps = {

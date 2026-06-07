@@ -3,28 +3,20 @@ import { partitionProjectActions } from "@/components/projects/project-action-co
 import { ProjectStatus, UserRole } from "@/lib/enums"
 
 describe("partitionProjectActions", () => {
-  it("draft + PM：主动作 confirm（direct），破坏性动作进溢出", () => {
+  it("draft + PM：主动作 confirm（confirmForm 收项目编号），破坏性动作进溢出", () => {
     const { primary, overflow } = partitionProjectActions(
       ProjectStatus.draft,
       UserRole.project_manager
     )
     expect(primary?.action).toBe("confirm")
-    expect(primary?.kind).toBe("direct")
+    expect(primary?.kind).toBe("confirmForm")
     expect(overflow.map((d) => d.action)).toEqual(["markAbnormal", "terminate"])
     expect(overflow.every((d) => d.destructive)).toBe(true)
   })
 
-  it("waiting_delivery + admin：主动作 deliver", () => {
+  it("waiting_delivery + admin：主动作 deliver 走轻确认 Dialog（直接关项目）", () => {
     const { primary } = partitionProjectActions(ProjectStatus.waiting_delivery, UserRole.admin)
     expect(primary?.action).toBe("deliver")
-  })
-
-  it("delivered + PM：主动作 complete 走轻确认 Dialog", () => {
-    const { primary } = partitionProjectActions(
-      ProjectStatus.delivered,
-      UserRole.project_manager
-    )
-    expect(primary?.action).toBe("complete")
     expect(primary?.kind).toBe("confirmDialog")
   })
 

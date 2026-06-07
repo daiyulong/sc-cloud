@@ -24,32 +24,41 @@ const baseProps = {
 }
 
 describe("ProjectActionMenu", () => {
-  it("draft：「确认项目」direct 动作点击即执行", async () => {
+  it("draft：「确认项目」弹表单，填项目编号后提交带 projectNo", async () => {
     const user = userEvent.setup()
     render(<ProjectActionMenu {...baseProps} status={ProjectStatus.draft} />)
 
     await user.click(screen.getByRole("button", { name: "确认项目" }))
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+    const dialog = screen.getByRole("dialog")
+    fireEvent.change(within(dialog).getByLabelText(/项目编号/), {
+      target: { value: "BP-G260504587" },
+    })
+    await user.click(within(dialog).getByRole("button", { name: "确认项目" }))
+
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url] = fetchMock.mock.calls[0] as unknown as [string]
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe("/api/projects/p1/confirm")
+    expect(JSON.parse(String(init.body))).toEqual({ projectNo: "BP-G260504587" })
   })
 
-  it("delivered：「完成项目」先弹轻确认，确认后执行", async () => {
+  it("waiting_delivery：「确认交付」先弹轻确认，确认后执行（直接关项目）", async () => {
     const user = userEvent.setup()
-    render(<ProjectActionMenu {...baseProps} status={ProjectStatus.delivered} />)
+    render(<ProjectActionMenu {...baseProps} status={ProjectStatus.waiting_delivery} />)
 
-    await user.click(screen.getByRole("button", { name: "完成项目" }))
+    await user.click(screen.getByRole("button", { name: "确认交付" }))
     expect(fetchMock).not.toHaveBeenCalled()
     const dialog = screen.getByRole("dialog")
     expect(
-      within(dialog).getByText("完成后项目进入终态，不可再执行任何动作。")
+      within(dialog).getByText(
+        "确认交付后项目进入已完成终态，并级联交付项目下待交付的生信任务。"
+      )
     ).toBeInTheDocument()
 
-    await user.click(within(dialog).getByRole("button", { name: "完成项目" }))
+    await user.click(within(dialog).getByRole("button", { name: "确认交付" }))
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url] = fetchMock.mock.calls[0] as unknown as [string]
-    expect(url).toBe("/api/projects/p1/complete")
+    expect(url).toBe("/api/projects/p1/deliver")
   })
 
   it("溢出菜单「标记异常」：原因必填，提交带 reason", async () => {

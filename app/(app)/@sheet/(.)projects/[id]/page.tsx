@@ -23,7 +23,7 @@ export default async function InterceptedProjectPage({ params }: InterceptedProj
   ).catch(() => null)
 
   return (
-    <DetailSheet title={detail ? `项目 ${detail.project.projectNo}` : "项目详情"}>
+    <DetailSheet title={detail ? `项目 ${detail.project.projectNo ?? "未编号草稿"}` : "项目详情"}>
       {detail ? (
         <ProjectSheetBody detail={detail} role={session.user.role} />
       ) : (

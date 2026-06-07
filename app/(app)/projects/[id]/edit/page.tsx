@@ -34,7 +34,7 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">编辑项目</h1>
-        <p className="text-sm text-muted-foreground">{project.projectNo}</p>
+        <p className="text-sm text-muted-foreground">{project.projectNo ?? "未编号草稿"}</p>
       </div>
       <Card>
         <CardHeader>

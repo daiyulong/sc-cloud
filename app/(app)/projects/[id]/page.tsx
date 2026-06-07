@@ -91,7 +91,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-normal">{project.projectNo}</h1>
+            <h1 className="text-2xl font-semibold tracking-normal">{project.projectNo ?? "未编号草稿"}</h1>
             <Badge variant="secondary">
               {PROJECT_STATUS_LABELS[project.status as ProjectStatusValue]}
             </Badge>

@@ -23,7 +23,6 @@ export function ProjectFields({
   return (
     <div className={gridClass}>
       <FieldLine label="合同编号" value={project.contractNo} />
-      <FieldLine label="委托单编号" value={project.orderNo} />
       <FieldLine
         label="服务档次"
         value={SERVICE_LEVEL_LABELS[project.serviceLevel as ServiceLevelValue]}

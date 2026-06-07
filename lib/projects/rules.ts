@@ -2,12 +2,10 @@ import { ProjectStatus, UserRole, type ProjectStatus as ProjectStatusValue } fro
 
 export type ProjectAction =
   | "confirm"
-  | "markWaitingSample"
   | "markAbnormal"
   | "recover"
   | "terminate"
   | "deliver"
-  | "complete"
 
 export class ProjectDomainError extends Error {
   constructor(
@@ -74,10 +72,10 @@ export function getAvailableProjectActions(
   if (!canManageProjectActions(role)) return []
 
   const actions: ProjectAction[] = []
+  // 确认项目直接进「待到样」（原 confirmed 中间态 + 标记待到样空翻转已删，2026-06 精简）
   if (status === ProjectStatus.draft) actions.push("confirm")
-  if (status === ProjectStatus.confirmed) actions.push("markWaitingSample")
+  // 确认交付直接进「已完成」终态（原 delivered 中间态 + 完成项目空翻转已删，2026-06 精简）
   if (status === ProjectStatus.waiting_delivery) actions.push("deliver")
-  if (status === ProjectStatus.delivered) actions.push("complete")
   if (status === ProjectStatus.abnormal) actions.push("recover", "terminate")
   if (!isTerminalProjectStatus(status) && status !== ProjectStatus.abnormal) {
     actions.push("markAbnormal", "terminate")

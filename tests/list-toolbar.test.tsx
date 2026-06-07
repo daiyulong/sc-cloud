@@ -40,7 +40,7 @@ const statusFilter = {
   allLabel: "全部状态",
   options: [
     { value: "draft", label: "草稿" },
-    { value: "confirmed", label: "已确认" },
+    { value: "waiting_sample", label: "待到样" },
   ],
 }
 

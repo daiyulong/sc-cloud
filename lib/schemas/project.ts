@@ -25,9 +25,8 @@ export const serviceLevelSchema = z.enum(serviceLevelValues)
 export const projectStatusSchema = z.enum(projectStatusValues)
 
 export const createProjectSchema = z.object({
-  projectNo: optionalString,
+  // 项目编号（委托单号）不在创建时填，由 PM 确认时录入；创建仅登记客户/合同/服务等
   contractNo: requiredString("请输入合同编号"),
-  orderNo: requiredString("请输入委托单编号"),
   customerOrg: requiredString("请输入客户单位"),
   customerName: requiredString("请输入客户姓名"),
   customerContact: nullableString,
@@ -51,6 +50,8 @@ export const updateProjectSchema = createProjectSchema
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>
 
 export const confirmProjectSchema = z.object({
+  // 项目编号（委托单号）= 上游给定，PM 确认时录入并校验唯一
+  projectNo: requiredString("请输入项目编号（委托单号）"),
   projectManagerId: nullableString,
   serviceLevel: serviceLevelSchema.optional(),
   priority: optionalString,

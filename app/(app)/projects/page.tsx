@@ -186,7 +186,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
                         href={`/projects/${project.id}`}
                         className="font-medium hover:underline"
                       >
-                        {project.projectNo}
+                        {project.projectNo ?? "未编号草稿"}
                       </Link>
                     </TableCell>
                     <TableCell>{project.customerOrg}</TableCell>

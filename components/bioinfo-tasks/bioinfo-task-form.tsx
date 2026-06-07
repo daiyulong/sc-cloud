@@ -25,7 +25,7 @@ export type BioinfoExperimentTaskOption = {
   id: string
   taskNo: string
   experimentType: string
-  project: { id: string; projectNo: string; customerOrg: string; serviceLevel: string }
+  project: { id: string; projectNo: string | null; customerOrg: string; serviceLevel: string }
 }
 
 type BioinfoFormValue = {
@@ -36,7 +36,7 @@ type BioinfoFormValue = {
   deliverableNote?: string | null
   remark?: string | null
   experimentTask?: { id: string; taskNo: string }
-  project?: { projectNo: string }
+  project?: { projectNo: string | null }
 }
 
 type BioinfoTaskFormProps = {

@@ -39,28 +39,19 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
 
-// 交付页只关心交付相关状态：待交付/已交付（默认队列）+ 已完成（历史参考）
-const DELIVERY_STATUS_OPTIONS = [
-  ProjectStatus.waiting_delivery,
-  ProjectStatus.delivered,
-  ProjectStatus.completed,
-] as const
-
+// 交付页只关心交付相关状态：待交付（默认队列）+ 已完成（历史参考）
 export default async function DeliveryPage({ searchParams }: DeliveryPageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
 
   const raw = (await searchParams) ?? {}
-  const rawStatus = first(raw.status)
-  // 仅接受交付相关状态作为筛选；其余忽略，回落到默认队列
-  const status =
-    rawStatus && (DELIVERY_STATUS_OPTIONS as readonly string[]).includes(rawStatus)
-      ? (rawStatus as ProjectStatusValue)
-      : undefined
+  // 交付页是二选一：默认 = 待交付队列（deliveryScope），唯一可切的显式筛选 = 已完成（历史）
+  const showCompleted = first(raw.status) === ProjectStatus.completed
+  const status = showCompleted ? ProjectStatus.completed : undefined
   const query = projectListQuerySchema.parse({
     q: first(raw.q),
     status,
-    // 无显式 status 时圈定「待交付 + 已交付」
+    // 无显式 status 时圈定「待交付」（确认交付即关闭，无独立已交付态）
     deliveryScope: true,
     page: first(raw.page),
     limit: first(raw.limit),
@@ -97,13 +88,15 @@ export default async function DeliveryPage({ searchParams }: DeliveryPageProps) 
           {
             key: "status",
             label: "交付状态",
-            allLabel: "进行中（待交付 + 已交付）",
+            allLabel: "待交付",
             value: status,
-            options: DELIVERY_STATUS_OPTIONS.map((value) => ({
-              value,
-              label: PROJECT_STATUS_LABELS[value],
-              dot: PROJECT_STATUS_DOT[value],
-            })),
+            options: [
+              {
+                value: ProjectStatus.completed,
+                label: PROJECT_STATUS_LABELS[ProjectStatus.completed],
+                dot: PROJECT_STATUS_DOT[ProjectStatus.completed],
+              },
+            ],
           },
         ]}
       />
