@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { buildSampleScope } from "@/lib/auth/role-scope"
+import { buildSampleScope, samplesAwaitingTaskWhere } from "@/lib/auth/role-scope"
 import { recordOperation } from "@/lib/operation-log"
 import {
   OperationAction,
@@ -77,6 +77,8 @@ function buildSampleListWhere(
   }
   if (query.status) filters.push({ status: query.status })
   if (query.projectId) filters.push({ projectId: query.projectId })
+  if (query.received === "1") filters.push({ receivedAt: { not: null } })
+  if (query.awaiting === "task") filters.push(samplesAwaitingTaskWhere)
 
   return { AND: filters }
 }

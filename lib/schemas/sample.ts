@@ -103,6 +103,10 @@ export const sampleListQuerySchema = z.object({
   q: optionalString,
   status: sampleStatusSchema.optional(),
   projectId: optionalString,
+  /** received=1：已接收（receivedAt 非空），工作台「已接收样本」入口 */
+  received: z.enum(["1"]).optional(),
+  /** awaiting=task：已收待建实验任务队列（§接缝 S2） */
+  awaiting: z.enum(["task"]).optional(),
   page: optionalString,
   limit: optionalString,
 })

@@ -8,7 +8,13 @@ import {
 } from "lucide-react"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { buildProjectScope } from "@/lib/auth/role-scope"
+import {
+  buildExperimentTaskScope,
+  buildProjectScope,
+  buildSampleScope,
+  samplesAwaitingTaskWhere,
+  tasksAwaitingBioinfoWhere,
+} from "@/lib/auth/role-scope"
 import {
   PROJECT_STATUS_LABELS,
   ProjectStatus,
@@ -47,6 +53,8 @@ type DashboardData = {
     receivedSamples: number
     dueSoonProjects: number
     todayExpectedSamples: number
+    samplesAwaitingTask: number
+    tasksAwaitingBioinfo: number
   }
 }
 
@@ -97,6 +105,8 @@ async function getDashboardData(): Promise<DashboardData | null> {
       receivedSamples,
       dueSoonProjects,
       todayExpectedSamples,
+      samplesAwaitingTask,
+      tasksAwaitingBioinfo,
     ] = await Promise.all([
       prisma.project.count({
         where: {
@@ -175,6 +185,15 @@ async function getDashboardData(): Promise<DashboardData | null> {
           expectedArrivalDate: { gte: start, lt: end },
         },
       }),
+      // 待建实验任务 / 待建生信任务：用各自的行级 scope（含 pool 例外）确保口径与列表一致
+      prisma.sample.count({
+        where: { AND: [buildSampleScope(role, session.user.id), samplesAwaitingTaskWhere] },
+      }),
+      prisma.experimentTask.count({
+        where: {
+          AND: [buildExperimentTaskScope(role, session.user.id), tasksAwaitingBioinfoWhere],
+        },
+      }),
     ])
 
     return {
@@ -196,6 +215,8 @@ async function getDashboardData(): Promise<DashboardData | null> {
         receivedSamples,
         dueSoonProjects,
         todayExpectedSamples,
+        samplesAwaitingTask,
+        tasksAwaitingBioinfo,
       },
     }
   } catch (error) {
@@ -282,6 +303,13 @@ function buildWorkQueue(role: UserRole | undefined, metrics: DashboardData["metr
     case "lab_operator":
       return [
         {
+          title: "待建实验任务",
+          count: metrics.samplesAwaitingTask,
+          caption: "已收待排",
+          href: "/samples?awaiting=task",
+          tone: "warning",
+        },
+        {
           title: "今日实验",
           count: metrics.todayExperimentTasks,
           caption: "已排期",
@@ -304,10 +332,11 @@ function buildWorkQueue(role: UserRole | undefined, metrics: DashboardData["metr
     case "bioinfo_analyst":
       return [
         {
-          title: "待分析",
-          count: metrics.waitingBioinfo,
-          caption: "项目入口",
-          href: "/projects?status=waiting_bioinfo",
+          title: "待建生信任务",
+          count: metrics.tasksAwaitingBioinfo,
+          caption: "完成待分析",
+          href: "/experiment-tasks?awaiting=bioinfo",
+          tone: "warning",
         },
         {
           title: "生信任务",
@@ -410,6 +439,8 @@ export default async function DashboardPage() {
       receivedSamples: 0,
       dueSoonProjects: 0,
       todayExpectedSamples: 0,
+      samplesAwaitingTask: 0,
+      tasksAwaitingBioinfo: 0,
     } satisfies DashboardData["metrics"])
   const workQueue = buildWorkQueue(data?.role, metrics)
 

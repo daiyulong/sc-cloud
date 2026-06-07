@@ -147,6 +147,8 @@ export const experimentTaskListQuerySchema = z.object({
   operatorId: optionalString,
   /** today = 计划实验日期为今日（工作台「今日实验」入口） */
   date: z.enum(["today"]).optional(),
+  /** awaiting=bioinfo：完成待建生信任务队列（§接缝 S3） */
+  awaiting: z.enum(["bioinfo"]).optional(),
   page: optionalString,
   limit: optionalString,
 })

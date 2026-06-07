@@ -1,5 +1,42 @@
 import type { Prisma } from "@prisma/client"
-import { BioinfoTaskStatus, ExperimentTaskStatus, SampleStatus, UserRole } from "@/lib/enums"
+import {
+  BIOINFO_SERVICE_LEVELS,
+  BioinfoTaskStatus,
+  ExperimentTaskStatus,
+  ProjectStatus,
+  SampleStatus,
+  UserRole,
+} from "@/lib/enums"
+
+/**
+ * 「待建实验任务」队列条件：已接收、所属项目在可建任务态、且尚无实验任务。
+ * 供行级 scope（实验员 pool 例外）、列表 `awaiting=task` 筛选、工作台计数共用，确保三者口径一致。
+ */
+export const samplesAwaitingTaskWhere: Prisma.SampleWhereInput = {
+  status: {
+    in: [
+      SampleStatus.received,
+      SampleStatus.received_abnormal,
+      SampleStatus.waiting_task,
+      SampleStatus.lab_in_progress,
+    ],
+  },
+  tasks: { none: {} },
+  project: { status: { in: [ProjectStatus.sample_received, ProjectStatus.lab_in_progress] } },
+}
+
+/**
+ * 「待建生信任务」队列条件：实验已完成、所属项目含生信且在可建生信态、且尚无生信任务。
+ * 供行级 scope（分析员 pool 例外）、列表 `awaiting=bioinfo` 筛选、工作台计数共用。
+ */
+export const tasksAwaitingBioinfoWhere: Prisma.ExperimentTaskWhereInput = {
+  status: ExperimentTaskStatus.completed,
+  bioinfoTasks: { none: {} },
+  project: {
+    serviceLevel: { in: [...BIOINFO_SERVICE_LEVELS] },
+    status: { in: [ProjectStatus.waiting_bioinfo, ProjectStatus.bioinfo_in_progress] },
+  },
+}
 
 /**
  * 行级数据可见范围（规格 §3.3）。返回 Project 的 where 片段，与用户筛选 AND 叠加：
@@ -50,6 +87,9 @@ export function buildSampleScope(
       return {
         OR: [{ receiverId: userId }, { status: SampleStatus.waiting_arrival }],
       }
+    case UserRole.lab_operator:
+      // 鸡生蛋同实验任务池：实验员要建任务，却看不到尚无任务的已收样本——补「待建任务样本池」
+      return { OR: [{ project: buildProjectScope(role, userId) }, samplesAwaitingTaskWhere] }
     default:
       return { project: buildProjectScope(role, userId) }
   }
@@ -71,6 +111,9 @@ export function buildExperimentTaskScope(
       return {
         OR: [{ operatorId: userId }, { status: ExperimentTaskStatus.waiting_schedule }],
       }
+    case UserRole.bioinfo_analyst:
+      // 鸡生蛋同实验员：分析员要建生信任务，却看不到尚无生信任务的完成实验任务——补「待建生信池」
+      return { OR: [{ project: buildProjectScope(role, userId) }, tasksAwaitingBioinfoWhere] }
     default:
       return { project: buildProjectScope(role, userId) }
   }

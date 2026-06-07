@@ -1,7 +1,11 @@
 import { Prisma } from "@prisma/client"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { buildExperimentTaskScope, buildProjectScope } from "@/lib/auth/role-scope"
+import {
+  buildExperimentTaskScope,
+  buildProjectScope,
+  tasksAwaitingBioinfoWhere,
+} from "@/lib/auth/role-scope"
 import { recordOperation } from "@/lib/operation-log"
 import { compareDateOnly } from "@/lib/utils"
 import {
@@ -110,6 +114,7 @@ function buildTaskListWhere(
     const { start, end } = todayRange()
     filters.push({ plannedDate: { gte: start, lt: end } })
   }
+  if (query.awaiting === "bioinfo") filters.push(tasksAwaitingBioinfoWhere)
 
   return { AND: filters }
 }

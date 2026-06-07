@@ -12,6 +12,7 @@ import {
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
 import { sampleListQuerySchema } from "@/lib/schemas/sample"
+import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
 import { listSamples } from "@/lib/samples/service"
 import { formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
@@ -49,6 +50,8 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
     q: first(raw.q),
     status: first(raw.status),
     projectId: first(raw.projectId),
+    received: first(raw.received),
+    awaiting: first(raw.awaiting),
     page: first(raw.page),
     limit: first(raw.limit),
   })
@@ -77,10 +80,14 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
   ])
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
-  for (const key of ["q", "status", "projectId"]) {
+  for (const key of ["q", "status", "projectId", "received", "awaiting"]) {
     const value = first(raw[key])
     if (value) baseParams.set(key, value)
   }
+  // 「待建实验任务」队列视图：行内直接建任务（队列已保证行均合格，仅按角色显示）
+  const showCreateTask =
+    query.awaiting === "task" &&
+    experimentManageRoles.includes(session.user.role as (typeof experimentManageRoles)[number])
   const pageHref = (nextPage: number) => {
     const params = new URLSearchParams(baseParams)
     params.set("page", String(nextPage))
@@ -195,13 +202,22 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
                       <UserCell user={sample.receiver} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <SampleActionMenu
-                        sampleId={sample.id}
-                        sampleNo={sample.sampleNo}
-                        status={sample.status as SampleStatusValue}
-                        role={session.user.role}
-                        compact
-                      />
+                      <div className="flex items-center justify-end gap-1.5">
+                        {showCreateTask && (
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/experiment-tasks/new?sampleId=${sample.id}`}>
+                              建实验任务
+                            </Link>
+                          </Button>
+                        )}
+                        <SampleActionMenu
+                          sampleId={sample.id}
+                          sampleNo={sample.sampleNo}
+                          status={sample.status as SampleStatusValue}
+                          role={session.user.role}
+                          compact
+                        />
+                      </div>
                     </TableCell>
                   </ClickableRow>
                 ))}
