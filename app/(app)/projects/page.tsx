@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { FolderKanban, Plus, SearchX, Upload } from "lucide-react"
+import { FolderKanban, Plus, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { parsePagination } from "@/lib/api-utils"
@@ -83,7 +83,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     return `/projects?${params.toString()}`
   }
   const canCreate = canCreateProject(session.user.role as UserRoleValue)
-  const isAdmin = session.user.role === UserRole.admin
   const hasActiveFilters = Boolean(query.q || query.status || query.serviceLevel || query.due)
 
   return (
@@ -142,21 +141,13 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           <ListEmpty
             icon={<FolderKanban />}
             title="暂无项目"
-            description="从新建第一个项目开始，或导入历史数据。"
+            description="从新建第一个项目开始。"
           >
             {canCreate && (
               <Button asChild>
                 <Link href="/projects/new">
                   <Plus data-icon="inline-start" aria-hidden="true" />
                   新建项目
-                </Link>
-              </Button>
-            )}
-            {isAdmin && (
-              <Button variant="outline" asChild>
-                <Link href="/imports">
-                  <Upload data-icon="inline-start" aria-hidden="true" />
-                  导入历史数据
                 </Link>
               </Button>
             )}

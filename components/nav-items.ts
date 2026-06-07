@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Microscope,
   PackageCheck,
-  Upload,
   Users,
   type LucideIcon,
 } from "lucide-react"
@@ -28,7 +27,6 @@ export const primaryNavItems: NavItem[] = [
 ]
 
 export const adminNavItems: NavItem[] = [
-  { title: "历史导入", href: "/imports", icon: Upload },
   { title: "用户管理", href: "/system/users", icon: Users },
 ]
 

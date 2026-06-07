@@ -1,9 +1,10 @@
 import bcrypt from "bcryptjs"
 import prisma from "../lib/prisma"
 import { UserRole } from "../lib/enums"
+import { seedExperience } from "./seed-experience"
 
 // 初始用户：管理员 + 7 角色各一个示例账号。username 唯一、幂等 upsert。
-// 不导入 Excel（历史数据走 /api/import/*，属后续阶段）。
+// 历史导入功能已删（一次性 demo 数据走 seed-experience，见下）。
 const SEED_USERS: { username: string; name: string; role: UserRole; department?: string }[] = [
   { username: "admin", name: "系统管理员", role: UserRole.admin },
   { username: "sales", name: "示例销售", role: UserRole.sales_owner },
@@ -36,6 +37,8 @@ async function main() {
   }
 
   console.log(`\n初始账号已就绪，统一初始密码：${DEFAULT_PASSWORD}`)
+
+  await seedExperience()
 }
 
 main()
