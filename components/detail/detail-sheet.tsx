@@ -27,7 +27,12 @@ export function DetailSheet({ title, children }: DetailSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-xl">
+      {/* 详情正文即内容本身，无独立描述；显式置空以消除 Radix 警告 */}
+      <SheetContent
+        side="right"
+        aria-describedby={undefined}
+        className="w-full gap-0 overflow-y-auto sm:max-w-xl"
+      >
         <SheetTitle className="sr-only">{title}</SheetTitle>
         {children}
       </SheetContent>
