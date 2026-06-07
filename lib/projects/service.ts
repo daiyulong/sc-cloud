@@ -84,7 +84,14 @@ function buildProjectListWhere(
       ],
     })
   }
-  if (query.status) filters.push({ status: query.status })
+  if (query.status) {
+    filters.push({ status: query.status })
+  } else if (query.deliveryScope) {
+    // 交付队列默认：待交付 + 已交付（前者待确认交付，后者待完成关闭，均需项目经理动作）
+    filters.push({
+      status: { in: [ProjectStatus.waiting_delivery, ProjectStatus.delivered] },
+    })
+  }
   if (query.serviceLevel) filters.push({ serviceLevel: query.serviceLevel })
   if (query.salesOwnerId) filters.push({ salesOwnerId: query.salesOwnerId })
   if (query.projectManagerId) filters.push({ projectManagerId: query.projectManagerId })

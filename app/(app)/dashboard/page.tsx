@@ -228,7 +228,7 @@ function buildWorkQueue(role: UserRole | undefined, metrics: DashboardData["metr
       title: "待交付项目",
       count: metrics.waitingDelivery,
       caption: "交付确认",
-      href: "/projects?status=waiting_delivery",
+      href: "/delivery?status=waiting_delivery",
     },
     {
       title: "异常项目",

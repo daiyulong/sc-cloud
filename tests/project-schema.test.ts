@@ -51,4 +51,12 @@ describe("project schemas", () => {
       serviceLevel: ServiceLevel.qc,
     })
   })
+
+  it("accepts deliveryScope flag for the delivery queue", () => {
+    expect(projectListQuerySchema.parse({ deliveryScope: true })).toMatchObject({
+      deliveryScope: true,
+    })
+    // 默认列表（项目页）不带该标记
+    expect(projectListQuerySchema.parse({}).deliveryScope).toBeUndefined()
+  })
 })

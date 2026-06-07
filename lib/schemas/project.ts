@@ -81,6 +81,8 @@ export const projectListQuerySchema = z.object({
   projectManagerId: optionalString,
   /** soon = 未来 7 个自然日内预计交付且未关闭（工作台「7 天内交付」入口） */
   due: z.enum(["soon"]).optional(),
+  /** 交付队列默认范围：无显式 status 时圈定「待交付 + 已交付」（仅 /delivery 内部设置） */
+  deliveryScope: z.boolean().optional(),
   page: optionalString,
   limit: optionalString,
 })
