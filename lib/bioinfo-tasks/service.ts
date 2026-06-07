@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { buildBioinfoTaskScope, buildProjectScope } from "@/lib/auth/role-scope"
 import { recordOperation } from "@/lib/operation-log"
+import { advanceProjectStatus } from "@/lib/projects/aggregation"
 import {
   BioinfoTaskStatus,
   OperationAction,
@@ -382,29 +383,6 @@ export async function submitBioinfoTask(
     }
 
     return updated
-  })
-}
-
-async function advanceProjectStatus(
-  tx: Prisma.TransactionClient,
-  operator: BioinfoTaskOperator,
-  projectBefore: { status: string },
-  projectId: string,
-  next: (typeof ProjectStatus)[keyof typeof ProjectStatus],
-  trigger: string
-) {
-  const projectAfter = await tx.project.update({
-    where: { id: projectId },
-    data: { status: next },
-  })
-  await recordOperation({
-    tx,
-    entityType: "project",
-    entityId: projectId,
-    action: OperationAction.status_change,
-    operatorId: operator.id,
-    before: projectBefore,
-    after: { project: projectAfter, trigger },
   })
 }
 

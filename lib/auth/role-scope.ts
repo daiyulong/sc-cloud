@@ -63,7 +63,9 @@ export function buildProjectScope(
     case UserRole.bioinfo_analyst:
       return { bioinfoTasks: { some: { analystId: userId } } }
     case UserRole.viewer:
-      return { projectGrants: { some: { userId } } } // 显式授权
+      // 第一期 viewer 简化为全局只读；终局若需按项目授权，通过 projectGrants 关联表实现。
+      // 参见 CLAUDE.md 需求评审结论，viewer 的「授权范围」不可落地——无授权 UI/API。
+      return {}
     default:
       // 未知 / 缺失角色：fail-closed，什么都看不到
       return { id: "__none__" }

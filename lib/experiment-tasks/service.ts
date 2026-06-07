@@ -7,6 +7,7 @@ import {
   tasksAwaitingBioinfoWhere,
 } from "@/lib/auth/role-scope"
 import { recordOperation } from "@/lib/operation-log"
+import { advanceProjectStatus } from "@/lib/projects/aggregation"
 import { compareDateOnly } from "@/lib/utils"
 import {
   BIOINFO_SERVICE_LEVELS,
@@ -626,30 +627,6 @@ async function advanceSampleToLab(
       after: { sample: sampleAfter, trigger: `experiment_task:${triggerTaskNo}:start` },
     })
   }
-}
-
-/** 聚合：推进项目状态并写日志（子实体动作驱动，§7.1） */
-async function advanceProjectStatus(
-  tx: Prisma.TransactionClient,
-  operator: ExperimentTaskOperator,
-  projectBefore: { status: string },
-  projectId: string,
-  next: (typeof ProjectStatus)[keyof typeof ProjectStatus],
-  trigger: string
-) {
-  const projectAfter = await tx.project.update({
-    where: { id: projectId },
-    data: { status: next },
-  })
-  await recordOperation({
-    tx,
-    entityType: "project",
-    entityId: projectId,
-    action: OperationAction.status_change,
-    operatorId: operator.id,
-    before: projectBefore,
-    after: { project: projectAfter, trigger },
-  })
 }
 
 export function handleExperimentTaskDomainError(error: unknown) {

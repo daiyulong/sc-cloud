@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { handleApiError, requireAuth, type RouteContext } from "@/lib/api-utils"
+import { handleApiError, parseJsonBody, requireAuth, type RouteContext } from "@/lib/api-utils"
 import { optionalProjectReasonSchema } from "@/lib/schemas/project"
 import { handleProjectDomainError, terminateProject } from "@/lib/projects/service"
 import type { UserRole } from "@/lib/enums"
@@ -10,7 +10,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (authError) return authError
 
     const { id } = await context.params
-    const input = optionalProjectReasonSchema.parse(await request.json().catch(() => ({})))
+    const input = optionalProjectReasonSchema.parse(await parseJsonBody(request))
     const project = await terminateProject(
       { id: session.user.id, role: session.user.role as UserRole },
       id,

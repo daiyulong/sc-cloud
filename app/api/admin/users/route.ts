@@ -5,7 +5,8 @@ import { createUser, handleUserDomainError, listUsers } from "@/lib/users/servic
 
 export async function GET(request: Request) {
   try {
-    const [, authError] = await requireAdmin()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- GET 列表仅需校验角色，不需操作人 ID
+    const [_, authError] = await requireAdmin()
     if (authError) return authError
 
     const { searchParams } = new URL(request.url)

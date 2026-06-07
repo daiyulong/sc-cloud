@@ -2,9 +2,10 @@
 
 import { signOut } from "next-auth/react"
 import type { Session } from "next-auth"
-import { ChevronsUpDown, KeyRound, LogOut } from "lucide-react"
+import { ChevronsUpDown, Info, KeyRound, LogOut } from "lucide-react"
 import * as React from "react"
 import { USER_ROLE_LABELS, type UserRole } from "@/lib/enums"
+import { AboutDialog } from "@/components/users/about-dialog"
 import { ChangePasswordDialog } from "@/components/users/change-password-dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -36,8 +37,8 @@ function getInitial(name?: string | null, email?: string | null) {
 export function UserMenu({ user }: UserMenuProps) {
   const role = user.role as UserRole | undefined
   const { isMobile } = useSidebar()
-  // Dialog 受控挂在 DropdownMenuContent 之外，菜单关闭不连坐
   const [passwordOpen, setPasswordOpen] = React.useState(false)
+  const [aboutOpen, setAboutOpen] = React.useState(false)
 
   return (
     <SidebarMenu>
@@ -75,6 +76,10 @@ export function UserMenu({ user }: UserMenuProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              <DropdownMenuItem onSelect={() => setAboutOpen(true)}>
+                <Info aria-hidden="true" />
+                关于
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setPasswordOpen(true)}>
                 <KeyRound aria-hidden="true" />
                 修改密码
@@ -90,6 +95,7 @@ export function UserMenu({ user }: UserMenuProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
         <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
       </SidebarMenuItem>
     </SidebarMenu>

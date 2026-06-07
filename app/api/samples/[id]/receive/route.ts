@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { handleApiError, requireAuth, type RouteContext } from "@/lib/api-utils"
+import { handleApiError, parseJsonBody, requireAuth, type RouteContext } from "@/lib/api-utils"
 import { receiveSampleSchema } from "@/lib/schemas/sample"
 import { handleSampleDomainError, receiveSample } from "@/lib/samples/service"
 import type { UserRole } from "@/lib/enums"
@@ -10,7 +10,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (authError) return authError
 
     const { id } = await context.params
-    const input = receiveSampleSchema.parse(await request.json().catch(() => ({})))
+    const input = receiveSampleSchema.parse(await parseJsonBody(request))
     const sample = await receiveSample(
       { id: session.user.id, role: session.user.role as UserRole },
       id,

@@ -99,6 +99,18 @@ export function paginatedResponse<T>(data: T[], total: number, page: number, lim
   })
 }
 
+/**
+ * 安全解析请求体 JSON——失败时抛出 SyntaxError，由 handleApiError 统一返回 400。
+ * 替代各路由里散落的 `.catch(() => ({}))`，确保非法 JSON 给出明确错误信息。
+ */
+export async function parseJsonBody(request: Request): Promise<unknown> {
+  try {
+    return await request.json()
+  } catch {
+    throw new SyntaxError("请求体格式错误，请提供合法的 JSON")
+  }
+}
+
 /** 统一 API 错误处理 */
 export function handleApiError(error: unknown, message: string) {
   if (error instanceof z.ZodError) {
