@@ -40,7 +40,7 @@ export default async function EditSamplePage({ params }: EditSamplePageProps) {
           <CardDescription>接收与状态字段只能通过详情页的动作推进。</CardDescription>
         </CardHeader>
         <CardContent>
-          <SampleForm mode="edit" sample={detail.sample} />
+          <SampleForm sample={detail.sample} />
         </CardContent>
       </Card>
     </div>

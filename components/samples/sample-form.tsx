@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation"
 import { Save } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
-import { PROJECT_STATUS_LABELS, type ProjectStatus as ProjectStatusValue } from "@/lib/enums"
 import { toDateString } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,25 +13,10 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
-export type SampleProjectOption = {
-  id: string
-  projectNo: string | null
-  customerOrg: string
-  status: ProjectStatusValue
-}
-
 type SampleFormValue = {
-  id?: string
+  id: string
   sampleNo?: string
   species?: string | null
   tissueType?: string | null
@@ -46,10 +30,7 @@ type SampleFormValue = {
 }
 
 type SampleFormProps = {
-  mode: "create" | "edit"
-  sample?: SampleFormValue
-  projectOptions?: SampleProjectOption[]
-  initialProjectId?: string
+  sample: SampleFormValue
 }
 
 function dateInputValue(value: Date | string | null | undefined) {
@@ -66,12 +47,9 @@ function formString(formData: FormData, key: string) {
   return value || null
 }
 
-export function SampleForm({ mode, sample, projectOptions = [], initialProjectId }: SampleFormProps) {
+export function SampleForm({ sample }: SampleFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = React.useTransition()
-  const [projectId, setProjectId] = React.useState(
-    sample?.project?.id || initialProjectId || ""
-  )
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -87,30 +65,20 @@ export function SampleForm({ mode, sample, projectOptions = [], initialProjectId
       expectedArrivalDate: formString(formData, "expectedArrivalDate"),
       remark: formString(formData, "remark"),
     }
-    if (mode === "create") {
-      if (!projectId) {
-        toast.error("请选择所属项目")
-        return
-      }
-      payload.projectId = projectId
-    }
 
     startTransition(async () => {
-      const response = await fetch(
-        mode === "create" ? "/api/samples" : `/api/samples/${sample?.id}`,
-        {
-          method: mode === "create" ? "POST" : "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      )
+      const response = await fetch(`/api/samples/${sample.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
       const result = await response.json().catch(() => null)
       if (!response.ok) {
         toast.error(result?.error || "保存样本失败")
         return
       }
 
-      toast.success(mode === "create" ? "样本已登记" : "样本已更新")
+      toast.success("样本已更新")
       // 硬导航直达全页详情：软 push 会被 @sheet 拦截成「侧滑盖在表单上」
       window.location.assign(`/samples/${result.data.id}`)
     })
@@ -120,35 +88,13 @@ export function SampleForm({ mode, sample, projectOptions = [], initialProjectId
     <form onSubmit={onSubmit}>
       <FieldGroup>
         <div className="grid gap-5 md:grid-cols-2">
-          {mode === "create" ? (
-            <Field>
-              <FieldLabel>所属项目</FieldLabel>
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {projectOptions.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.projectNo} · {project.customerOrg} ·{" "}
-                        {PROJECT_STATUS_LABELS[project.status]}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <FieldDescription>样本归属委托单粒度的项目，创建后不可变更。</FieldDescription>
-            </Field>
-          ) : (
-            <Field>
-              <FieldLabel>所属项目</FieldLabel>
-              <Input
-                value={`${sample?.project?.projectNo ?? ""} · ${sample?.project?.customerOrg ?? ""}`}
-                disabled
-              />
-            </Field>
-          )}
+          <Field>
+            <FieldLabel>所属项目</FieldLabel>
+            <Input
+              value={`${sample?.project?.projectNo ?? ""} · ${sample?.project?.customerOrg ?? ""}`}
+              disabled
+            />
+          </Field>
           <Field>
             <FieldLabel htmlFor="sampleNo">样品编号</FieldLabel>
             <Input id="sampleNo" name="sampleNo" defaultValue={sample?.sampleNo} required />

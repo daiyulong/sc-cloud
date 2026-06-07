@@ -83,6 +83,11 @@ export function isSameDateOnly(
   return compareDateOnly(a, b) === 0
 }
 
+/** searchParams 多值取首个（用于 page.tsx 解析 URL 查询参数） */
+export function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value
+}
+
 /** 相对时间（如「3 小时前」），用于时间线/列表 */
 export function formatDistanceToNow(date: Date | string | null | undefined): string {
   const d = parseDate(date)

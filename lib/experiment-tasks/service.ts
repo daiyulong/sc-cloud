@@ -129,6 +129,21 @@ async function getWritableTask(id: string) {
 }
 
 /**
+ * 实例级归属校验：admin/PM 可操作所有任务；lab_operator 只能操作自己负责（或尚未指派）的任务。
+ * 仅用于已认领阶段的动作（start/finish/feedback），排期动作作用于共享池不限制。
+ */
+function ensureCanOperateTask(
+  task: { operatorId: string | null },
+  operator: ExperimentTaskOperator
+) {
+  if (operator.role === UserRole.admin || operator.role === UserRole.project_manager) return
+  if (!task.operatorId) return // 未指派：合法角色均可操作
+  if (task.operatorId !== operator.id) {
+    throw new ExperimentTaskDomainError("没有操作该实验任务的权限", 403)
+  }
+}
+
+/**
  * 实际实验日期不能早于样本接收日期（自然日比较，同日通过；§8.7）。
  * 仅在显式传入 actualDate 且真正早于接收日时拦截；管理员可越过（异常补录）。
  */
@@ -345,6 +360,7 @@ export async function startExperimentTask(
 ) {
   ensureExperimentTaskRole(operator.role, undefined, "开始实验")
   const before = await getWritableTask(id)
+  ensureCanOperateTask(before, operator)
   ensureExperimentTaskStatus(before.status, [ExperimentTaskStatus.scheduled], "开始实验")
   ensureActualDateValid(input.actualDate, before.sample.receivedAt, operator.role)
 
@@ -391,6 +407,7 @@ export async function finishExperimentTask(
 ) {
   ensureExperimentTaskRole(operator.role, undefined, "完成实验")
   const before = await getWritableTask(id)
+  ensureCanOperateTask(before, operator)
   ensureExperimentTaskStatus(before.status, [ExperimentTaskStatus.in_progress], "完成实验")
   ensureActualDateValid(input.actualDate, before.sample.receivedAt, operator.role)
 
@@ -432,6 +449,7 @@ export async function submitExperimentFeedback(
 ) {
   ensureExperimentTaskRole(operator.role, undefined, "提交实验反馈")
   const before = await getWritableTask(id)
+  ensureCanOperateTask(before, operator)
   ensureExperimentTaskStatus(before.status, feedbackSubmittableTaskStatuses, "提交实验反馈")
   ensureActualDateValid(input.actualDate, before.sample.receivedAt, operator.role)
 

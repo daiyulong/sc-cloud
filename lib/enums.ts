@@ -220,7 +220,6 @@ export const OperationAction = {
   update: "update",
   status_change: "status_change",
   assign: "assign",
-  import: "import",
   delete: "delete",
 } as const
 export type OperationAction = (typeof OperationAction)[keyof typeof OperationAction]

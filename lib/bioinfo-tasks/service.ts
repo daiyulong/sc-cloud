@@ -7,6 +7,7 @@ import {
   BioinfoTaskStatus,
   OperationAction,
   ProjectStatus,
+  UserRole,
   type ServiceLevel as ServiceLevelValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
@@ -111,6 +112,21 @@ async function getWritableBioinfoTask(id: string) {
   })
   if (!task) throw new BioinfoTaskDomainError("生信任务不存在", 404)
   return task
+}
+
+/**
+ * 实例级归属校验：admin/PM 可操作所有生信任务；bioinfo_analyst 只能操作自己负责（或尚未指派）的任务。
+ * 仅用于已认领阶段的动作（review/submit），startBioinfoTask 作用于共享认领池不限制。
+ */
+function ensureCanOperateBioinfoTask(
+  task: { analystId: string | null },
+  operator: BioinfoTaskOperator
+) {
+  if (operator.role === UserRole.admin || operator.role === UserRole.project_manager) return
+  if (!task.analystId) return // 未指派：合法角色均可操作
+  if (task.analystId !== operator.id) {
+    throw new BioinfoTaskDomainError("没有操作该生信任务的权限", 403)
+  }
 }
 
 export async function listBioinfoTasks(
@@ -287,6 +303,7 @@ export async function startBioinfoTask(
 export async function reviewBioinfoTask(operator: BioinfoTaskOperator, id: string) {
   ensureBioinfoRole(operator.role, bioinfoManageRoles, "提交审核")
   const before = await getWritableBioinfoTask(id)
+  ensureCanOperateBioinfoTask(before, operator)
   ensureBioinfoStatus(before.status, [BioinfoTaskStatus.in_progress], "提交审核")
 
   return prisma.$transaction(async (tx) => {
@@ -320,6 +337,7 @@ export async function submitBioinfoTask(
 ) {
   ensureBioinfoRole(operator.role, bioinfoManageRoles, "提交报告")
   const before = await getWritableBioinfoTask(id)
+  ensureCanOperateBioinfoTask(before, operator)
   ensureBioinfoStatus(before.status, submittableBioinfoStatuses, "提交报告")
 
   return prisma.$transaction(async (tx) => {

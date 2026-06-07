@@ -16,7 +16,7 @@ import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
 import { bioinfoCreateRoles } from "@/lib/bioinfo-tasks/rules"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
-import { formatDate } from "@/lib/utils"
+import { firstParam, formatDate } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListToolbar } from "@/components/list/list-toolbar"
@@ -39,10 +39,6 @@ type ExperimentTasksPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
-}
-
 export default async function ExperimentTasksPage({ searchParams }: ExperimentTasksPageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
@@ -51,16 +47,16 @@ export default async function ExperimentTasksPage({ searchParams }: ExperimentTa
 
   const raw = (await searchParams) ?? {}
   const query = experimentTaskListQuerySchema.parse({
-    q: first(raw.q),
-    status: first(raw.status),
-    projectId: first(raw.projectId),
-    operatorId: first(raw.operatorId),
-    date: first(raw.date),
-    awaiting: first(raw.awaiting),
-    page: first(raw.page),
-    limit: first(raw.limit),
+    q: firstParam(raw.q),
+    status: firstParam(raw.status),
+    projectId: firstParam(raw.projectId),
+    operatorId: firstParam(raw.operatorId),
+    date: firstParam(raw.date),
+    awaiting: firstParam(raw.awaiting),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
-  const { page, limit, skip } = parsePagination({ page: first(raw.page), limit: first(raw.limit) })
+  const { page, limit, skip } = parsePagination({ page: firstParam(raw.page), limit: firstParam(raw.limit) })
   const [{ data: tasks, total }, contextProject, operatorOptions] = await Promise.all([
     listExperimentTasks(operator, query, { skip, limit }),
     query.projectId
@@ -75,7 +71,7 @@ export default async function ExperimentTasksPage({ searchParams }: ExperimentTa
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
   for (const key of ["q", "status", "projectId", "operatorId", "date", "awaiting"]) {
-    const value = first(raw[key])
+    const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
   }
   // 「待建生信任务」队列视图：行内直接建生信任务（队列已保证行均合格，仅按角色显示）

@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { firstParam } from "@/lib/utils"
 import {
   SUSPENSION_TYPE_LABELS,
   SuspensionType,
@@ -38,10 +39,6 @@ type ExperiencesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
-}
-
 function Stat({ label, stat, suffix = "" }: { label: string; stat: SimilarStat; suffix?: string }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -65,11 +62,11 @@ export default async function ExperiencesPage({ searchParams }: ExperiencesPageP
   const operator = { id: session.user.id, role: session.user.role as UserRoleValue }
 
   const raw = (await searchParams) ?? {}
-  const rawSuspension = first(raw.suspensionType)
+  const rawSuspension = firstParam(raw.suspensionType)
   const filters: SimilarFilters = {
-    species: first(raw.species),
-    tissue: first(raw.tissue),
-    runMethod: first(raw.runMethod),
+    species: firstParam(raw.species),
+    tissue: firstParam(raw.tissue),
+    runMethod: firstParam(raw.runMethod),
     suspensionType:
       rawSuspension === SuspensionType.cell || rawSuspension === SuspensionType.nucleus
         ? (rawSuspension as SuspensionTypeValue)

@@ -13,7 +13,7 @@ import {
 } from "@/lib/enums"
 import { projectListQuerySchema } from "@/lib/schemas/project"
 import { listProjects } from "@/lib/projects/service"
-import { formatDate } from "@/lib/utils"
+import { firstParam, formatDate } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListToolbar } from "@/components/list/list-toolbar"
@@ -35,10 +35,6 @@ type DeliveryPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
-}
-
 // 交付页只关心交付相关状态：待交付（默认队列）+ 已完成（历史参考）
 export default async function DeliveryPage({ searchParams }: DeliveryPageProps) {
   const session = await auth()
@@ -46,19 +42,19 @@ export default async function DeliveryPage({ searchParams }: DeliveryPageProps) 
 
   const raw = (await searchParams) ?? {}
   // 交付页是二选一：默认 = 待交付队列（deliveryScope），唯一可切的显式筛选 = 已完成（历史）
-  const showCompleted = first(raw.status) === ProjectStatus.completed
+  const showCompleted = firstParam(raw.status) === ProjectStatus.completed
   const status = showCompleted ? ProjectStatus.completed : undefined
   const query = projectListQuerySchema.parse({
-    q: first(raw.q),
+    q: firstParam(raw.q),
     status,
     // 无显式 status 时圈定「待交付」（确认交付即关闭，无独立已交付态）
     deliveryScope: true,
-    page: first(raw.page),
-    limit: first(raw.limit),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
   const { page, limit, skip } = parsePagination({
-    page: first(raw.page),
-    limit: first(raw.limit),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
   const { data: projects, total } = await listProjects(
     { id: session.user.id, role: session.user.role as UserRoleValue },

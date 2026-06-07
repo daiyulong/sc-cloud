@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { firstParam } from "@/lib/utils"
 import { auth } from "@/lib/auth"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
 import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
@@ -10,10 +11,6 @@ export const dynamic = "force-dynamic"
 
 type InterceptedNewTaskPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
-}
-
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
 }
 
 /**
@@ -31,7 +28,7 @@ export default async function InterceptedNewTaskPage({
   }
 
   const raw = (await searchParams) ?? {}
-  const initialSampleId = first(raw.sampleId)
+  const initialSampleId = firstParam(raw.sampleId)
   const [sampleOptions, operatorOptions] = await Promise.all([
     getTaskSampleOptions({ id: session.user.id, role }),
     getOperatorOptions(),

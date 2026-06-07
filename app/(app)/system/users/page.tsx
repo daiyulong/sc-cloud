@@ -10,7 +10,7 @@ import {
 } from "@/lib/enums"
 import { userListQuerySchema } from "@/lib/schemas/user"
 import { listUsers } from "@/lib/users/service"
-import { formatDateTime } from "@/lib/utils"
+import { firstParam, formatDateTime } from "@/lib/utils"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { StatusDot } from "@/components/status-dot"
@@ -33,10 +33,6 @@ type UsersPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
-}
-
 const USER_ACTIVE_DOT = {
   active: "bg-emerald-500",
   inactive: "bg-zinc-400",
@@ -49,21 +45,21 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
 
   const raw = (await searchParams) ?? {}
   const query = userListQuerySchema.parse({
-    q: first(raw.q),
-    role: first(raw.role),
-    isActive: first(raw.isActive),
-    page: first(raw.page),
-    limit: first(raw.limit),
+    q: firstParam(raw.q),
+    role: firstParam(raw.role),
+    isActive: firstParam(raw.isActive),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
   const { page, limit, skip } = parsePagination({
-    page: first(raw.page),
-    limit: first(raw.limit),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
   const { data: users, total } = await listUsers(query, { skip, limit })
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
   for (const key of ["q", "role", "isActive"]) {
-    const value = first(raw[key])
+    const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
   }
   const pageHref = (nextPage: number) => {

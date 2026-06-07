@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { firstParam } from "@/lib/utils"
 import { auth } from "@/lib/auth"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
 import { bioinfoCreateRoles } from "@/lib/bioinfo-tasks/rules"
@@ -10,10 +11,6 @@ export const dynamic = "force-dynamic"
 
 type InterceptedNewBioinfoPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
-}
-
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
 }
 
 /**
@@ -31,7 +28,7 @@ export default async function InterceptedNewBioinfoPage({
   }
 
   const raw = (await searchParams) ?? {}
-  const initialExperimentTaskId = first(raw.experimentTaskId)
+  const initialExperimentTaskId = firstParam(raw.experimentTaskId)
   const [experimentTaskOptions, analystOptions] = await Promise.all([
     getBioinfoExperimentTaskOptions({ id: session.user.id, role }),
     getAnalystOptions(),

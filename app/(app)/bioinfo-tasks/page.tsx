@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Dna, Plus, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
+import { firstParam } from "@/lib/utils"
 import { auth } from "@/lib/auth"
 import { parsePagination } from "@/lib/api-utils"
 import {
@@ -36,10 +37,6 @@ type BioinfoTasksPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
-}
-
 export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
@@ -48,15 +45,15 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
 
   const raw = (await searchParams) ?? {}
   const query = bioinfoTaskListQuerySchema.parse({
-    q: first(raw.q),
-    status: first(raw.status),
-    projectId: first(raw.projectId),
-    analystId: first(raw.analystId),
-    open: first(raw.open),
-    page: first(raw.page),
-    limit: first(raw.limit),
+    q: firstParam(raw.q),
+    status: firstParam(raw.status),
+    projectId: firstParam(raw.projectId),
+    analystId: firstParam(raw.analystId),
+    open: firstParam(raw.open),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
-  const { page, limit, skip } = parsePagination({ page: first(raw.page), limit: first(raw.limit) })
+  const { page, limit, skip } = parsePagination({ page: firstParam(raw.page), limit: firstParam(raw.limit) })
   const [{ data: tasks, total }, contextProject] = await Promise.all([
     listBioinfoTasks(operator, query, { skip, limit }),
     query.projectId
@@ -70,7 +67,7 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
   for (const key of ["q", "status", "projectId", "analystId", "open"]) {
-    const value = first(raw[key])
+    const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
   }
   const pageHref = (nextPage: number) => {

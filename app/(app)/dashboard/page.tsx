@@ -9,6 +9,7 @@ import {
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import {
+  buildBioinfoTaskScope,
   buildExperimentTaskScope,
   buildProjectScope,
   buildSampleScope,
@@ -158,8 +159,10 @@ async function getDashboardData(): Promise<DashboardData | null> {
       }),
       prisma.bioinfoTask.count({
         where: {
-          project: projectScope,
-          status: { in: ["pending", "in_progress", "waiting_review"] },
+          AND: [
+            buildBioinfoTaskScope(role, session.user.id),
+            { status: { in: ["pending", "in_progress", "waiting_review"] } },
+          ],
         },
       }),
       prisma.sample.count({
@@ -349,7 +352,7 @@ function buildWorkQueue(role: UserRole | undefined, metrics: DashboardData["metr
           title: "待交付",
           count: metrics.waitingDelivery,
           caption: "报告交付",
-          href: "/bioinfo-tasks?status=waiting_delivery",
+          href: "/delivery",
         },
       ] satisfies WorkQueueItem[]
     case "viewer":

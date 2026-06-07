@@ -93,8 +93,6 @@ export function describeOperationLog(log: DescribableLog): OperationDescription 
       return { title: `更新${entityLabel}${name}` }
     case "assign":
       return { title: `指派${entityLabel}${name}` }
-    case "import":
-      return { title: `导入${entityLabel}${name}` }
     case "delete":
       return { title: `删除${entityLabel}${name}` }
     default:

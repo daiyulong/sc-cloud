@@ -176,7 +176,9 @@ export async function searchSimilarRuns(
   if (filters.runMethod) and.push({ runMethod: ci(filters.runMethod) })
   if (filters.suspensionType) and.push({ suspensionType: filters.suspensionType })
 
-  const tasks = await prisma.experimentTask.findMany({
+  const [totalCount, tasks] = await Promise.all([
+    prisma.experimentTask.count({ where: { AND: and } }),
+    prisma.experimentTask.findMany({
     where: { AND: and },
     select: {
       id: true,
@@ -192,7 +194,8 @@ export async function searchSimilarRuns(
     },
     orderBy: { updatedAt: "desc" },
     take: 100,
-  })
+  }),
+  ])
 
   const runs: SimilarRun[] = tasks.map((t) => ({
     id: t.id,
@@ -212,7 +215,7 @@ export async function searchSimilarRuns(
     median(runs.map((r) => r[key]).filter((v): v is number => v != null))
 
   return {
-    total: runs.length,
+    total: totalCount,
     capturedCells: pick("capturedCells"),
     medianGenes: pick("medianGenes"),
     viability: pick("viability"),

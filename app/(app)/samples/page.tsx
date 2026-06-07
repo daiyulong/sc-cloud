@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma"
 import { sampleListQuerySchema } from "@/lib/schemas/sample"
 import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
 import { listSamples } from "@/lib/samples/service"
-import { formatDate, formatDateTime } from "@/lib/utils"
+import { firstParam, formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListToolbar } from "@/components/list/list-toolbar"
@@ -37,27 +37,23 @@ type SamplesPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
-}
-
 export default async function SamplesPage({ searchParams }: SamplesPageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
 
   const raw = (await searchParams) ?? {}
   const query = sampleListQuerySchema.parse({
-    q: first(raw.q),
-    status: first(raw.status),
-    projectId: first(raw.projectId),
-    received: first(raw.received),
-    awaiting: first(raw.awaiting),
-    page: first(raw.page),
-    limit: first(raw.limit),
+    q: firstParam(raw.q),
+    status: firstParam(raw.status),
+    projectId: firstParam(raw.projectId),
+    received: firstParam(raw.received),
+    awaiting: firstParam(raw.awaiting),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
   const { page, limit, skip } = parsePagination({
-    page: first(raw.page),
-    limit: first(raw.limit),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
   const [{ data: samples, total }, contextProject] = await Promise.all([
     listSamples(
@@ -81,7 +77,7 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
   for (const key of ["q", "status", "projectId", "received", "awaiting"]) {
-    const value = first(raw[key])
+    const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
   }
   // 「待建实验任务」队列视图：行内直接建任务（队列已保证行均合格，仅按角色显示）

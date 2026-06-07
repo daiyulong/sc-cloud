@@ -15,7 +15,7 @@ import {
 } from "@/lib/enums"
 import { projectListQuerySchema } from "@/lib/schemas/project"
 import { listProjects } from "@/lib/projects/service"
-import { formatDate } from "@/lib/utils"
+import { firstParam, formatDate } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListToolbar } from "@/components/list/list-toolbar"
@@ -38,10 +38,6 @@ type ProjectsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value
-}
-
 function canCreateProject(role?: UserRoleValue) {
   return role === UserRole.admin || role === UserRole.sales_owner || role === UserRole.project_manager
 }
@@ -52,18 +48,18 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
 
   const raw = (await searchParams) ?? {}
   const query = projectListQuerySchema.parse({
-    q: first(raw.q),
-    status: first(raw.status),
-    serviceLevel: first(raw.serviceLevel),
-    salesOwnerId: first(raw.salesOwnerId),
-    projectManagerId: first(raw.projectManagerId),
-    due: first(raw.due),
-    page: first(raw.page),
-    limit: first(raw.limit),
+    q: firstParam(raw.q),
+    status: firstParam(raw.status),
+    serviceLevel: firstParam(raw.serviceLevel),
+    salesOwnerId: firstParam(raw.salesOwnerId),
+    projectManagerId: firstParam(raw.projectManagerId),
+    due: firstParam(raw.due),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
   const { page, limit, skip } = parsePagination({
-    page: first(raw.page),
-    limit: first(raw.limit),
+    page: firstParam(raw.page),
+    limit: firstParam(raw.limit),
   })
   const { data: projects, total } = await listProjects(
     { id: session.user.id, role: session.user.role as UserRoleValue },
@@ -73,7 +69,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
   for (const key of ["q", "status", "serviceLevel", "salesOwnerId", "projectManagerId", "due"]) {
-    const value = first(raw[key])
+    const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
   }
   const pageHref = (nextPage: number) => {
