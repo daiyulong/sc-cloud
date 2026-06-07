@@ -1,6 +1,12 @@
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { buildProjectScope } from "@/lib/auth/role-scope"
-import { ProjectStatus, type UserRole as UserRoleValue } from "@/lib/enums"
+import {
+  ExperimentTaskStatus,
+  ProjectStatus,
+  type SuspensionType as SuspensionTypeValue,
+  type UserRole as UserRoleValue,
+} from "@/lib/enums"
 
 export type AnalyticsOperator = { id: string; role?: UserRoleValue }
 
@@ -96,5 +102,120 @@ export async function getAnalytics(operator: AnalyticsOperator): Promise<Analyti
     speciesDist: topN(speciesRows.map((r) => ({ key: r.species, count: r._count._all }))),
     tissueDist: topN(tissueRows.map((r) => ({ key: r.tissueType, count: r._count._all }))),
     capturedCellsBySpecies,
+  }
+}
+
+// ---------- 相似经验检索 ----------
+
+export type SimilarFilters = {
+  species?: string
+  tissue?: string
+  runMethod?: string
+  suspensionType?: SuspensionTypeValue
+}
+
+export type SimilarRun = {
+  id: string
+  taskNo: string
+  projectNo: string | null
+  species: string | null
+  tissueType: string | null
+  runMethod: string | null
+  suspensionType: string | null
+  capturedCells: number | null
+  medianGenes: number | null
+  sequencingAmount: number | null
+  viability: number | null
+}
+
+export type SimilarStat = { median: number; n: number } | null
+
+export type SimilarResult = {
+  total: number
+  capturedCells: SimilarStat
+  medianGenes: SimilarStat
+  viability: SimilarStat
+  runs: SimilarRun[]
+}
+
+function median(values: number[]): SimilarStat {
+  if (!values.length) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  const m = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+  return { median: Math.round(m * 10) / 10, n: values.length }
+}
+
+/** 是否带了任一检索维度（无维度 = 浏览全部有产出的历史上机） */
+export function hasSimilarFilters(f: SimilarFilters): boolean {
+  return Boolean(f.species || f.tissue || f.runMethod || f.suspensionType)
+}
+
+/**
+ * 相似经验检索：按 物种/组织/建库化学/悬液类型 匹配历史「已完成且有产出指标」的上机记录，
+ * 给出捕获细胞数/基因中位数/活率的中位数（术前参考）+ 命中明细。脏字段用 contains 模糊匹配。
+ */
+export async function searchSimilarRuns(
+  operator: AnalyticsOperator,
+  filters: SimilarFilters
+): Promise<SimilarResult> {
+  const scope = buildProjectScope(operator.role, operator.id)
+  const ci = (v: string): Prisma.StringFilter => ({ contains: v.trim(), mode: "insensitive" })
+
+  const sampleFilter: Prisma.SampleWhereInput = {}
+  if (filters.species) sampleFilter.species = ci(filters.species)
+  if (filters.tissue) sampleFilter.tissueType = ci(filters.tissue)
+
+  const and: Prisma.ExperimentTaskWhereInput[] = [
+    { project: scope },
+    { status: ExperimentTaskStatus.completed },
+    // 只取「有产出」的历史，才有参考价值
+    { OR: [{ capturedCells: { not: null } }, { medianGenes: { not: null } }] },
+  ]
+  if (Object.keys(sampleFilter).length) and.push({ sample: sampleFilter })
+  if (filters.runMethod) and.push({ runMethod: ci(filters.runMethod) })
+  if (filters.suspensionType) and.push({ suspensionType: filters.suspensionType })
+
+  const tasks = await prisma.experimentTask.findMany({
+    where: { AND: and },
+    select: {
+      id: true,
+      taskNo: true,
+      runMethod: true,
+      suspensionType: true,
+      capturedCells: true,
+      medianGenes: true,
+      sequencingAmount: true,
+      project: { select: { projectNo: true } },
+      sample: { select: { species: true, tissueType: true } },
+      qcRecords: { select: { viability: true }, orderBy: { createdAt: "desc" }, take: 1 },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 100,
+  })
+
+  const runs: SimilarRun[] = tasks.map((t) => ({
+    id: t.id,
+    taskNo: t.taskNo,
+    projectNo: t.project.projectNo,
+    species: t.sample?.species ?? null,
+    tissueType: t.sample?.tissueType ?? null,
+    runMethod: t.runMethod,
+    suspensionType: t.suspensionType,
+    capturedCells: t.capturedCells,
+    medianGenes: t.medianGenes,
+    sequencingAmount: t.sequencingAmount,
+    viability: t.qcRecords[0]?.viability ?? null,
+  }))
+
+  const pick = (key: "capturedCells" | "medianGenes" | "viability") =>
+    median(runs.map((r) => r[key]).filter((v): v is number => v != null))
+
+  return {
+    total: runs.length,
+    capturedCells: pick("capturedCells"),
+    medianGenes: pick("medianGenes"),
+    viability: pick("viability"),
+    runs: runs.slice(0, 50),
   }
 }

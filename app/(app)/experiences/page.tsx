@@ -1,8 +1,21 @@
+import Link from "next/link"
 import { redirect } from "next/navigation"
+import {
+  SUSPENSION_TYPE_LABELS,
+  SuspensionType,
+  type SuspensionType as SuspensionTypeValue,
+  type UserRole as UserRoleValue,
+} from "@/lib/enums"
 import { auth } from "@/lib/auth"
-import { type UserRole as UserRoleValue } from "@/lib/enums"
-import { getAnalytics } from "@/lib/analytics/service"
+import {
+  getAnalytics,
+  hasSimilarFilters,
+  searchSimilarRuns,
+  type SimilarFilters,
+  type SimilarStat,
+} from "@/lib/analytics/service"
 import { BarStat, LineStat, type ChartDatum } from "@/components/analytics/charts"
+import { SimilarSearch } from "@/components/analytics/similar-search"
 import {
   Card,
   CardContent,
@@ -10,29 +23,152 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 export const dynamic = "force-dynamic"
 
-export default async function ExperiencesPage() {
+type ExperiencesPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value
+}
+
+function Stat({ label, stat, suffix = "" }: { label: string; stat: SimilarStat; suffix?: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      {stat ? (
+        <span className="text-lg font-semibold tabular-nums">
+          {stat.median}
+          {suffix}
+          <span className="ml-1 text-xs font-normal text-muted-foreground">n={stat.n}</span>
+        </span>
+      ) : (
+        <span className="text-lg font-semibold text-muted-foreground">—</span>
+      )}
+    </div>
+  )
+}
+
+export default async function ExperiencesPage({ searchParams }: ExperiencesPageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
+  const operator = { id: session.user.id, role: session.user.role as UserRoleValue }
 
-  const a = await getAnalytics({ id: session.user.id, role: session.user.role as UserRoleValue })
+  const raw = (await searchParams) ?? {}
+  const rawSuspension = first(raw.suspensionType)
+  const filters: SimilarFilters = {
+    species: first(raw.species),
+    tissue: first(raw.tissue),
+    runMethod: first(raw.runMethod),
+    suspensionType:
+      rawSuspension === SuspensionType.cell || rawSuspension === SuspensionType.nucleus
+        ? (rawSuspension as SuspensionTypeValue)
+        : undefined,
+  }
+
+  const [a, similar] = await Promise.all([
+    getAnalytics(operator),
+    searchSimilarRuns(operator, filters),
+  ])
 
   const monthData: ChartDatum[] = a.completedByMonth.map((m) => ({ name: m.month, value: m.count }))
   const speciesData: ChartDatum[] = a.speciesDist.map((s) => ({ name: s.name, value: s.count }))
   const tissueData: ChartDatum[] = a.tissueDist.map((s) => ({ name: s.name, value: s.count }))
   const cellsData: ChartDatum[] = a.capturedCellsBySpecies.map((s) => ({ name: s.name, value: s.avg }))
   const cellsN = a.capturedCellsBySpecies.reduce((s, x) => s + x.n, 0)
+  const filtered = hasSimilarFilters(filters)
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">经验库</h1>
         <p className="text-sm text-muted-foreground">
-          趋势、构成与上机产出参考（共 {a.sampleTotal} 个样本，按你的可见范围统计）。
+          相似经验检索 + 趋势构成（共 {a.sampleTotal} 个样本，按你的可见范围统计）。
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>相似经验检索</CardTitle>
+          <CardDescription>
+            按维度匹配历史「已完成且有产出」的上机记录，估算这类样本能期望的产出（术前参考）。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <SimilarSearch
+            initial={{
+              species: filters.species,
+              tissue: filters.tissue,
+              runMethod: filters.runMethod,
+              suspensionType: filters.suspensionType,
+            }}
+          />
+          <div className="grid grid-cols-2 gap-4 rounded-lg border bg-muted/30 px-4 py-3 sm:grid-cols-4">
+            <Stat label="匹配上机" stat={{ median: similar.total, n: similar.total }} />
+            <Stat label="捕获细胞数（中位）" stat={similar.capturedCells} />
+            <Stat label="基因中位数（中位）" stat={similar.medianGenes} />
+            <Stat label="活率（中位）" stat={similar.viability} suffix="%" />
+          </div>
+
+          {similar.total === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              {filtered ? "无匹配的历史上机，放宽条件再试。" : "暂无有产出指标的历史上机记录。"}
+            </p>
+          ) : (
+            <div className="overflow-hidden rounded-lg border">
+              <Table className="[&_td]:px-3 [&_td]:py-2 [&_th]:px-3">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>任务</TableHead>
+                    <TableHead>物种 / 组织</TableHead>
+                    <TableHead>建库化学</TableHead>
+                    <TableHead>悬液</TableHead>
+                    <TableHead className="text-right">捕获细胞数</TableHead>
+                    <TableHead className="text-right">基因中位数</TableHead>
+                    <TableHead className="text-right">活率</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {similar.runs.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell>
+                        <Link href={`/experiment-tasks/${r.id}`} className="font-medium hover:underline">
+                          {r.taskNo}
+                        </Link>
+                        <span className="block text-xs text-muted-foreground">{r.projectNo ?? "—"}</span>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {(r.species ?? "—") + " / " + (r.tissueType ?? "—")}
+                      </TableCell>
+                      <TableCell>{r.runMethod ?? "—"}</TableCell>
+                      <TableCell>
+                        {r.suspensionType
+                          ? SUSPENSION_TYPE_LABELS[r.suspensionType as SuspensionTypeValue]
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{r.capturedCells ?? "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{r.medianGenes ?? "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {r.viability != null ? `${r.viability}%` : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
