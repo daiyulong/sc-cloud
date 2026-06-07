@@ -19,6 +19,7 @@ import type {
   ExperimentTaskListQuery,
   FinishTaskInput,
   RecordQcInput,
+  RecordRunMetricsInput,
   ScheduleTaskInput,
   StartTaskInput,
   SubmitFeedbackInput,
@@ -31,6 +32,8 @@ import {
   ensureProjectCanCreateTask,
   ensureSampleCanCreateTask,
   feedbackSubmittableTaskStatuses,
+  metricsRecordRoles,
+  metricsRecordableTaskStatuses,
   qcRecordableTaskStatuses,
 } from "@/lib/experiment-tasks/rules"
 
@@ -534,6 +537,43 @@ export async function recordTaskQc(
     })
 
     return qc
+  })
+}
+
+/**
+ * 录入产出指标（§6.8 经验视图）：实验完成后补录细胞核/测序量/捕获数/基因中位数。
+ * 不改任务执行态、可重复订正；权限含生信分析员（下机数据到手者）。写 operation_logs。
+ */
+export async function recordRunMetrics(
+  operator: ExperimentTaskOperator,
+  id: string,
+  input: RecordRunMetricsInput
+) {
+  ensureExperimentTaskRole(operator.role, metricsRecordRoles, "录入产出指标")
+  const before = await getWritableTask(id)
+  ensureExperimentTaskStatus(before.status, metricsRecordableTaskStatuses, "录入产出指标")
+
+  const data = Object.fromEntries(
+    Object.entries({
+      suspensionType: input.suspensionType,
+      sequencingAmount: input.sequencingAmount,
+      capturedCells: input.capturedCells,
+      medianGenes: input.medianGenes,
+    }).filter(([, value]) => value !== undefined)
+  ) as Prisma.ExperimentTaskUpdateInput
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.experimentTask.update({ where: { id }, data, include: taskInclude })
+    await recordOperation({
+      tx,
+      entityType: "experiment_task",
+      entityId: id,
+      action: OperationAction.update,
+      operatorId: operator.id,
+      before,
+      after: { task: updated, kind: "run_metrics" },
+    })
+    return updated
   })
 }
 

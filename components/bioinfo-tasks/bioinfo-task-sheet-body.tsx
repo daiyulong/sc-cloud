@@ -4,12 +4,14 @@ import {
   BIOINFO_TASK_STATUS_LABELS,
   PROJECT_STATUS_LABELS,
   type BioinfoTaskStatus as BioinfoTaskStatusValue,
+  type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
 } from "@/lib/enums"
 import type { getBioinfoTaskDetail } from "@/lib/bioinfo-tasks/service"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
 import { BioinfoTaskFields } from "@/components/bioinfo-tasks/bioinfo-task-fields"
+import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
 import { BIOINFO_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -72,6 +74,14 @@ export function BioinfoTaskSheetBody({
 
       <Separator />
       <BioinfoTaskFields task={task} columns={2} />
+      <Separator />
+      <RunMetricsSection
+        experimentTaskId={task.experimentTask.id}
+        taskNo={task.experimentTask.taskNo}
+        status={task.experimentTask.status as ExperimentTaskStatusValue}
+        role={role}
+        metrics={task.experimentTask}
+      />
       <Separator />
 
       <section className="flex flex-col gap-3">

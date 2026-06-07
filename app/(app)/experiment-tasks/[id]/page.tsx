@@ -16,6 +16,7 @@ import { OperationTimeline } from "@/components/detail/operation-timeline"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { ExperimentTaskFields } from "@/components/experiment-tasks/experiment-task-fields"
 import { QcSection } from "@/components/experiment-tasks/qc-section"
+import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -106,6 +107,22 @@ export default async function ExperimentTaskDetailPage({ params }: ExperimentTas
             status={status}
             role={session.user.role}
             records={task.qcRecords}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>产出指标</CardTitle>
+          <CardDescription>下机定量（cellranger）后补录，供相似经验参考</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RunMetricsSection
+            experimentTaskId={task.id}
+            taskNo={task.taskNo}
+            status={status}
+            role={session.user.role}
+            metrics={task}
           />
         </CardContent>
       </Card>

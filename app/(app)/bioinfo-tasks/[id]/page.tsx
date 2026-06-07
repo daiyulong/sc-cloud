@@ -7,6 +7,7 @@ import {
   BioinfoTaskStatus,
   PROJECT_STATUS_LABELS,
   type BioinfoTaskStatus as BioinfoTaskStatusValue,
+  type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
@@ -14,6 +15,7 @@ import { getBioinfoTaskDetail } from "@/lib/bioinfo-tasks/service"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
 import { BioinfoTaskFields } from "@/components/bioinfo-tasks/bioinfo-task-fields"
+import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -86,6 +88,22 @@ export default async function BioinfoTaskDetailPage({ params }: BioinfoTaskDetai
         </CardHeader>
         <CardContent>
           <BioinfoTaskFields task={task} columns={3} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>产出指标</CardTitle>
+          <CardDescription>关联实验任务的下机定量指标，分析完成后补录</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RunMetricsSection
+            experimentTaskId={task.experimentTask.id}
+            taskNo={task.experimentTask.taskNo}
+            status={task.experimentTask.status as ExperimentTaskStatusValue}
+            role={session.user.role}
+            metrics={task.experimentTask}
+          />
         </CardContent>
       </Card>
 

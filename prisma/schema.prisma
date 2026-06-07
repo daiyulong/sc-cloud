@@ -106,6 +106,13 @@ enum ResultStatus {
   other
 }
 
+// 悬液类型：细胞/细胞核（scRNA vs snRNA，相似经验检索维度，§6.8）。
+// 命名避开 CellType——领域里 cell type 指细胞类型注释，非此维度。
+enum SuspensionType {
+  cell
+  nucleus
+}
+
 enum OperationAction {
   create
   update
@@ -276,6 +283,7 @@ model ExperimentTask {
   sampleId          String               @map("sample_id")
   experimentType    String               @map("experiment_type")
   runMethod         String?              @map("run_method") // 上机方式，排期/导入时由文本解析填充
+  suspensionType    SuspensionType?      @map("suspension_type") // 细胞/细胞核 scRNA vs snRNA（§6.8）
   plannedDate       DateTime?            @map("planned_date")
   actualDate        DateTime?            @map("actual_date")
   operatorId        String?              @map("operator_id") // nullable：排期时指派
@@ -285,6 +293,12 @@ model ExperimentTask {
   resultStatus      ResultStatus?        @map("result_status")
   resultFeedback    String?              @map("result_feedback") // 原文全量保留
   rawBookingText    String?              @map("raw_booking_text") // 旧表「上机方式」原始文本，导入留存
+  // 下机产出指标（测序+定量后由 recordRunMetrics 动作补录，§6.8 经验视图）。
+  // 与 resultStatus/resultFeedback 同属上机结果维度；活率/结团率/浓度在 qc_records。
+  // MVP 任务级单值；终局随 task_samples 迁到 task_sample 粒度（承接经验表「一行一捕获」）。
+  sequencingAmount  Float?               @map("sequencing_amount") // 测序量(G)
+  capturedCells     Int?                 @map("captured_cells") // 捕获细胞数
+  medianGenes       Int?                 @map("median_genes") // 基因中位数
   createdAt         DateTime             @default(now()) @map("created_at")
   updatedAt         DateTime             @updatedAt @map("updated_at")
 
@@ -349,29 +363,6 @@ model BioinfoTask {
   @@index([analystId])
   @@index([status])
   @@map("bioinfo_tasks")
-}
-
-// 经验库。project_no 实为委托单号、天然非唯一，与 projects.project_no 同名异义。
-// 历史脏数据原样导入、保留原文，规范化清洗推后。
-model ExperienceRecord {
-  id               String   @id @default(cuid())
-  projectNo        String?  @map("project_no") // 委托单号，非唯一
-  species          String?
-  tissuePart       String?  @map("tissue_part") // 部位，脏数据原样保留
-  projectType      String?  @map("project_type") // 与 projects.project_type 同名异义
-  cellType         String?  @map("cell_type")
-  concentration    Float?
-  viability        Float?
-  aggregationRate  Float?   @map("aggregation_rate")
-  sequencingAmount Int?     @map("sequencing_amount")
-  capturedCells    Int?     @map("captured_cells")
-  medianGenes      Int?     @map("median_genes")
-  remark           String?
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  @@index([projectNo])
-  @@map("experience_records")
 }
 
 // 只读用户(viewer)显式项目授权（§3.3）

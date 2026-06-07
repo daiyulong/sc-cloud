@@ -59,6 +59,12 @@ const bioinfoExperimentTaskSelect = {
   taskNo: true,
   experimentType: true,
   resultStatus: true,
+  status: true,
+  // 产出指标（§6.8 经验视图）：生信任务详情内嵌录入挂件用，主录入入口
+  suspensionType: true,
+  sequencingAmount: true,
+  capturedCells: true,
+  medianGenes: true,
 } satisfies Prisma.ExperimentTaskSelect
 
 const bioinfoInclude = {

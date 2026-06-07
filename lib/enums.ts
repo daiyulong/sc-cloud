@@ -127,6 +127,20 @@ export const EXPERIMENT_TASK_STATUS_LABELS: Record<ExperimentTaskStatus, string>
   abnormal: "异常",
 }
 
+// ---------- 悬液类型：细胞/细胞核（scRNA vs snRNA，相似经验检索与统计维度，§6.8）----------
+// 命名刻意避开 "CellType"：单细胞/空间转录组里 cell type 指细胞类型注释（T/B/上皮…），
+// 与此处「上机悬液装完整细胞还是细胞核」是完全不同维度，留给将来的注释功能。
+export const SuspensionType = {
+  cell: "cell",
+  nucleus: "nucleus",
+} as const
+export type SuspensionType = (typeof SuspensionType)[keyof typeof SuspensionType]
+
+export const SUSPENSION_TYPE_LABELS: Record<SuspensionType, string> = {
+  cell: "细胞",
+  nucleus: "细胞核",
+}
+
 // ---------- 生信分析状态 ----------
 export const BioinfoTaskStatus = {
   pending: "pending",
