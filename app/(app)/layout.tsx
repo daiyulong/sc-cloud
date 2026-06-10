@@ -35,7 +35,7 @@ export default async function AppLayout({
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
           <SidebarTrigger />
-          <Separator orientation="vertical" className="h-6" />
+          <Separator orientation="vertical" className="!h-6" />
           <PageTitle />
         </header>
         <main id="main-content" className="flex min-h-[calc(100svh-3.5rem)] flex-col">
