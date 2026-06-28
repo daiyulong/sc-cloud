@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { FolderKanban, Plus, SearchX } from "lucide-react"
+import { AlertCircle, FolderKanban, Plus, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { parsePagination } from "@/lib/api-utils"
@@ -14,7 +14,11 @@ import {
   type ServiceLevel as ServiceLevelValue,
 } from "@/lib/enums"
 import { projectListQuerySchema } from "@/lib/schemas/project"
-import { listProjects } from "@/lib/projects/service"
+import {
+  ATTENTION_STATUSES,
+  listAttentionProjects,
+  listProjects,
+} from "@/lib/projects/service"
 import { firstParam, formatDate } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
@@ -42,9 +46,68 @@ function canCreateProject(role?: UserRoleValue) {
   return role === UserRole.admin || role === UserRole.sales_owner || role === UserRole.project_manager
 }
 
+type ProjectRow = Awaited<ReturnType<typeof listProjects>>["data"][number]
+
+function ProjectRowCells({ project, role }: { project: ProjectRow; role?: string }) {
+  return (
+    <>
+      <TableCell>
+        <Link href={`/projects/${project.id}`} className="font-medium hover:underline">
+          {project.projectNo ?? "未编号草稿"}
+        </Link>
+      </TableCell>
+      <TableCell>{project.customerOrg}</TableCell>
+      <TableCell>
+        <span className="flex items-center gap-2 whitespace-nowrap">
+          <StatusDot className={PROJECT_STATUS_DOT[project.status as ProjectStatusValue]} />
+          {PROJECT_STATUS_LABELS[project.status as ProjectStatusValue]}
+        </span>
+      </TableCell>
+      <TableCell>{SERVICE_LEVEL_LABELS[project.serviceLevel as ServiceLevelValue]}</TableCell>
+      <TableCell>
+        <UserCell user={project.salesOwner} />
+      </TableCell>
+      <TableCell>
+        <UserCell user={project.projectManager} />
+      </TableCell>
+      <TableCell>{formatDate(project.expectedDeliveryDate)}</TableCell>
+      <TableCell>{formatDate(project.deliveredAt)}</TableCell>
+      <TableCell className="text-right">
+        <ProjectActionMenu
+          projectId={project.id}
+          projectNo={project.projectNo}
+          status={project.status as ProjectStatusValue}
+          role={role}
+          compact
+        />
+      </TableCell>
+    </>
+  )
+}
+
+function ProjectTableHead() {
+  return (
+    <TableHeader>
+      <TableRow>
+        <TableHead>项目编号</TableHead>
+        <TableHead>客户</TableHead>
+        <TableHead>状态</TableHead>
+        <TableHead>服务档次</TableHead>
+        <TableHead>销售</TableHead>
+        <TableHead>项目经理</TableHead>
+        <TableHead>预计交付</TableHead>
+        <TableHead>实际交付</TableHead>
+        <TableHead className="text-right">操作</TableHead>
+      </TableRow>
+    </TableHeader>
+  )
+}
+
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
+  const role = session.user.role as UserRoleValue
+  const operator = { id: session.user.id, role }
 
   const raw = (await searchParams) ?? {}
   const query = projectListQuerySchema.parse({
@@ -61,11 +124,24 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     page: firstParam(raw.page),
     limit: firstParam(raw.limit),
   })
-  const { data: projects, total } = await listProjects(
-    { id: session.user.id, role: session.user.role as UserRoleValue },
-    query,
-    { skip, limit }
-  )
+
+  // 工位默认视图（第 1 页、无筛选/搜索）：置顶「需关注」+ 主列表排除三态、按预计交付近在前。
+  // 任一筛选/搜索生效或翻页 → 退回普通全量列表（不置顶、最近更新序）。
+  const hasActiveFilters = Boolean(query.q || query.status || query.serviceLevel || query.due)
+  const isWorkstationView = !hasActiveFilters && page === 1
+
+  const [{ data: projects, total }, attention] = await Promise.all([
+    listProjects(
+      operator,
+      query,
+      { skip, limit },
+      isWorkstationView
+        ? { excludeStatuses: ATTENTION_STATUSES, order: "deliverySoon" }
+        : undefined
+    ),
+    isWorkstationView ? listAttentionProjects(operator) : Promise.resolve([]),
+  ])
+
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
   for (const key of ["q", "status", "serviceLevel", "salesOwnerId", "projectManagerId", "due"]) {
@@ -78,8 +154,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     params.set("limit", String(limit))
     return `/projects?${params.toString()}`
   }
-  const canCreate = canCreateProject(session.user.role as UserRoleValue)
-  const hasActiveFilters = Boolean(query.q || query.status || query.serviceLevel || query.due)
+  const canCreate = canCreateProject(role)
+  const showEmpty = total === 0 && attention.length === 0
 
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
@@ -122,7 +198,29 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         )}
       </ListToolbar>
 
-      {total === 0 ? (
+      {attention.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <AlertCircle className="size-4 text-amber-500" aria-hidden="true" />
+            需关注
+            <span className="text-muted-foreground">（{attention.length}）</span>
+          </div>
+          <div className="overflow-hidden rounded-lg border border-amber-200/70 bg-card dark:border-amber-900/40">
+            <Table className="[&_td]:px-4 [&_td]:py-3 [&_th]:px-4">
+              <ProjectTableHead />
+              <TableBody>
+                {attention.map((project) => (
+                  <ClickableRow key={project.id} href={`/projects/${project.id}`}>
+                    <ProjectRowCells project={project} role={session.user.role} />
+                  </ClickableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
+      )}
+
+      {showEmpty ? (
         hasActiveFilters ? (
           <ListEmpty
             icon={<SearchX />}
@@ -134,11 +232,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             </Button>
           </ListEmpty>
         ) : (
-          <ListEmpty
-            icon={<FolderKanban />}
-            title="暂无项目"
-            description="从新建第一个项目开始。"
-          >
+          <ListEmpty icon={<FolderKanban />} title="暂无项目" description="从新建第一个项目开始。">
             {canCreate && (
               <Button asChild>
                 <Link href="/projects/new">
@@ -149,61 +243,21 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             )}
           </ListEmpty>
         )
+      ) : total === 0 ? (
+        // 需关注有内容、但主列表（其余项目）为空：不再重复空态
+        null
       ) : (
         <>
+          {isWorkstationView && attention.length > 0 && (
+            <div className="text-sm font-medium text-muted-foreground">其余项目</div>
+          )}
           <div className="overflow-hidden rounded-lg border bg-card transition-opacity group-has-[[data-pending]]/list:opacity-60">
             <Table className="[&_td]:px-4 [&_td]:py-3 [&_th]:px-4">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>项目编号</TableHead>
-                  <TableHead>客户</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>服务档次</TableHead>
-                  <TableHead>销售</TableHead>
-                  <TableHead>项目经理</TableHead>
-                  <TableHead>预计交付</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
+              <ProjectTableHead />
               <TableBody>
                 {projects.map((project) => (
                   <ClickableRow key={project.id} href={`/projects/${project.id}`}>
-                    <TableCell>
-                      <Link
-                        href={`/projects/${project.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {project.projectNo ?? "未编号草稿"}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{project.customerOrg}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-2 whitespace-nowrap">
-                        <StatusDot
-                          className={PROJECT_STATUS_DOT[project.status as ProjectStatusValue]}
-                        />
-                        {PROJECT_STATUS_LABELS[project.status as ProjectStatusValue]}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {SERVICE_LEVEL_LABELS[project.serviceLevel as ServiceLevelValue]}
-                    </TableCell>
-                    <TableCell>
-                      <UserCell user={project.salesOwner} />
-                    </TableCell>
-                    <TableCell>
-                      <UserCell user={project.projectManager} />
-                    </TableCell>
-                    <TableCell>{formatDate(project.expectedDeliveryDate)}</TableCell>
-                    <TableCell className="text-right">
-                      <ProjectActionMenu
-                        projectId={project.id}
-                        projectNo={project.projectNo}
-                        status={project.status as ProjectStatusValue}
-                        role={session.user.role}
-                        compact
-                      />
-                    </TableCell>
+                    <ProjectRowCells project={project} role={session.user.role} />
                   </ClickableRow>
                 ))}
               </TableBody>

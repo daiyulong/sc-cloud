@@ -13,7 +13,6 @@ import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
 import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
-import { bioinfoCreateRoles } from "@/lib/bioinfo-tasks/rules"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { firstParam, formatDate } from "@/lib/utils"
@@ -74,10 +73,6 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
   }
-  // 「待建生信任务」队列视图：行内直接建生信任务（队列已保证行均合格，仅按角色显示）
-  const showCreateBioinfo =
-    query.awaiting === "bioinfo" &&
-    bioinfoCreateRoles.includes(role as (typeof bioinfoCreateRoles)[number])
   const pageHref = (nextPage: number) => {
     const params = new URLSearchParams(baseParams)
     params.set("page", String(nextPage))
@@ -207,13 +202,6 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {showCreateBioinfo && (
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/bioinfo-tasks/new?experimentTaskId=${task.id}`}>
-                              建生信任务
-                            </Link>
-                          </Button>
-                        )}
                         <ExperimentTaskActionMenu
                           taskId={task.id}
                           taskNo={task.taskNo}

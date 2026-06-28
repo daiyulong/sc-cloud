@@ -55,11 +55,8 @@ describe("project schemas", () => {
     })
   })
 
-  it("accepts deliveryScope flag for the delivery queue", () => {
-    expect(projectListQuerySchema.parse({ deliveryScope: true })).toMatchObject({
-      deliveryScope: true,
-    })
-    // 默认列表（项目页）不带该标记
-    expect(projectListQuerySchema.parse({}).deliveryScope).toBeUndefined()
+  it("accepts the due=soon filter", () => {
+    expect(projectListQuerySchema.parse({ due: "soon" })).toMatchObject({ due: "soon" })
+    expect(() => projectListQuerySchema.parse({ due: "later" })).toThrow()
   })
 })

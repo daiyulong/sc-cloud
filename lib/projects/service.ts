@@ -77,9 +77,6 @@ function buildProjectListWhere(
   }
   if (query.status) {
     filters.push({ status: query.status })
-  } else if (query.deliveryScope) {
-    // 交付队列默认：待交付（确认交付即关闭项目，无独立「已交付」中间态）
-    filters.push({ status: ProjectStatus.waiting_delivery })
   }
   if (query.serviceLevel) filters.push({ serviceLevel: query.serviceLevel })
   if (query.salesOwnerId) filters.push({ salesOwnerId: query.salesOwnerId })
@@ -162,17 +159,59 @@ function ensureCanUpdateProject(
   throw new ProjectDomainError("没有更新项目权限", 403)
 }
 
+// 项目工位「需关注」：异常 > 待交付 > 草稿（同组按预计交付近的在前）。
+// 这三态是各角色需主动推进的：异常待处理、待交付待确认关闭、草稿待销售/PM 补全确认。
+export const ATTENTION_STATUSES: ProjectStatusValue[] = [
+  ProjectStatus.abnormal,
+  ProjectStatus.waiting_delivery,
+  ProjectStatus.draft,
+]
+const ATTENTION_RANK: Record<string, number> = {
+  [ProjectStatus.abnormal]: 0,
+  [ProjectStatus.waiting_delivery]: 1,
+  [ProjectStatus.draft]: 2,
+}
+
+/** 工位置顶的需关注项目：按 scope 取三态、组内按预计交付近在前；不分页（已上限）。 */
+export async function listAttentionProjects(operator: ProjectOperator) {
+  const rows = await prisma.project.findMany({
+    where: {
+      AND: [
+        buildProjectScope(operator.role, operator.id),
+        { status: { in: ATTENTION_STATUSES } },
+      ],
+    },
+    include: projectInclude,
+    take: 100,
+  })
+  return rows.sort((a, b) => {
+    const rank = (ATTENTION_RANK[a.status] ?? 99) - (ATTENTION_RANK[b.status] ?? 99)
+    if (rank !== 0) return rank
+    const ad = a.expectedDeliveryDate?.getTime() ?? Number.POSITIVE_INFINITY
+    const bd = b.expectedDeliveryDate?.getTime() ?? Number.POSITIVE_INFINITY
+    return ad - bd
+  })
+}
+
 export async function listProjects(
   operator: ProjectOperator,
   query: ProjectListQuery,
-  pagination: { skip: number; limit: number }
+  pagination: { skip: number; limit: number },
+  options?: { excludeStatuses?: ProjectStatusValue[]; order?: "recent" | "deliverySoon" }
 ) {
-  const where = buildProjectListWhere(operator, query)
+  const baseWhere = buildProjectListWhere(operator, query)
+  const where = options?.excludeStatuses?.length
+    ? { AND: [baseWhere, { status: { notIn: options.excludeStatuses } }] }
+    : baseWhere
+  const orderBy: Prisma.ProjectOrderByWithRelationInput[] =
+    options?.order === "deliverySoon"
+      ? [{ expectedDeliveryDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }]
+      : [{ updatedAt: "desc" }, { createdAt: "desc" }]
   const [data, total] = await Promise.all([
     prisma.project.findMany({
       where,
       include: projectInclude,
-      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+      orderBy,
       skip: pagination.skip,
       take: pagination.limit,
     }),
