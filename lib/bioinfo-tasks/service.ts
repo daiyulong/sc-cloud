@@ -30,6 +30,18 @@ import {
   ensureServiceHasBioinfo,
   submittableBioinfoStatuses,
 } from "@/lib/bioinfo-tasks/rules"
+import { notifyBioinfoTaskAssigned, type BioinfoTaskForNotify } from "@/lib/notify/task-reminder"
+
+/** 指派变更（新负责人非空且与原不同）时发提醒；事务外调用、非阻断 */
+async function maybeNotifyReassignment(
+  beforeAnalystId: string | null,
+  after: BioinfoTaskForNotify & { analystId: string | null },
+  operatorId: string
+) {
+  if (after.analystId && beforeAnalystId !== after.analystId) {
+    await notifyBioinfoTaskAssigned(after, "reassigned", operatorId)
+  }
+}
 
 export type BioinfoTaskOperator = {
   id: string
@@ -196,11 +208,11 @@ export async function createBioinfoTaskFromExperiment(
   ensureProjectCanCreateBioinfo(expTask.project.status)
   ensureExperimentTaskCompleted(expTask.status)
 
-  return prisma.$transaction(async (tx) => {
+  const task = await prisma.$transaction(async (tx) => {
     const count = await tx.bioinfoTask.count({ where: { projectId: expTask.projectId } })
     const taskNo = `${expTask.project.projectNo ?? expTask.project.id}-B${String(count + 1).padStart(2, "0")}`
 
-    const task = await tx.bioinfoTask.create({
+    const created = await tx.bioinfoTask.create({
       data: {
         taskNo,
         projectId: expTask.projectId,
@@ -216,14 +228,18 @@ export async function createBioinfoTaskFromExperiment(
     await recordOperation({
       tx,
       entityType: "bioinfo_task",
-      entityId: task.id,
+      entityId: created.id,
       action: OperationAction.create,
       operatorId: operator.id,
-      after: task,
+      after: created,
     })
 
-    return task
+    return created
   })
+
+  // 创建即指派负责人 → 发提醒（事务外、非阻断，§6.5）
+  if (task.analystId) await notifyBioinfoTaskAssigned(task, "created", operator.id)
+  return task
 }
 
 export async function updateBioinfoTask(
@@ -247,8 +263,8 @@ export async function updateBioinfoTask(
     data.analyst = input.analystId ? { connect: { id: input.analystId } } : { disconnect: true }
   }
 
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.bioinfoTask.update({ where: { id }, data, include: bioinfoInclude })
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.bioinfoTask.update({ where: { id }, data, include: bioinfoInclude })
     await recordOperation({
       tx,
       entityType: "bioinfo_task",
@@ -256,10 +272,13 @@ export async function updateBioinfoTask(
       action: OperationAction.update,
       operatorId: operator.id,
       before,
-      after: updated,
+      after: result,
     })
-    return updated
+    return result
   })
+
+  await maybeNotifyReassignment(before.analystId, updated, operator.id)
+  return updated
 }
 
 /**
@@ -283,8 +302,8 @@ export async function startBioinfoTask(
     data.analyst = input.analystId ? { connect: { id: input.analystId } } : { disconnect: true }
   }
 
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.bioinfoTask.update({ where: { id }, data, include: bioinfoInclude })
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.bioinfoTask.update({ where: { id }, data, include: bioinfoInclude })
     await recordOperation({
       tx,
       entityType: "bioinfo_task",
@@ -292,7 +311,7 @@ export async function startBioinfoTask(
       action: OperationAction.status_change,
       operatorId: operator.id,
       before,
-      after: updated,
+      after: result,
     })
 
     if (before.project.status === ProjectStatus.waiting_bioinfo) {
@@ -302,12 +321,15 @@ export async function startBioinfoTask(
         before.project,
         before.projectId,
         ProjectStatus.bioinfo_in_progress,
-        `bioinfo_task:${updated.taskNo}:start`
+        `bioinfo_task:${result.taskNo}:start`
       )
     }
 
-    return updated
+    return result
   })
+
+  await maybeNotifyReassignment(before.analystId, updated, operator.id)
+  return updated
 }
 
 /** 提交审核（分析中 → 待审核）：分析完成、自检报告，可选中间步（不触发项目聚合） */
