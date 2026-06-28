@@ -24,7 +24,7 @@ export default async function InterceptedNewTaskPage({
   if (!session?.user?.id) redirect("/login")
   const role = session.user.role as UserRoleValue
   if (!experimentManageRoles.includes(role as (typeof experimentManageRoles)[number])) {
-    redirect("/experiment-tasks")
+    redirect("/lab")
   }
 
   const raw = (await searchParams) ?? {}

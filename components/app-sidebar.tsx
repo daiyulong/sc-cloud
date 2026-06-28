@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { Session } from "next-auth"
 import type { UserRole } from "@/lib/enums"
+import { landingPathForRole } from "@/lib/auth/landing"
 import { adminNavItems, primaryNavItems, type NavItem } from "@/components/nav-items"
 import { UserMenu } from "@/components/user-menu"
 import {
@@ -59,7 +60,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard">
+              <Link href={landingPathForRole(role)}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
                   SC
                 </div>

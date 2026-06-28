@@ -8,6 +8,7 @@ import {
   UserRole,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
+import { landingPathForRole } from "@/lib/auth/landing"
 import { userListQuerySchema } from "@/lib/schemas/user"
 import { listUsers } from "@/lib/users/service"
 import { firstParam, formatDateTime } from "@/lib/utils"
@@ -41,7 +42,7 @@ const USER_ACTIVE_DOT = {
 export default async function UsersPage({ searchParams }: UsersPageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
-  if (session.user.role !== UserRole.admin) redirect("/dashboard")
+  if (session.user.role !== UserRole.admin) redirect(landingPathForRole(session.user.role))
 
   const raw = (await searchParams) ?? {}
   const query = userListQuerySchema.parse({

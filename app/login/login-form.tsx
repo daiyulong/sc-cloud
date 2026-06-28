@@ -19,7 +19,8 @@ import { Input } from "@/components/ui/input"
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
+  // 默认落到根路由，由 app/page 按角色解析到对应工位（landingPathForRole）
+  const callbackUrl = searchParams.get("callbackUrl") || "/"
   const [error, setError] = React.useState<string | null>(null)
   const [errorTarget, setErrorTarget] = React.useState<"account" | "password" | null>(null)
   const [isPending, startTransition] = React.useTransition()

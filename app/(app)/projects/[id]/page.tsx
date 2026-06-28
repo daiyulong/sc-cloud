@@ -123,7 +123,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
       </Card>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <Link href={`/samples?projectId=${project.id}`} className="group">
+        <Link href={`/intake?projectId=${project.id}`} className="group">
           <Card className="transition-colors group-hover:border-primary/40">
             <CardHeader>
               <CardTitle>样本</CardTitle>
@@ -134,7 +134,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
             </CardContent>
           </Card>
         </Link>
-        <Link href={`/experiment-tasks?projectId=${project.id}`} className="group">
+        <Link href={`/lab?projectId=${project.id}`} className="group">
           <Card className="transition-colors group-hover:border-primary/40">
             <CardHeader>
               <CardTitle>实验任务</CardTitle>

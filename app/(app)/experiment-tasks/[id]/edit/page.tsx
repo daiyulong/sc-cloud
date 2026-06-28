@@ -24,7 +24,7 @@ export default async function EditExperimentTaskPage({ params }: EditExperimentT
   if (!session?.user?.id) redirect("/login")
   const role = session.user.role as UserRoleValue
   if (!experimentManageRoles.includes(role as (typeof experimentManageRoles)[number])) {
-    redirect("/experiment-tasks")
+    redirect("/lab")
   }
 
   const { id } = await params

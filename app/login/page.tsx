@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { landingPathForRole } from "@/lib/auth/landing"
 import { LoginForm } from "./login-form"
 import {
   Card,
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic"
 export default async function LoginPage() {
   const session = await auth()
   if (session?.user?.id) {
-    redirect("/dashboard")
+    redirect(landingPathForRole(session.user.role))
   }
 
   return (
@@ -40,7 +41,7 @@ export default async function LoginPage() {
         <Card>
           <CardHeader>
             <CardTitle>登录系统</CardTitle>
-            <CardDescription>使用平台账号进入工作台</CardDescription>
+            <CardDescription>使用平台账号进入平台</CardDescription>
           </CardHeader>
           <CardContent>
             <LoginForm />

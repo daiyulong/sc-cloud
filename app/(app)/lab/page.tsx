@@ -35,11 +35,11 @@ import {
 
 export const dynamic = "force-dynamic"
 
-type ExperimentTasksPageProps = {
+type LabPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function ExperimentTasksPage({ searchParams }: ExperimentTasksPageProps) {
+export default async function LabPage({ searchParams }: LabPageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
   const role = session.user.role as UserRoleValue
@@ -82,20 +82,20 @@ export default async function ExperimentTasksPage({ searchParams }: ExperimentTa
     const params = new URLSearchParams(baseParams)
     params.set("page", String(nextPage))
     params.set("limit", String(limit))
-    return `/experiment-tasks?${params.toString()}`
+    return `/lab?${params.toString()}`
   }
   const canCreate = experimentManageRoles.includes(role as (typeof experimentManageRoles)[number])
-  // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工作台链接带入，视作筛选
+  // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
   const hasActiveFilters = Boolean(query.q || query.status || query.date)
   const clearFiltersHref = query.projectId
-    ? `/experiment-tasks?projectId=${query.projectId}`
-    : "/experiment-tasks"
+    ? `/lab?projectId=${query.projectId}`
+    : "/lab"
 
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
-      <h1 className="sr-only">实验排期</h1>
+      <h1 className="sr-only">实验</h1>
       <ListToolbar
-        basePath="/experiment-tasks"
+        basePath="/lab"
         searchPlaceholder="搜索任务编号 / 实验类型 / 上机方式 / 样本 / 项目…"
         searchDefault={query.q}
         filters={[

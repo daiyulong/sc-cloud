@@ -32,11 +32,11 @@ import {
 
 export const dynamic = "force-dynamic"
 
-type SamplesPageProps = {
+type IntakePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function SamplesPage({ searchParams }: SamplesPageProps) {
+export default async function IntakePage({ searchParams }: IntakePageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
 
@@ -82,19 +82,19 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
     const params = new URLSearchParams(baseParams)
     params.set("page", String(nextPage))
     params.set("limit", String(limit))
-    return `/samples?${params.toString()}`
+    return `/intake?${params.toString()}`
   }
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定
   const hasActiveFilters = Boolean(query.q || query.status)
   const clearFiltersHref = query.projectId
-    ? `/samples?projectId=${query.projectId}`
-    : "/samples"
+    ? `/intake?projectId=${query.projectId}`
+    : "/intake"
 
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
-      <h1 className="sr-only">样本接收</h1>
+      <h1 className="sr-only">收样</h1>
       <ListToolbar
-        basePath="/samples"
+        basePath="/intake"
         searchPlaceholder="搜索样品编号 / 物种 / 组织 / 项目…"
         searchDefault={query.q}
         filters={[
