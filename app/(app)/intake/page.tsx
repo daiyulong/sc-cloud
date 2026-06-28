@@ -199,6 +199,7 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
                           status={sample.status as SampleBatchStatusValue}
                           role={session.user.role}
                           compact
+                          surface="sheet"
                         />
                       </div>
                     </TableCell>

@@ -6,15 +6,8 @@ import {
   ReceiveStatus,
   type ReceiveStatus as ReceiveStatusValue,
 } from "@/lib/enums"
+import { ActionOverlay, type ActionSurface } from "@/components/detail/action-overlay"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -51,6 +44,7 @@ type SampleReceiveDialogProps = {
   sampleNo: string
   isPending: boolean
   onConfirm: (body: ReceiveSampleBody) => void
+  surface?: ActionSurface
 }
 
 /**
@@ -63,6 +57,7 @@ export function SampleReceiveDialog({
   sampleNo,
   isPending,
   onConfirm,
+  surface,
 }: SampleReceiveDialogProps) {
   const [species, setSpecies] = React.useState("")
   const [tissueType, setTissueType] = React.useState("")
@@ -120,13 +115,24 @@ export function SampleReceiveDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>登记接收</DialogTitle>
-          <DialogDescription>{sampleNo} · 补全样本信息并登记实际到样</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-4">
+    <ActionOverlay
+      surface={surface}
+      open={open}
+      onOpenChange={onOpenChange}
+      title="登记接收"
+      description={`${sampleNo} · 补全样本信息并登记实际到样`}
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+            取消
+          </Button>
+          <Button onClick={handleConfirm} disabled={isPending}>
+            登记接收
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field data-invalid={infoInvalid(species) || undefined}>
               <FieldLabel htmlFor="receive-species">物种</FieldLabel>
@@ -231,15 +237,6 @@ export function SampleReceiveDialog({
             </Field>
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
-            取消
-          </Button>
-          <Button onClick={handleConfirm} disabled={isPending}>
-            登记接收
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ActionOverlay>
   )
 }

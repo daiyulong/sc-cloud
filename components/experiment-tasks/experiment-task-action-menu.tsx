@@ -3,6 +3,7 @@
 import { MoreHorizontal } from "lucide-react"
 import * as React from "react"
 import type { ExperimentTaskStatus as ExperimentTaskStatusValue } from "@/lib/enums"
+import type { ActionSurface } from "@/components/detail/action-overlay"
 import { useEntityAction } from "@/components/detail/use-entity-action"
 import {
   partitionExperimentTaskActions,
@@ -37,9 +38,11 @@ type ExperimentTaskActionMenuProps = {
   compact?: boolean
   /** 无可用动作时显示提示文案（sheet/全页用），否则渲染 null */
   showEmptyHint?: boolean
+  /** 排期/反馈/质控浮层落点：列表行传 "sheet"（右抽屉），详情侧滑/全页用默认 "dialog" 避免双右浮层 */
+  surface?: ActionSurface
 }
 
-/** 实验任务动作菜单：主动作按钮 + 溢出菜单 + 表单 Dialog，列表行 / 侧滑 / 全页三处共用 */
+/** 实验任务动作菜单：主动作按钮 + 溢出菜单 + 表单浮层，列表行 / 侧滑 / 全页三处共用 */
 export function ExperimentTaskActionMenu({
   taskId,
   taskNo,
@@ -48,6 +51,7 @@ export function ExperimentTaskActionMenu({
   operatorOptions,
   compact = false,
   showEmptyHint = false,
+  surface,
 }: ExperimentTaskActionMenuProps) {
   const { primary, overflow } = partitionExperimentTaskActions(status, role)
   const { run, isPending } = useEntityAction()
@@ -121,6 +125,7 @@ export function ExperimentTaskActionMenu({
         taskNo={taskNo}
         operatorOptions={operatorOptions}
         isPending={isPending}
+        surface={surface}
         onConfirm={(body: ScheduleTaskBody) => active && execute(active, body)}
       />
       <FeedbackDialog
@@ -128,6 +133,7 @@ export function ExperimentTaskActionMenu({
         onOpenChange={(next) => !next && setActive(null)}
         taskNo={taskNo}
         isPending={isPending}
+        surface={surface}
         onConfirm={(body: FeedbackTaskBody) => active && execute(active, body)}
       />
       <QcDialog
@@ -135,6 +141,7 @@ export function ExperimentTaskActionMenu({
         onOpenChange={(next) => !next && setActive(null)}
         taskNo={taskNo}
         isPending={isPending}
+        surface={surface}
         onConfirm={(body: QcRecordBody) => active && execute(active, body)}
       />
     </div>

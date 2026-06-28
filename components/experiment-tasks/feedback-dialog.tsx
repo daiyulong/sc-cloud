@@ -6,15 +6,8 @@ import {
   ResultStatus,
   type ResultStatus as ResultStatusValue,
 } from "@/lib/enums"
+import { ActionOverlay, type ActionSurface } from "@/components/detail/action-overlay"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -39,6 +32,7 @@ type FeedbackDialogProps = {
   taskNo: string
   isPending: boolean
   onConfirm: (body: FeedbackTaskBody) => void
+  surface?: ActionSurface
 }
 
 /** 提交实验反馈表单 Dialog：结果状态 + 结果反馈（必填）+ 上机样本个数 */
@@ -48,6 +42,7 @@ export function FeedbackDialog({
   taskNo,
   isPending,
   onConfirm,
+  surface,
 }: FeedbackDialogProps) {
   const [resultStatus, setResultStatus] = React.useState<ResultStatusValue>(ResultStatus.normal_run)
   const [resultFeedback, setResultFeedback] = React.useState("")
@@ -80,13 +75,24 @@ export function FeedbackDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>提交实验反馈</DialogTitle>
-          <DialogDescription>{taskNo} · 录入上机结果与反馈，提交后任务完成</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-4">
+    <ActionOverlay
+      surface={surface}
+      open={open}
+      onOpenChange={onOpenChange}
+      title="提交实验反馈"
+      description={`${taskNo} · 录入上机结果与反馈，提交后任务完成`}
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+            取消
+          </Button>
+          <Button onClick={handleConfirm} disabled={isPending}>
+            提交反馈
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
           <Field>
             <FieldLabel>结果状态</FieldLabel>
             <Select
@@ -133,15 +139,6 @@ export function FeedbackDialog({
             </FieldDescription>
           </Field>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
-            取消
-          </Button>
-          <Button onClick={handleConfirm} disabled={isPending}>
-            提交反馈
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ActionOverlay>
   )
 }

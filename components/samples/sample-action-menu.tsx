@@ -3,6 +3,7 @@
 import { MoreHorizontal } from "lucide-react"
 import * as React from "react"
 import type { SampleBatchStatus as SampleBatchStatusValue } from "@/lib/enums"
+import type { ActionSurface } from "@/components/detail/action-overlay"
 import { ReasonDialog } from "@/components/detail/reason-dialog"
 import { useEntityAction } from "@/components/detail/use-entity-action"
 import {
@@ -31,9 +32,11 @@ type SampleActionMenuProps = {
   compact?: boolean
   /** 无可用动作时显示提示文案（sheet/全页用），否则渲染 null */
   showEmptyHint?: boolean
+  /** 登记接收浮层落点：列表行传 "sheet"（右抽屉），详情侧滑/全页用默认 "dialog" 避免双右浮层 */
+  surface?: ActionSurface
 }
 
-/** 样本动作菜单：主动作按钮 + 溢出菜单 + Dialog，列表行 / 侧滑 / 全页三处共用 */
+/** 样本动作菜单：主动作按钮 + 溢出菜单 + 表单浮层，列表行 / 侧滑 / 全页三处共用 */
 export function SampleActionMenu({
   sampleId,
   sampleNo,
@@ -41,6 +44,7 @@ export function SampleActionMenu({
   role,
   compact = false,
   showEmptyHint = false,
+  surface,
 }: SampleActionMenuProps) {
   const { primary, overflow } = partitionSampleActions(status, role)
   const { run, isPending } = useEntityAction()
@@ -114,6 +118,7 @@ export function SampleActionMenu({
         onOpenChange={(next) => !next && setActive(null)}
         sampleNo={sampleNo}
         isPending={isPending}
+        surface={surface}
         onConfirm={(body: ReceiveSampleBody) => active && execute(active, body)}
       />
       <ReasonDialog

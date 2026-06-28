@@ -9,15 +9,8 @@ import {
   type QCResult as QCResultValue,
   type RiskLevel as RiskLevelValue,
 } from "@/lib/enums"
+import { ActionOverlay, type ActionSurface } from "@/components/detail/action-overlay"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -46,10 +39,11 @@ type QcDialogProps = {
   taskNo: string
   isPending: boolean
   onConfirm: (body: QcRecordBody) => void
+  surface?: ActionSurface
 }
 
-/** 录入质控表单 Dialog：浓度/活率/结团率 + 结论 + 风险等级 + 原因/反馈（与任务执行态正交） */
-export function QcDialog({ open, onOpenChange, taskNo, isPending, onConfirm }: QcDialogProps) {
+/** 录入质控表单：浓度/活率/结团率 + 结论 + 风险等级 + 原因/反馈（与任务执行态正交） */
+export function QcDialog({ open, onOpenChange, taskNo, isPending, onConfirm, surface }: QcDialogProps) {
   const [concentration, setConcentration] = React.useState("")
   const [viability, setViability] = React.useState("")
   const [aggregationRate, setAggregationRate] = React.useState("")
@@ -85,13 +79,25 @@ export function QcDialog({ open, onOpenChange, taskNo, isPending, onConfirm }: Q
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>录入质控</DialogTitle>
-          <DialogDescription>{taskNo} · 结构化保存质量判断</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-4">
+    <ActionOverlay
+      surface={surface}
+      open={open}
+      onOpenChange={onOpenChange}
+      title="录入质控"
+      description={`${taskNo} · 结构化保存质量判断`}
+      className="sm:max-w-lg"
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+            取消
+          </Button>
+          <Button onClick={handleConfirm} disabled={isPending}>
+            录入质控
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
           <div className="grid grid-cols-3 gap-3">
             <Field>
               <FieldLabel htmlFor="qc-concentration">悬液浓度</FieldLabel>
@@ -188,15 +194,6 @@ export function QcDialog({ open, onOpenChange, taskNo, isPending, onConfirm }: Q
             />
           </Field>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
-            取消
-          </Button>
-          <Button onClick={handleConfirm} disabled={isPending}>
-            录入质控
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ActionOverlay>
   )
 }

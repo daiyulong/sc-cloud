@@ -2,15 +2,8 @@
 
 import * as React from "react"
 import { todayString } from "@/lib/utils"
+import { ActionOverlay, type ActionSurface } from "@/components/detail/action-overlay"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -40,6 +33,7 @@ type ScheduleDialogProps = {
   operatorOptions: OperatorOption[]
   isPending: boolean
   onConfirm: (body: ScheduleTaskBody) => void
+  surface?: ActionSurface
 }
 
 /** 设置排期表单 Dialog：计划日期（必填）+ 实验负责人 + 上机方式 + 部门 */
@@ -50,6 +44,7 @@ export function ScheduleDialog({
   operatorOptions,
   isPending,
   onConfirm,
+  surface,
 }: ScheduleDialogProps) {
   const [plannedDate, setPlannedDate] = React.useState("")
   const [operatorId, setOperatorId] = React.useState(UNASSIGNED)
@@ -85,13 +80,24 @@ export function ScheduleDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>设置排期</DialogTitle>
-          <DialogDescription>{taskNo} · 安排计划实验日期与负责人</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-4">
+    <ActionOverlay
+      surface={surface}
+      open={open}
+      onOpenChange={onOpenChange}
+      title="设置排期"
+      description={`${taskNo} · 安排计划实验日期与负责人`}
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+            取消
+          </Button>
+          <Button onClick={handleConfirm} disabled={isPending}>
+            设置排期
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
           <Field data-invalid={invalid || undefined}>
             <FieldLabel htmlFor="task-planned-date">计划实验日期</FieldLabel>
             <Input
@@ -141,15 +147,6 @@ export function ScheduleDialog({
             />
           </Field>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
-            取消
-          </Button>
-          <Button onClick={handleConfirm} disabled={isPending}>
-            设置排期
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ActionOverlay>
   )
 }

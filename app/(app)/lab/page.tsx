@@ -209,6 +209,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                           role={session.user.role}
                           operatorOptions={operatorOptions}
                           compact
+                          surface="sheet"
                         />
                       </div>
                     </TableCell>
