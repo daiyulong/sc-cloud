@@ -7,7 +7,7 @@
     "prebuild": "prisma generate",
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "prisma generate && DATABASE_URL=$DATABASE_URL_UNPOOLED tsx prisma/predeploy.ts && DATABASE_URL=$DATABASE_URL_UNPOOLED prisma db push --skip-generate --accept-data-loss && DATABASE_URL=$DATABASE_URL_UNPOOLED tsx prisma/seed.ts && next build",
+    "vercel-build": "prisma generate && DATABASE_URL=$DATABASE_URL_UNPOOLED tsx prisma/predeploy.ts && DATABASE_URL=$DATABASE_URL_UNPOOLED prisma db push --skip-generate --force-reset && DATABASE_URL=$DATABASE_URL_UNPOOLED tsx prisma/seed.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
