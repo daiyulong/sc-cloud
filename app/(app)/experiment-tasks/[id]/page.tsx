@@ -17,6 +17,8 @@ import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experime
 import { ExperimentTaskFields } from "@/components/experiment-tasks/experiment-task-fields"
 import { QcSection } from "@/components/experiment-tasks/qc-section"
 import { RunMetricsSection, pickRunMetrics } from "@/components/experiment-tasks/run-metrics-section"
+import { UploadRecordButton } from "@/components/experiment-records/upload-record-button"
+import { canUploadRecord } from "@/lib/experiment-records/permissions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -126,6 +128,18 @@ export default async function ExperimentTaskDetailPage({ params }: ExperimentTas
           />
         </CardContent>
       </Card>
+
+      {canUploadRecord(status, session.user.role) && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+            <div className="flex flex-col gap-1.5">
+              <CardTitle>实验记录</CardTitle>
+              <CardDescription>上传记录照片，多模态识别样本名与质控指标，人工确认后写入</CardDescription>
+            </div>
+            <UploadRecordButton taskId={task.id} />
+          </CardHeader>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

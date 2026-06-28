@@ -12,6 +12,8 @@ import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experime
 import { ExperimentTaskFields } from "@/components/experiment-tasks/experiment-task-fields"
 import { QcSection } from "@/components/experiment-tasks/qc-section"
 import { RunMetricsSection, pickRunMetrics } from "@/components/experiment-tasks/run-metrics-section"
+import { UploadRecordButton } from "@/components/experiment-records/upload-record-button"
+import { canUploadRecord } from "@/lib/experiment-records/permissions"
 import type { OperatorOption } from "@/components/experiment-tasks/schedule-dialog"
 import { EXPERIMENT_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { Button } from "@/components/ui/button"
@@ -93,6 +95,20 @@ export function ExperimentTaskSheetBody({
         role={role}
         metrics={pickRunMetrics(task.taskSamples)}
       />
+      {canUploadRecord(status, role) && (
+        <>
+          <Separator />
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-medium">实验记录</h3>
+              <UploadRecordButton taskId={task.id} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              上传上机实验记录照片，自动识别样本名与质控指标，人工核对确认后写入。
+            </p>
+          </section>
+        </>
+      )}
       <Separator />
 
       <section className="flex flex-col gap-3">
