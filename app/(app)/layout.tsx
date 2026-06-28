@@ -40,7 +40,7 @@ export default async function AppLayout({
       </a>
       <AppSidebar user={session.user} badges={badges} />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="!h-6" />
           <PageTitle />
