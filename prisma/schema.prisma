@@ -389,6 +389,7 @@ model QcRecord {
   reason          String?
   feedback        String?
   source          DataSource @default(manual) // 录入来源（多模态确认标记）
+  recordImageId   String?    @map("record_image_id") // ai_confirmed 来源识别图片：溯源 + 重新确认时先删本图旧贡献再写（幂等）
   createdBy       String     @map("created_by") // 录入人，NOT NULL
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
@@ -399,6 +400,7 @@ model QcRecord {
 
   @@index([sampleId])
   @@index([taskId])
+  @@index([recordImageId])
   @@map("qc_records")
 }
 
@@ -433,7 +435,7 @@ model ExperimentRecordImage {
   id            String    @id @default(cuid())
   projectId     String    @map("project_id")
   taskId        String    @map("task_id")
-  blobPathname  String    @map("blob_pathname") // Vercel Blob 私有对象 pathname（非可直贴 URL）
+  storageKey    String    @map("storage_key") // 本地磁盘相对 key（STORAGE_DIR 下；私有、经鉴权代理读）
   uploadedById  String    @map("uploaded_by_id")
   uploadedAt    DateTime  @default(now()) @map("uploaded_at")
   ocrStatus     OcrStatus @default(pending) @map("ocr_status")

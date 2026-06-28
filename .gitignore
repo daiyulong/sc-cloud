@@ -45,3 +45,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# 本地磁盘存证（实验记录原图，私有，不入库）
+/storage/
