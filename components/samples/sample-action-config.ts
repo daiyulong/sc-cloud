@@ -1,5 +1,5 @@
 import { AlertTriangle, PackageCheck, type LucideIcon } from "lucide-react"
-import type { SampleStatus as SampleStatusValue } from "@/lib/enums"
+import type { SampleBatchStatus as SampleBatchStatusValue } from "@/lib/enums"
 import { getAvailableSampleActions, type SampleAction } from "@/lib/samples/rules"
 
 export type SampleActionDescriptor = {
@@ -39,7 +39,7 @@ const descriptors: Record<SampleAction, SampleActionDescriptor> = {
 
 /** 主动作 = 首个非破坏性动作；破坏性动作永远进溢出菜单 */
 export function partitionSampleActions(
-  status: SampleStatusValue,
+  status: SampleBatchStatusValue,
   role?: string
 ): { primary?: SampleActionDescriptor; overflow: SampleActionDescriptor[] } {
   const available = getAvailableSampleActions(status, role).map((action) => descriptors[action])

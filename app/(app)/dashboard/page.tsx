@@ -19,7 +19,7 @@ import {
 import {
   PROJECT_STATUS_LABELS,
   ProjectStatus,
-  SampleStatus,
+  SampleBatchStatus,
   type UserRole,
 } from "@/lib/enums"
 import { cn } from "@/lib/utils"
@@ -165,7 +165,7 @@ async function getDashboardData(): Promise<DashboardData | null> {
           ],
         },
       }),
-      prisma.sample.count({
+      prisma.sampleBatch.count({
         where: { project: projectScope, receivedAt: { not: null } },
       }),
       prisma.project.count({
@@ -181,10 +181,10 @@ async function getDashboardData(): Promise<DashboardData | null> {
           ],
         },
       }),
-      prisma.sample.count({
+      prisma.sampleBatch.count({
         where: {
           project: projectScope,
-          status: SampleStatus.waiting_arrival,
+          status: SampleBatchStatus.waiting_arrival,
           expectedArrivalDate: { gte: start, lt: end },
         },
       }),

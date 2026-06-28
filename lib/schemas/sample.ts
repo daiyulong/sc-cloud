@@ -1,38 +1,46 @@
 import { z } from "zod"
 import {
   ReceiveStatus,
-  SampleStatus,
+  SampleBatchStatus,
   type ReceiveStatus as ReceiveStatusValue,
-  type SampleStatus as SampleStatusValue,
+  type SampleBatchStatus as SampleBatchStatusValue,
 } from "@/lib/enums"
 import {
   nullableDate,
   nullableNonNegativeInt,
   nullableString,
   optionalString,
-  requiredString,
 } from "@/lib/schemas/common"
 import { compareDateOnly } from "@/lib/utils"
 
-const sampleStatusValues = Object.values(SampleStatus) as [
-  SampleStatusValue,
-  ...SampleStatusValue[],
+// 注：2026-06 重构后「样本」域操作的是 SampleBatch（样本批次/YP）；样本叶子(Sample) 由收样按数量生成、
+// 经实验/多模态补样本名与 QC/产出。本文件的 schema 均为批次级。
+const batchStatusValues = Object.values(SampleBatchStatus) as [
+  SampleBatchStatusValue,
+  ...SampleBatchStatusValue[],
 ]
 const receiveStatusValues = Object.values(ReceiveStatus) as [
   ReceiveStatusValue,
   ...ReceiveStatusValue[],
 ]
 
-export const sampleStatusSchema = z.enum(sampleStatusValues)
+export const sampleBatchStatusSchema = z.enum(batchStatusValues)
 export const receiveStatusSchema = z.enum(receiveStatusValues)
 
-const sampleBaseFields = {
-  sampleNo: requiredString("请输入样品编号"),
-  species: requiredString("请输入样本物种"),
-  tissueType: requiredString("请输入组织类型"),
+/** 样本数量：必填正整数（收样时实物在手、数量已知）；堵 0 叶子空洞（重构 §5） */
+const positiveIntCount = z.preprocess(
+  (value) => (typeof value === "string" ? Number(value) : value),
+  z.number("样本数量必须为数字").int("样本数量必须为整数").positive("样本数量至少为 1")
+)
+
+// 批次字段（建项目/收样前进度式收集，均可空）
+const batchBaseFields = {
+  batchNo: nullableString,
+  species: nullableString,
+  tissueType: nullableString,
   sampleCount: nullableNonNegativeInt,
-  experimentType: requiredString("请输入实验类型"),
-  transportCondition: requiredString("请输入运输条件"),
+  experimentType: nullableString,
+  transportCondition: nullableString,
   samplingDate: nullableDate,
   expectedArrivalDate: nullableDate,
   remark: nullableString,
@@ -54,15 +62,15 @@ function checkArrivalNotBeforeSampling(
 
 export const createSampleSchema = z
   .object({
-    projectId: requiredString("请选择所属项目"),
-    ...sampleBaseFields,
+    projectId: z.string().trim().min(1, "请选择所属项目"),
+    ...batchBaseFields,
   })
   .superRefine(checkArrivalNotBeforeSampling)
 export type CreateSampleInput = z.infer<typeof createSampleSchema>
 
-// 更新不含 projectId（样本不支持跨项目移动）、不含接收/状态字段（只能走 receive 动作）
+// 更新不含 projectId（批次不支持跨项目移动）、不含接收/状态字段（只能走 receive 动作）
 export const updateSampleSchema = z
-  .object(sampleBaseFields)
+  .object(batchBaseFields)
   .partial()
   .superRefine(checkArrivalNotBeforeSampling)
   .refine(
@@ -71,14 +79,15 @@ export const updateSampleSchema = z
   )
 export type UpdateSampleInput = z.infer<typeof updateSampleSchema>
 
-// 登记接收 = 补全样本信息（建项目时只有编号+数量）+ 记录到样。物种/组织/实验类型/运输条件收样时必填
+// 登记接收 = 录批次编号(YP) + 补全批次信息 + 记录到样；数量必填 ≥1（据此生成样本叶子）
 export const receiveSampleSchema = z
   .object({
-    species: requiredString("请输入样本物种"),
-    tissueType: requiredString("请输入组织类型"),
-    experimentType: requiredString("请输入实验类型"),
-    transportCondition: requiredString("请输入运输条件"),
-    sampleCount: nullableNonNegativeInt,
+    batchNo: nullableString,
+    species: nullableString,
+    tissueType: nullableString,
+    experimentType: nullableString,
+    transportCondition: nullableString,
+    sampleCount: positiveIntCount,
     receivedAt: nullableDate,
     receiveStatus: receiveStatusSchema.default(ReceiveStatus.normal),
     abnormalNote: nullableString,
@@ -95,18 +104,16 @@ export const receiveSampleSchema = z
 export type ReceiveSampleInput = z.infer<typeof receiveSampleSchema>
 
 export const markSampleAbnormalSchema = z.object({
-  reason: requiredString("请输入异常原因").max(1000, "异常原因最多 1000 字"),
+  reason: z.string().trim().min(1, "请输入异常原因").max(1000, "异常原因最多 1000 字"),
 })
 export type MarkSampleAbnormalInput = z.infer<typeof markSampleAbnormalSchema>
 
 export const sampleListQuerySchema = z.object({
   q: optionalString,
-  status: sampleStatusSchema.optional(),
+  status: sampleBatchStatusSchema.optional(),
   projectId: optionalString,
-  /** received=1：已接收（receivedAt 非空），工作台「已接收样本」入口 */
+  /** received=1：已接收（receivedAt 非空），收样工位「已接收」入口 */
   received: z.enum(["1"]).optional(),
-  /** awaiting=task：已收待建实验任务队列（§接缝 S2） */
-  awaiting: z.enum(["task"]).optional(),
   page: optionalString,
   limit: optionalString,
 })

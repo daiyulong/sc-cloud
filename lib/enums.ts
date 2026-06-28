@@ -100,6 +100,20 @@ export const SAMPLE_STATUS_LABELS: Record<SampleStatus, string> = {
   abnormal: "异常",
 }
 
+// ---------- 样本批次状态（收样登记结果态，收样后冻结、不接进项目聚合）----------
+export const SampleBatchStatus = {
+  waiting_arrival: "waiting_arrival",
+  received: "received",
+  received_abnormal: "received_abnormal",
+} as const
+export type SampleBatchStatus = (typeof SampleBatchStatus)[keyof typeof SampleBatchStatus]
+
+export const SAMPLE_BATCH_STATUS_LABELS: Record<SampleBatchStatus, string> = {
+  waiting_arrival: "待到样",
+  received: "已接收",
+  received_abnormal: "异常接收",
+}
+
 // ---------- 实验任务状态 ----------
 export const ExperimentTaskStatus = {
   waiting_schedule: "waiting_schedule",
@@ -213,6 +227,27 @@ export const RESULT_STATUS_LABELS: Record<ResultStatus, string> = {
   not_qualified: "不满足要求",
   other: "其他",
 }
+
+// ---------- 录入来源（人工 / 多模态识别经人工确认；值溯源经操作日志 afterData.imageId）----------
+export const DataSource = {
+  manual: "manual",
+  ai_confirmed: "ai_confirmed",
+} as const
+export type DataSource = (typeof DataSource)[keyof typeof DataSource]
+
+export const DATA_SOURCE_LABELS: Record<DataSource, string> = {
+  manual: "手工录入",
+  ai_confirmed: "识别确认",
+}
+
+// ---------- 实验记录图片 OCR 状态（多模态，M3）----------
+export const OcrStatus = {
+  pending: "pending",
+  processing: "processing",
+  done: "done",
+  failed: "failed",
+} as const
+export type OcrStatus = (typeof OcrStatus)[keyof typeof OcrStatus]
 
 // ---------- 操作日志动作 ----------
 export const OperationAction = {

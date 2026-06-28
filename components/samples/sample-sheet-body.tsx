@@ -2,9 +2,9 @@ import Link from "next/link"
 import { Edit, Maximize2 } from "lucide-react"
 import {
   PROJECT_STATUS_LABELS,
-  SAMPLE_STATUS_LABELS,
+  SAMPLE_BATCH_STATUS_LABELS,
   type ProjectStatus as ProjectStatusValue,
-  type SampleStatus as SampleStatusValue,
+  type SampleBatchStatus as SampleBatchStatusValue,
 } from "@/lib/enums"
 import type { getSampleDetail } from "@/lib/samples/service"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
@@ -19,16 +19,16 @@ type SampleDetail = Awaited<ReturnType<typeof getSampleDetail>>
 /** 侧滑详情内容（server 渲染）：头部 + 动作 + 核心字段 + 时间线 */
 export function SampleSheetBody({ detail, role }: { detail: SampleDetail; role?: string }) {
   const { sample, operationLogs } = detail
-  const status = sample.status as SampleStatusValue
+  const status = sample.status as SampleBatchStatusValue
 
   return (
     <div className="flex flex-col gap-5 p-6">
       <header className="flex flex-col gap-2 pr-8">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold">{sample.sampleNo}</h2>
+          <h2 className="text-lg font-semibold">{sample.batchNo ?? "未编号批次"}</h2>
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <StatusDot className={SAMPLE_STATUS_DOT[status]} />
-            {SAMPLE_STATUS_LABELS[status]}
+            {SAMPLE_BATCH_STATUS_LABELS[status]}
           </span>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -43,7 +43,7 @@ export function SampleSheetBody({ detail, role }: { detail: SampleDetail; role?:
       <div className="flex flex-wrap items-center gap-2">
         <SampleActionMenu
           sampleId={sample.id}
-          sampleNo={sample.sampleNo}
+          sampleNo={sample.batchNo ?? "未编号批次"}
           status={status}
           role={role}
           showEmptyHint

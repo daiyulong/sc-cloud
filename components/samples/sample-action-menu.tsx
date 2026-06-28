@@ -2,7 +2,7 @@
 
 import { MoreHorizontal } from "lucide-react"
 import * as React from "react"
-import type { SampleStatus as SampleStatusValue } from "@/lib/enums"
+import type { SampleBatchStatus as SampleBatchStatusValue } from "@/lib/enums"
 import { ReasonDialog } from "@/components/detail/reason-dialog"
 import { useEntityAction } from "@/components/detail/use-entity-action"
 import {
@@ -25,7 +25,7 @@ import {
 type SampleActionMenuProps = {
   sampleId: string
   sampleNo: string
-  status: SampleStatusValue
+  status: SampleBatchStatusValue
   role?: string
   /** 列表行紧凑模式：sm outline 主按钮 + icon 溢出 */
   compact?: boolean

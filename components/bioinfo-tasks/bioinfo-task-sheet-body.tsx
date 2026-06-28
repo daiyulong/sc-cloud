@@ -11,7 +11,7 @@ import type { getBioinfoTaskDetail } from "@/lib/bioinfo-tasks/service"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
 import { BioinfoTaskFields } from "@/components/bioinfo-tasks/bioinfo-task-fields"
-import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
+import { RunMetricsSection, pickRunMetrics } from "@/components/experiment-tasks/run-metrics-section"
 import { BIOINFO_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -80,7 +80,7 @@ export function BioinfoTaskSheetBody({
         taskNo={task.experimentTask.taskNo}
         status={task.experimentTask.status as ExperimentTaskStatusValue}
         role={role}
-        metrics={task.experimentTask}
+        metrics={pickRunMetrics(task.experimentTask.taskSamples)}
       />
       <Separator />
 

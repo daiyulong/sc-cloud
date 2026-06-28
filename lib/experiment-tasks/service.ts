@@ -16,6 +16,7 @@ import {
   ProjectStatus,
   SampleStatus,
   UserRole,
+  type SampleStatus as SampleStatusValue,
   type ServiceLevel as ServiceLevelValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
@@ -66,20 +67,41 @@ const taskProjectSelect = {
   salesOwnerId: true,
 } satisfies Prisma.ProjectSelect
 
-const taskSampleSelect = {
+// 一次上机关联的样本叶子（经 TaskSample）。产出指标在叶子上；接收时间经批次。
+const taskLeafSelect = {
   id: true,
-  sampleNo: true,
+  sampleName: true,
   species: true,
   tissueType: true,
   status: true,
-  receivedAt: true,
+  suspensionType: true,
+  sequencingAmount: true,
+  capturedCells: true,
+  medianGenes: true,
+  batch: { select: { batchNo: true, receivedAt: true } },
 } satisfies Prisma.SampleSelect
 
 const taskInclude = {
   project: { select: taskProjectSelect },
-  sample: { select: taskSampleSelect },
+  taskSamples: { include: { sample: { select: taskLeafSelect } } },
   operator: { select: taskUserSelect },
 } satisfies Prisma.ExperimentTaskInclude
+
+type TaskWithSamples = Prisma.ExperimentTaskGetPayload<{ include: typeof taskInclude }>
+type TaskLeaf = Prisma.SampleGetPayload<{ select: typeof taskLeafSelect }>
+
+function taskLeaves(task: { taskSamples: { sample: TaskLeaf }[] }): TaskLeaf[] {
+  return task.taskSamples.map((ts) => ts.sample)
+}
+
+/** 该任务关联样本的最晚接收日（实验日期须 ≥ 各样本接收日）。 */
+function latestReceivedAt(task: { taskSamples: { sample: TaskLeaf }[] }): Date | null {
+  const times = taskLeaves(task)
+    .map((s) => s.batch.receivedAt)
+    .filter((d): d is Date => d != null)
+    .map((d) => d.getTime())
+  return times.length ? new Date(Math.max(...times)) : null
+}
 
 function todayRange() {
   const start = new Date()
@@ -103,7 +125,7 @@ function buildTaskListWhere(
         { taskNo: { contains: query.q, mode: "insensitive" } },
         { experimentType: { contains: query.q, mode: "insensitive" } },
         { runMethod: { contains: query.q, mode: "insensitive" } },
-        { sample: { sampleNo: { contains: query.q, mode: "insensitive" } } },
+        { taskSamples: { some: { sample: { sampleName: { contains: query.q, mode: "insensitive" } } } } },
         { project: { projectNo: { contains: query.q, mode: "insensitive" } } },
       ],
     })
@@ -123,7 +145,7 @@ function buildTaskListWhere(
 async function getWritableTask(id: string) {
   const task = await prisma.experimentTask.findUnique({
     where: { id },
-    include: { project: { select: taskProjectSelect }, sample: { select: taskSampleSelect } },
+    include: taskInclude,
   })
   if (!task) throw new ExperimentTaskDomainError("实验任务不存在", 404)
   return task
@@ -131,7 +153,6 @@ async function getWritableTask(id: string) {
 
 /**
  * 实例级归属校验：admin/PM 可操作所有任务；lab_operator 只能操作自己负责（或尚未指派）的任务。
- * 仅用于已认领阶段的动作（start/finish/feedback），排期动作作用于共享池不限制。
  */
 function ensureCanOperateTask(
   task: { operatorId: string | null },
@@ -220,7 +241,10 @@ export async function listTaskQcRecords(operator: ExperimentTaskOperator, taskId
   })
 }
 
-/** 从样本创建实验任务（§5.1：已到样 → 任务待排期），任务编号系统生成 */
+/**
+ * 从样本叶子创建实验任务（§5.1：已到样 → 任务待排期），经 TaskSample 关联。
+ * M1：单样本入口（路由 /samples/[id] 为样本叶子 id）；多样本上机为 M2 增强。
+ */
 export async function createExperimentTaskFromSample(
   operator: ExperimentTaskOperator,
   sampleId: string,
@@ -244,7 +268,6 @@ export async function createExperimentTaskFromSample(
       data: {
         taskNo,
         projectId: sample.projectId,
-        sampleId: sample.id,
         experimentType: input.experimentType,
         runMethod: input.runMethod ?? null,
         department: input.department ?? null,
@@ -253,6 +276,7 @@ export async function createExperimentTaskFromSample(
         status: input.plannedDate
           ? ExperimentTaskStatus.scheduled
           : ExperimentTaskStatus.waiting_schedule,
+        taskSamples: { create: { sampleId: sample.id } },
       },
       include: taskInclude,
     })
@@ -284,7 +308,6 @@ export async function updateExperimentTask(
       runMethod: input.runMethod,
       department: input.department,
       plannedDate: input.plannedDate,
-      loadedSampleCount: input.loadedSampleCount,
     }).filter(([, value]) => value !== undefined)
   ) as Prisma.ExperimentTaskUpdateInput
 
@@ -352,7 +375,7 @@ export async function scheduleExperimentTask(
 
 /**
  * 开始实验（§5.1：已排期 → 进行中）。同一事务内聚合驱动：
- * 样本 received → lab_in_progress；项目下首个任务 start 时 sample_received → lab_in_progress（§7.1）。
+ * 关联样本叶子 received → lab_in_progress（扇出）；项目下首个任务 start 时 sample_received → lab_in_progress（§7.1）。
  */
 export async function startExperimentTask(
   operator: ExperimentTaskOperator,
@@ -363,7 +386,7 @@ export async function startExperimentTask(
   const before = await getWritableTask(id)
   ensureCanOperateTask(before, operator)
   ensureExperimentTaskStatus(before.status, [ExperimentTaskStatus.scheduled], "开始实验")
-  ensureActualDateValid(input.actualDate, before.sample.receivedAt, operator.role)
+  ensureActualDateValid(input.actualDate, latestReceivedAt(before), operator.role)
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.experimentTask.update({
@@ -384,7 +407,7 @@ export async function startExperimentTask(
       after: updated,
     })
 
-    await advanceSampleToLab(tx, operator, before.sample, before.sampleId, updated.taskNo)
+    await advanceSamplesToLab(tx, operator, taskLeaves(before), updated.taskNo)
     if (before.project.status === ProjectStatus.sample_received) {
       await advanceProjectStatus(
         tx,
@@ -400,7 +423,7 @@ export async function startExperimentTask(
   })
 }
 
-/** 完成实验（进行中 → 待反馈）：录入上机信息，等待结果反馈（不触发项目聚合） */
+/** 完成实验（进行中 → 待反馈）：等待结果反馈（不触发项目聚合） */
 export async function finishExperimentTask(
   operator: ExperimentTaskOperator,
   id: string,
@@ -410,7 +433,7 @@ export async function finishExperimentTask(
   const before = await getWritableTask(id)
   ensureCanOperateTask(before, operator)
   ensureExperimentTaskStatus(before.status, [ExperimentTaskStatus.in_progress], "完成实验")
-  ensureActualDateValid(input.actualDate, before.sample.receivedAt, operator.role)
+  ensureActualDateValid(input.actualDate, latestReceivedAt(before), operator.role)
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.experimentTask.update({
@@ -418,10 +441,6 @@ export async function finishExperimentTask(
       data: {
         status: ExperimentTaskStatus.waiting_feedback,
         actualDate: input.actualDate ?? before.actualDate ?? new Date(),
-        loadedSampleCount:
-          input.loadedSampleCount === undefined
-            ? before.loadedSampleCount
-            : input.loadedSampleCount,
       },
       include: taskInclude,
     })
@@ -440,8 +459,7 @@ export async function finishExperimentTask(
 
 /**
  * 提交实验反馈（§5.1：进行中/待反馈 → 已完成）。同一事务内聚合驱动：
- * 样本 → feedback_submitted；项目下实验任务全部完成时按 service_level 分流
- * lab_in_progress →（含生信）waiting_bioinfo /（不含生信）waiting_delivery（§7.1）。
+ * 关联样本叶子 → feedback_submitted（扇出）；项目下实验任务全部完成时按 service_level 分流（§7.1）。
  */
 export async function submitExperimentFeedback(
   operator: ExperimentTaskOperator,
@@ -452,7 +470,7 @@ export async function submitExperimentFeedback(
   const before = await getWritableTask(id)
   ensureCanOperateTask(before, operator)
   ensureExperimentTaskStatus(before.status, feedbackSubmittableTaskStatuses, "提交实验反馈")
-  ensureActualDateValid(input.actualDate, before.sample.receivedAt, operator.role)
+  ensureActualDateValid(input.actualDate, latestReceivedAt(before), operator.role)
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.experimentTask.update({
@@ -462,10 +480,6 @@ export async function submitExperimentFeedback(
         resultStatus: input.resultStatus,
         resultFeedback: input.resultFeedback,
         actualDate: input.actualDate ?? before.actualDate ?? new Date(),
-        loadedSampleCount:
-          input.loadedSampleCount === undefined
-            ? before.loadedSampleCount
-            : input.loadedSampleCount,
       },
       include: taskInclude,
     })
@@ -479,19 +493,20 @@ export async function submitExperimentFeedback(
       after: updated,
     })
 
-    // 样本反馈完成
-    if (before.sample.status !== SampleStatus.feedback_submitted) {
+    // 样本反馈完成（扇出所有关联叶子）
+    for (const leaf of taskLeaves(before)) {
+      if (leaf.status === SampleStatus.feedback_submitted) continue
       const sampleAfter = await tx.sample.update({
-        where: { id: before.sampleId },
+        where: { id: leaf.id },
         data: { status: SampleStatus.feedback_submitted },
       })
       await recordOperation({
         tx,
         entityType: "sample",
-        entityId: before.sampleId,
+        entityId: leaf.id,
         action: OperationAction.status_change,
         operatorId: operator.id,
-        before: before.sample,
+        before: leaf,
         after: { sample: sampleAfter, trigger: `experiment_task:${updated.taskNo}:feedback` },
       })
     }
@@ -523,7 +538,10 @@ export async function submitExperimentFeedback(
   })
 }
 
-/** 录入质控（§5.1 / §6.6）：进行中/待反馈允许，创建 qc_record，不改任务执行态（业务判定与执行态正交） */
+/**
+ * 录入质控（§5.1 / §6.6）：为该任务关联的样本叶子各建一条 qc_record（M1 单样本任务=一条）。
+ * 不改任务执行态（业务判定与执行态正交）。
+ */
 export async function recordTaskQc(
   operator: ExperimentTaskOperator,
   id: string,
@@ -532,23 +550,31 @@ export async function recordTaskQc(
   ensureExperimentTaskRole(operator.role, undefined, "录入质控")
   const before = await getWritableTask(id)
   ensureExperimentTaskStatus(before.status, qcRecordableTaskStatuses, "录入质控")
+  const leaves = taskLeaves(before)
+  if (leaves.length === 0) {
+    throw new ExperimentTaskDomainError("该任务尚未关联样本，无法录入质控", 409)
+  }
 
   return prisma.$transaction(async (tx) => {
-    const qc = await tx.qcRecord.create({
-      data: {
-        sampleId: before.sampleId,
-        taskId: before.id,
-        concentration: input.concentration ?? null,
-        viability: input.viability ?? null,
-        aggregationRate: input.aggregationRate ?? null,
-        qcResult: input.qcResult,
-        riskLevel: input.riskLevel,
-        reason: input.reason ?? null,
-        feedback: input.feedback ?? null,
-        createdBy: operator.id,
-      },
-      include: { createdByUser: { select: taskUserSelect } },
-    })
+    const created = []
+    for (const leaf of leaves) {
+      const qc = await tx.qcRecord.create({
+        data: {
+          sampleId: leaf.id,
+          taskId: before.id,
+          concentration: input.concentration ?? null,
+          viability: input.viability ?? null,
+          aggregationRate: input.aggregationRate ?? null,
+          qcResult: input.qcResult,
+          riskLevel: input.riskLevel,
+          reason: input.reason ?? null,
+          feedback: input.feedback ?? null,
+          createdBy: operator.id,
+        },
+        include: { createdByUser: { select: taskUserSelect } },
+      })
+      created.push(qc)
+    }
 
     await recordOperation({
       tx,
@@ -556,16 +582,16 @@ export async function recordTaskQc(
       entityId: id,
       action: OperationAction.create,
       operatorId: operator.id,
-      after: { qcRecord: qc, kind: "qc_record" },
+      after: { qcRecords: created, kind: "qc_record" },
     })
 
-    return qc
+    return created[0]
   })
 }
 
 /**
- * 录入产出指标（§6.8 经验视图）：实验完成后补录细胞核/测序量/捕获数/基因中位数。
- * 不改任务执行态、可重复订正；权限含生信分析员（下机数据到手者）。写 operation_logs。
+ * 录入产出指标（§6.8 经验视图）：实验完成后补录到样本叶子（悬液类型/测序量/捕获数/基因中位数）。
+ * 不改任务执行态、可重复订正；权限含生信分析员（下机数据到手者）。M1 单样本任务写其唯一叶子。
  */
 export async function recordRunMetrics(
   operator: ExperimentTaskOperator,
@@ -575,6 +601,10 @@ export async function recordRunMetrics(
   ensureExperimentTaskRole(operator.role, metricsRecordRoles, "录入产出指标")
   const before = await getWritableTask(id)
   ensureExperimentTaskStatus(before.status, metricsRecordableTaskStatuses, "录入产出指标")
+  const leaves = taskLeaves(before)
+  if (leaves.length === 0) {
+    throw new ExperimentTaskDomainError("该任务尚未关联样本，无法录入产出指标", 409)
+  }
 
   const data = Object.fromEntries(
     Object.entries({
@@ -583,10 +613,13 @@ export async function recordRunMetrics(
       capturedCells: input.capturedCells,
       medianGenes: input.medianGenes,
     }).filter(([, value]) => value !== undefined)
-  ) as Prisma.ExperimentTaskUpdateInput
+  ) as Prisma.SampleUpdateInput
 
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.experimentTask.update({ where: { id }, data, include: taskInclude })
+    for (const leaf of leaves) {
+      await tx.sample.update({ where: { id: leaf.id }, data })
+    }
+    const updated = await tx.experimentTask.findUniqueOrThrow({ where: { id }, include: taskInclude })
     await recordOperation({
       tx,
       entityType: "experiment_task",
@@ -600,30 +633,32 @@ export async function recordRunMetrics(
   })
 }
 
-/** 聚合：样本进入实验中（仅当尚未进入实验/反馈态时） */
-async function advanceSampleToLab(
+/** 聚合：样本叶子进入实验中（扇出，仅当尚未进入实验/反馈态时） */
+async function advanceSamplesToLab(
   tx: Prisma.TransactionClient,
   operator: ExperimentTaskOperator,
-  sampleBefore: { status: string },
-  sampleId: string,
+  leaves: { id: string; status: SampleStatusValue }[],
   triggerTaskNo: string
 ) {
-  if (
-    sampleBefore.status === SampleStatus.received ||
-    sampleBefore.status === SampleStatus.received_abnormal ||
-    sampleBefore.status === SampleStatus.waiting_task
-  ) {
+  for (const leaf of leaves) {
+    if (
+      leaf.status !== SampleStatus.received &&
+      leaf.status !== SampleStatus.received_abnormal &&
+      leaf.status !== SampleStatus.waiting_task
+    ) {
+      continue
+    }
     const sampleAfter = await tx.sample.update({
-      where: { id: sampleId },
+      where: { id: leaf.id },
       data: { status: SampleStatus.lab_in_progress },
     })
     await recordOperation({
       tx,
       entityType: "sample",
-      entityId: sampleId,
+      entityId: leaf.id,
       action: OperationAction.status_change,
       operatorId: operator.id,
-      before: sampleBefore,
+      before: leaf,
       after: { sample: sampleAfter, trigger: `experiment_task:${triggerTaskNo}:start` },
     })
   }
@@ -635,3 +670,5 @@ export function handleExperimentTaskDomainError(error: unknown) {
   }
   return null
 }
+
+export type { TaskWithSamples }

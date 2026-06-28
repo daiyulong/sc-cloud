@@ -9,7 +9,7 @@ import {
   type BioinfoTaskStatus as BioinfoTaskStatusValue,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
-  type SampleStatus as SampleStatusValue,
+  type SampleBatchStatus as SampleBatchStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { getProjectDetail } from "@/lib/projects/service"
@@ -33,7 +33,7 @@ import {
   SAMPLE_STATUS_DOT,
   StatusDot,
 } from "@/components/status-dot"
-import { SAMPLE_STATUS_LABELS } from "@/lib/enums"
+import { SAMPLE_BATCH_STATUS_LABELS } from "@/lib/enums"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -167,7 +167,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>样品编号</TableHead>
+                <TableHead>样本编号 (YP)</TableHead>
                 <TableHead>物种 / 组织</TableHead>
                 <TableHead>实验类型</TableHead>
                 <TableHead>状态</TableHead>
@@ -184,7 +184,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                       href={`/samples/${sample.id}`}
                       className="font-medium hover:underline"
                     >
-                      {sample.sampleNo}
+                      {sample.batchNo ?? "未编号"}
                     </Link>
                   </TableCell>
                   <TableCell>
@@ -194,9 +194,9 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                   <TableCell>
                     <span className="flex items-center gap-2 whitespace-nowrap">
                       <StatusDot
-                        className={SAMPLE_STATUS_DOT[sample.status as SampleStatusValue]}
+                        className={SAMPLE_STATUS_DOT[sample.status as SampleBatchStatusValue]}
                       />
-                      {SAMPLE_STATUS_LABELS[sample.status as SampleStatusValue]}
+                      {SAMPLE_BATCH_STATUS_LABELS[sample.status as SampleBatchStatusValue]}
                     </span>
                   </TableCell>
                   <TableCell>{formatDate(sample.expectedArrivalDate)}</TableCell>
@@ -204,8 +204,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                   <TableCell className="text-right">
                     <SampleActionMenu
                       sampleId={sample.id}
-                      sampleNo={sample.sampleNo}
-                      status={sample.status as SampleStatusValue}
+                      sampleNo={sample.batchNo ?? "未编号"}
+                      status={sample.status as SampleBatchStatusValue}
                       role={session.user.role}
                       compact
                     />
@@ -264,9 +264,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <Link href={`/samples/${task.sample.id}`} className="hover:underline">
-                      {task.sample.sampleNo}
-                    </Link>
+                    {task.taskSamples.map((ts) => ts.sample.sampleName || "未命名").join("、") || "-"}
                   </TableCell>
                   <TableCell>{task.experimentType}</TableCell>
                   <TableCell>

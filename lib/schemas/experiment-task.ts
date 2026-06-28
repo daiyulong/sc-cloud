@@ -64,7 +64,6 @@ export const updateExperimentTaskSchema = z
     department: nullableString,
     plannedDate: nullableDate,
     operatorId: nullableString,
-    loadedSampleCount: nullableNonNegativeInt,
   })
   .refine(
     (value) => Object.keys(value).some((key) => value[key as keyof typeof value] !== undefined),
@@ -97,7 +96,6 @@ export type StartTaskInput = z.infer<typeof startTaskSchema>
 /** 完成实验（待反馈）：录入上机信息，进入待反馈 */
 export const finishTaskSchema = z.object({
   actualDate: nullableDate,
-  loadedSampleCount: nullableNonNegativeInt,
 })
 export type FinishTaskInput = z.infer<typeof finishTaskSchema>
 
@@ -105,7 +103,6 @@ export type FinishTaskInput = z.infer<typeof finishTaskSchema>
 export const submitFeedbackSchema = z.object({
   resultStatus: resultStatusSchema,
   resultFeedback: requiredString("请输入结果反馈").max(2000, "结果反馈最多 2000 字"),
-  loadedSampleCount: nullableNonNegativeInt,
   actualDate: nullableDate,
 })
 export type SubmitFeedbackInput = z.infer<typeof submitFeedbackSchema>

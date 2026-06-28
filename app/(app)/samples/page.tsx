@@ -4,15 +4,14 @@ import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { parsePagination } from "@/lib/api-utils"
 import {
-  SAMPLE_STATUS_LABELS,
-  SampleStatus,
-  type SampleStatus as SampleStatusValue,
+  SAMPLE_BATCH_STATUS_LABELS,
+  SampleBatchStatus,
+  type SampleBatchStatus as SampleBatchStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
 import { sampleListQuerySchema } from "@/lib/schemas/sample"
-import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
 import { listSamples } from "@/lib/samples/service"
 import { firstParam, formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
@@ -47,7 +46,6 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
     status: firstParam(raw.status),
     projectId: firstParam(raw.projectId),
     received: firstParam(raw.received),
-    awaiting: firstParam(raw.awaiting),
     page: firstParam(raw.page),
     limit: firstParam(raw.limit),
   })
@@ -76,14 +74,10 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
   ])
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
-  for (const key of ["q", "status", "projectId", "received", "awaiting"]) {
+  for (const key of ["q", "status", "projectId", "received"]) {
     const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
   }
-  // 「待建实验任务」队列视图：行内直接建任务（队列已保证行均合格，仅按角色显示）
-  const showCreateTask =
-    query.awaiting === "task" &&
-    experimentManageRoles.includes(session.user.role as (typeof experimentManageRoles)[number])
   const pageHref = (nextPage: number) => {
     const params = new URLSearchParams(baseParams)
     params.set("page", String(nextPage))
@@ -109,9 +103,9 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
             label: "样本状态",
             allLabel: "全部状态",
             value: query.status,
-            options: Object.values(SampleStatus).map((value) => ({
+            options: Object.values(SampleBatchStatus).map((value) => ({
               value,
-              label: SAMPLE_STATUS_LABELS[value],
+              label: SAMPLE_BATCH_STATUS_LABELS[value],
               dot: SAMPLE_STATUS_DOT[value],
             })),
           },
@@ -150,7 +144,7 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
             <Table className="[&_td]:px-4 [&_td]:py-3 [&_th]:px-4">
               <TableHeader>
                 <TableRow>
-                  <TableHead>样品编号</TableHead>
+                  <TableHead>样本编号 (YP)</TableHead>
                   <TableHead>所属项目</TableHead>
                   <TableHead>物种 / 组织</TableHead>
                   <TableHead>实验类型</TableHead>
@@ -169,7 +163,7 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
                         href={`/samples/${sample.id}`}
                         className="font-medium hover:underline"
                       >
-                        {sample.sampleNo}
+                        {sample.batchNo ?? "未编号"}
                       </Link>
                     </TableCell>
                     <TableCell>
@@ -187,9 +181,9 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
                     <TableCell>
                       <span className="flex items-center gap-2 whitespace-nowrap">
                         <StatusDot
-                          className={SAMPLE_STATUS_DOT[sample.status as SampleStatusValue]}
+                          className={SAMPLE_STATUS_DOT[sample.status as SampleBatchStatusValue]}
                         />
-                        {SAMPLE_STATUS_LABELS[sample.status as SampleStatusValue]}
+                        {SAMPLE_BATCH_STATUS_LABELS[sample.status as SampleBatchStatusValue]}
                       </span>
                     </TableCell>
                     <TableCell>{formatDate(sample.expectedArrivalDate)}</TableCell>
@@ -199,17 +193,10 @@ export default async function SamplesPage({ searchParams }: SamplesPageProps) {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {showCreateTask && (
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/experiment-tasks/new?sampleId=${sample.id}`}>
-                              建实验任务
-                            </Link>
-                          </Button>
-                        )}
                         <SampleActionMenu
                           sampleId={sample.id}
-                          sampleNo={sample.sampleNo}
-                          status={sample.status as SampleStatusValue}
+                          sampleNo={sample.batchNo ?? "未编号"}
+                          status={sample.status as SampleBatchStatusValue}
                           role={session.user.role}
                           compact
                         />

@@ -1,15 +1,16 @@
 import { Prisma } from "@prisma/client"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { buildSampleScope, samplesAwaitingTaskWhere } from "@/lib/auth/role-scope"
+import { buildSampleBatchScope } from "@/lib/auth/role-scope"
 import { recordOperation } from "@/lib/operation-log"
 import {
   OperationAction,
   ProjectStatus,
   ReceiveStatus,
+  SampleBatchStatus,
   SampleStatus,
   UserRole,
-  type SampleStatus as SampleStatusValue,
+  type SampleBatchStatus as SampleBatchStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import type {
@@ -30,6 +31,7 @@ import {
   sampleReceiveRoles,
 } from "@/lib/samples/rules"
 
+// 2026-06 重构：本「样本」域操作的是 SampleBatch（样本批次/YP）。收样 = 批次级登记 + 按数量生成样本叶子。
 export type SampleOperator = {
   id: string
   role?: UserRoleValue
@@ -54,21 +56,30 @@ const sampleProjectSelect = {
   salesOwnerId: true,
 } satisfies Prisma.ProjectSelect
 
-const sampleInclude = {
+const batchLeafSelect = {
+  id: true,
+  sampleName: true,
+  species: true,
+  tissueType: true,
+  status: true,
+} satisfies Prisma.SampleSelect
+
+const batchInclude = {
   project: { select: sampleProjectSelect },
   receiver: { select: sampleUserSelect },
-} satisfies Prisma.SampleInclude
+  samples: { select: batchLeafSelect, orderBy: { createdAt: "asc" } },
+} satisfies Prisma.SampleBatchInclude
 
-function buildSampleListWhere(
+function buildBatchListWhere(
   operator: SampleOperator,
   query: SampleListQuery
-): Prisma.SampleWhereInput {
-  const filters: Prisma.SampleWhereInput[] = [buildSampleScope(operator.role, operator.id)]
+): Prisma.SampleBatchWhereInput {
+  const filters: Prisma.SampleBatchWhereInput[] = [buildSampleBatchScope(operator.role, operator.id)]
 
   if (query.q) {
     filters.push({
       OR: [
-        { sampleNo: { contains: query.q, mode: "insensitive" } },
+        { batchNo: { contains: query.q, mode: "insensitive" } },
         { species: { contains: query.q, mode: "insensitive" } },
         { tissueType: { contains: query.q, mode: "insensitive" } },
         { project: { projectNo: { contains: query.q, mode: "insensitive" } } },
@@ -78,23 +89,22 @@ function buildSampleListWhere(
   if (query.status) filters.push({ status: query.status })
   if (query.projectId) filters.push({ projectId: query.projectId })
   if (query.received === "1") filters.push({ receivedAt: { not: null } })
-  if (query.awaiting === "task") filters.push(samplesAwaitingTaskWhere)
 
   return { AND: filters }
 }
 
-async function getWritableSample(id: string) {
-  const sample = await prisma.sample.findUnique({
+async function getWritableBatch(id: string) {
+  const batch = await prisma.sampleBatch.findUnique({
     where: { id },
     include: { project: { select: sampleProjectSelect } },
   })
-  if (!sample) throw new SampleDomainError("样本不存在", 404)
-  return sample
+  if (!batch) throw new SampleDomainError("样本批次不存在", 404)
+  return batch
 }
 
-function ensureCanUpdateSample(
-  sample: {
-    status: SampleStatusValue
+function ensureCanUpdateBatch(
+  batch: {
+    status: SampleBatchStatusValue
     receiverId: string | null
     project: { salesOwnerId: string | null }
   },
@@ -102,24 +112,24 @@ function ensureCanUpdateSample(
 ) {
   if (operator.role === UserRole.admin || operator.role === UserRole.project_manager) return
 
-  // 销售：自己项目下、且样本尚未接收（到样前修正预计信息）
+  // 销售：自己项目下、且批次尚未接收（到样前修正预计信息）
   if (
     operator.role === UserRole.sales_owner &&
-    sample.project.salesOwnerId === operator.id &&
-    sample.status === SampleStatus.waiting_arrival
+    batch.project.salesOwnerId === operator.id &&
+    batch.status === SampleBatchStatus.waiting_arrival
   ) {
     return
   }
 
-  // 接收员：待到样样本（接收前修正）或自己接收的样本（修正接收登记信息）
+  // 接收员：待到样批次（接收前修正）或自己接收的批次（修正接收登记信息）
   if (
     operator.role === UserRole.sample_receiver &&
-    (sample.status === SampleStatus.waiting_arrival || sample.receiverId === operator.id)
+    (batch.status === SampleBatchStatus.waiting_arrival || batch.receiverId === operator.id)
   ) {
     return
   }
 
-  throw new SampleDomainError("没有更新样本权限", 403)
+  throw new SampleDomainError("没有更新样本批次权限", 403)
 }
 
 export async function listSamples(
@@ -127,41 +137,41 @@ export async function listSamples(
   query: SampleListQuery,
   pagination: { skip: number; limit: number }
 ) {
-  const where = buildSampleListWhere(operator, query)
+  const where = buildBatchListWhere(operator, query)
   const [data, total] = await Promise.all([
-    prisma.sample.findMany({
+    prisma.sampleBatch.findMany({
       where,
-      include: sampleInclude,
+      include: batchInclude,
       orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
       skip: pagination.skip,
       take: pagination.limit,
     }),
-    prisma.sample.count({ where }),
+    prisma.sampleBatch.count({ where }),
   ])
 
   return { data, total }
 }
 
 export async function getSampleDetail(operator: SampleOperator, id: string) {
-  const [sample, operationLogs] = await Promise.all([
-    prisma.sample.findFirst({
-      where: { AND: [{ id }, buildSampleScope(operator.role, operator.id)] },
-      include: sampleInclude,
+  const [batch, operationLogs] = await Promise.all([
+    prisma.sampleBatch.findFirst({
+      where: { AND: [{ id }, buildSampleBatchScope(operator.role, operator.id)] },
+      include: batchInclude,
     }),
     prisma.operationLog.findMany({
-      where: { entityType: "sample", entityId: id },
+      where: { entityType: "sample_batch", entityId: id },
       include: { operator: { select: sampleUserSelect } },
       orderBy: { createdAt: "desc" },
       take: 30,
     }),
   ])
 
-  if (!sample) throw new SampleDomainError("样本不存在或无权访问", 404)
-  return { sample, operationLogs }
+  if (!batch) throw new SampleDomainError("样本批次不存在或无权访问", 404)
+  return { sample: batch, operationLogs }
 }
 
 export async function createSample(operator: SampleOperator, input: CreateSampleInput) {
-  ensureSampleRole(operator.role, sampleCreateRoles, "新增样本")
+  ensureSampleRole(operator.role, sampleCreateRoles, "新增样本批次")
 
   const project = await prisma.project.findUnique({
     where: { id: input.projectId },
@@ -169,39 +179,50 @@ export async function createSample(operator: SampleOperator, input: CreateSample
   })
   if (!project) throw new SampleDomainError("所属项目不存在", 404)
 
-  // 销售只能在自己负责的项目下登记样本
+  // 销售只能在自己负责的项目下登记
   if (operator.role === UserRole.sales_owner && project.salesOwnerId !== operator.id) {
-    throw new SampleDomainError("只能在自己负责的项目下新增样本", 403)
+    throw new SampleDomainError("只能在自己负责的项目下新增样本批次", 403)
   }
   ensureProjectCanCreateSample(project.status)
 
+  const batchNo = input.batchNo?.trim() || null
+  if (batchNo) {
+    const clash = await prisma.sampleBatch.findUnique({ where: { batchNo }, select: { id: true } })
+    if (clash) throw new SampleDomainError(`样本编号 ${batchNo} 已存在`, 409)
+  }
+
   return prisma.$transaction(async (tx) => {
-    const sample = await tx.sample.create({
+    const seqMax = await tx.sampleBatch.aggregate({
+      where: { projectId: input.projectId },
+      _max: { seq: true },
+    })
+    const batch = await tx.sampleBatch.create({
       data: {
-        sampleNo: input.sampleNo,
         projectId: input.projectId,
-        species: input.species,
-        tissueType: input.tissueType,
+        batchNo,
+        seq: (seqMax._max.seq ?? 0) + 1,
+        species: input.species ?? null,
+        tissueType: input.tissueType ?? null,
         sampleCount: input.sampleCount ?? null,
-        experimentType: input.experimentType,
-        transportCondition: input.transportCondition,
+        experimentType: input.experimentType ?? null,
+        transportCondition: input.transportCondition ?? null,
         samplingDate: input.samplingDate ?? null,
         expectedArrivalDate: input.expectedArrivalDate ?? null,
         remark: input.remark ?? null,
       },
-      include: sampleInclude,
+      include: batchInclude,
     })
 
     await recordOperation({
       tx,
-      entityType: "sample",
-      entityId: sample.id,
+      entityType: "sample_batch",
+      entityId: batch.id,
       action: OperationAction.create,
       operatorId: operator.id,
-      after: sample,
+      after: batch,
     })
 
-    return sample
+    return batch
   })
 }
 
@@ -210,12 +231,23 @@ export async function updateSample(
   id: string,
   input: UpdateSampleInput
 ) {
-  const before = await getWritableSample(id)
-  ensureCanUpdateSample(before, operator)
+  const before = await getWritableBatch(id)
+  ensureCanUpdateBatch(before, operator)
+
+  if (input.batchNo !== undefined) {
+    const batchNo = input.batchNo?.trim() || null
+    if (batchNo) {
+      const clash = await prisma.sampleBatch.findFirst({
+        where: { batchNo, id: { not: id } },
+        select: { id: true },
+      })
+      if (clash) throw new SampleDomainError(`样本编号 ${batchNo} 已存在`, 409)
+    }
+  }
 
   const data = Object.fromEntries(
     Object.entries({
-      sampleNo: input.sampleNo,
+      batchNo: input.batchNo === undefined ? undefined : input.batchNo?.trim() || null,
       species: input.species,
       tissueType: input.tissueType,
       sampleCount: input.sampleCount,
@@ -225,18 +257,18 @@ export async function updateSample(
       expectedArrivalDate: input.expectedArrivalDate,
       remark: input.remark,
     }).filter(([, value]) => value !== undefined)
-  ) as Prisma.SampleUpdateInput
+  ) as Prisma.SampleBatchUpdateInput
 
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.sample.update({
+    const updated = await tx.sampleBatch.update({
       where: { id },
       data,
-      include: sampleInclude,
+      include: batchInclude,
     })
 
     await recordOperation({
       tx,
-      entityType: "sample",
+      entityType: "sample_batch",
       entityId: id,
       action: OperationAction.update,
       operatorId: operator.id,
@@ -249,48 +281,72 @@ export async function updateSample(
 }
 
 /**
- * 接收样本（规格 §5.1）：更新样本接收信息，并在同一事务内聚合项目状态——
- * 项目下首个样本接收成功时 waiting_sample → sample_received（规格 §7.1），双双写操作日志。
+ * 登记接收（规格 §5.1 + 重构 §5）：批次级登记到样 + 据数量生成 N 条样本叶子；
+ * 项目下首个批次接收成功时 waiting_sample → sample_received（§7.1），同事务双双写操作日志。
  */
 export async function receiveSample(
   operator: SampleOperator,
   id: string,
   input: ReceiveSampleInput
 ) {
-  ensureSampleRole(operator.role, sampleReceiveRoles, "接收样本")
-  const before = await getWritableSample(id)
-  ensureSampleStatus(before.status, [SampleStatus.waiting_arrival], "接收样本")
+  ensureSampleRole(operator.role, sampleReceiveRoles, "登记接收")
+  const before = await getWritableBatch(id)
+  ensureSampleStatus(before.status, [SampleBatchStatus.waiting_arrival], "登记接收")
   ensureProjectCanReceiveSample(before.project.status)
 
+  const batchNo = input.batchNo?.trim() || before.batchNo
+  if (batchNo && batchNo !== before.batchNo) {
+    const clash = await prisma.sampleBatch.findFirst({
+      where: { batchNo, id: { not: id } },
+      select: { id: true },
+    })
+    if (clash) throw new SampleDomainError(`样本编号 ${batchNo} 已存在`, 409)
+  }
+
   const isAbnormal = input.receiveStatus === ReceiveStatus.abnormal
+  const leafStatus = isAbnormal ? SampleStatus.received_abnormal : SampleStatus.received
 
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.sample.update({
+    const updated = await tx.sampleBatch.update({
       where: { id },
       data: {
-        // 登记接收：补全建项目时缺的样本信息 + 记录到样
+        batchNo,
         species: input.species,
         tissueType: input.tissueType,
         experimentType: input.experimentType,
         transportCondition: input.transportCondition,
-        sampleCount: input.sampleCount ?? before.sampleCount,
+        sampleCount: input.sampleCount,
         receivedAt: input.receivedAt ?? new Date(),
         receiverId: operator.id,
-        receiveStatus: input.receiveStatus,
         abnormalNote: input.abnormalNote ?? null,
-        status: isAbnormal ? SampleStatus.received_abnormal : SampleStatus.received,
+        status: isAbnormal ? SampleBatchStatus.received_abnormal : SampleBatchStatus.received,
       },
-      include: sampleInclude,
+      include: batchInclude,
     })
+
+    // 据数量生成样本叶子（首次接收，批次此前 0 叶子）；样本名留空，经实验/多模态补
+    const existing = await tx.sample.count({ where: { batchId: id } })
+    const toCreate = Math.max(0, input.sampleCount - existing)
+    if (toCreate > 0) {
+      await tx.sample.createMany({
+        data: Array.from({ length: toCreate }, () => ({
+          batchId: id,
+          projectId: before.projectId,
+          species: input.species ?? null,
+          tissueType: input.tissueType ?? null,
+          status: leafStatus,
+        })),
+      })
+    }
 
     await recordOperation({
       tx,
-      entityType: "sample",
+      entityType: "sample_batch",
       entityId: id,
       action: OperationAction.status_change,
       operatorId: operator.id,
       before,
-      after: updated,
+      after: { batch: updated, leavesCreated: toCreate },
     })
 
     if (before.project.status === ProjectStatus.waiting_sample) {
@@ -306,7 +362,7 @@ export async function receiveSample(
         action: OperationAction.status_change,
         operatorId: operator.id,
         before: before.project,
-        after: { project: projectAfter, trigger: `sample:${updated.sampleNo}:receive` },
+        after: { project: projectAfter, trigger: `sample_batch:${updated.batchNo ?? id}:receive` },
       })
     }
 
@@ -315,36 +371,36 @@ export async function receiveSample(
 }
 
 /**
- * 登记样本异常（规格 §5.1：待到样/已接收 → 异常）。
- * 只改样本状态，不联动项目异常——项目异常必须显式执行项目动作（避免污染异常统计）。
+ * 登记批次异常（规格 §5.1：待到样/已接收 → 异常接收）。
+ * 只改批次状态，不联动项目异常——项目异常必须显式执行项目动作（避免污染异常统计）。
  */
 export async function markSampleAbnormal(
   operator: SampleOperator,
   id: string,
   input: MarkSampleAbnormalInput
 ) {
-  ensureSampleRole(operator.role, sampleReceiveRoles, "登记样本异常")
-  const before = await getWritableSample(id)
-  ensureSampleStatus(before.status, abnormalMarkableSampleStatuses, "登记样本异常")
+  ensureSampleRole(operator.role, sampleReceiveRoles, "登记批次异常")
+  const before = await getWritableBatch(id)
+  ensureSampleStatus(before.status, abnormalMarkableSampleStatuses, "登记批次异常")
 
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.sample.update({
+    const updated = await tx.sampleBatch.update({
       where: { id },
       data: {
-        status: SampleStatus.abnormal,
+        status: SampleBatchStatus.received_abnormal,
         abnormalNote: input.reason,
       },
-      include: sampleInclude,
+      include: batchInclude,
     })
 
     await recordOperation({
       tx,
-      entityType: "sample",
+      entityType: "sample_batch",
       entityId: id,
       action: OperationAction.status_change,
       operatorId: operator.id,
       before,
-      after: { sample: updated, reason: input.reason },
+      after: { batch: updated, reason: input.reason },
     })
 
     return updated

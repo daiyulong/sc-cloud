@@ -1,6 +1,9 @@
-// 单细胞云平台数据模型（规格 §9）
+// 单细胞云平台数据模型（规格 §9 + 重构设计 docs/重构设计-2026-06.md §2）
 // 约定：Prisma 字段用 camelCase（TS 惯例），DB 列/表用 snake_case（@map/@@map，对齐规格、Excel 导入与直读）。
 // NextAuth 认证三表（Account/Session/VerificationToken）保留官方字段名（adapter 按字段名访问），仅映射列/表名。
+//
+// 2026-06 大重构（M1 数据模型）：项目 → 样本批次(SampleBatch) → 样本(Sample 叶子) → TaskSample 关联；
+// 产出指标/QC 迁到样本叶子（一行一捕获）；新增 ExperimentRecordImage（多模态实验记录图片，M3 用）。
 
 generator client {
   provider      = "prisma-client-js"
@@ -48,6 +51,14 @@ enum ProjectStatus {
   terminated
 }
 
+// 样本批次状态（收样登记结果态，收样后冻结、不随实验推进；不接进项目聚合）
+enum SampleBatchStatus {
+  waiting_arrival
+  received
+  received_abnormal
+}
+
+// 样本叶子生命周期状态（由实验任务子驱动）
 enum SampleStatus {
   waiting_arrival
   received
@@ -77,12 +88,6 @@ enum BioinfoTaskStatus {
   abnormal
 }
 
-// 样本接收状态（执行态，与质控业务判定正交）
-enum ReceiveStatus {
-  normal
-  abnormal
-}
-
 // 质控结论（业务判定态，不混进任务执行态）
 enum QCResult {
   passed
@@ -109,6 +114,20 @@ enum ResultStatus {
 enum SuspensionType {
   cell
   nucleus
+}
+
+// 录入来源：人工 / 多模态识别经人工确认（值溯源经操作日志 afterData.imageId）
+enum DataSource {
+  manual
+  ai_confirmed
+}
+
+// 实验记录图片 OCR 状态（多模态，M3）
+enum OcrStatus {
+  pending
+  processing
+  done
+  failed
 }
 
 enum OperationAction {
@@ -143,12 +162,14 @@ model User {
   sessions Session[]
 
   // 业务反向关系（行级 scope §3.3 与时间线依赖）
-  salesProjects   Project[]        @relation("SalesOwner")
-  managedProjects Project[]        @relation("ProjectManager")
-  receivedSamples Sample[]
+  salesProjects   Project[]               @relation("SalesOwner")
+  managedProjects Project[]               @relation("ProjectManager")
+  receivedBatches SampleBatch[] // 收样接收人（接收记录迁到批次）
   operatedTasks   ExperimentTask[]
   analyzedTasks   BioinfoTask[]
   qcRecords       QcRecord[]
+  uploadedImages  ExperimentRecordImage[] @relation("ImageUploader")
+  confirmedImages ExperimentRecordImage[] @relation("ImageConfirmer")
   operationLogs   OperationLog[]
   importLogs      ImportLog[]
   projectGrants   ProjectGrant[]
@@ -199,7 +220,7 @@ model VerificationToken {
 }
 
 // ============================================================
-// 业务实体（规格 §9）
+// 业务实体（规格 §9 + 重构设计 §2）
 // ============================================================
 
 // 项目 = 委托单粒度，一个合同可对应多个项目。projectNo 即委托单号（合并原 orderNo）。
@@ -207,7 +228,8 @@ model Project {
   id                   String         @id @default(cuid())
   // 项目编号 = 委托单号，上游给定、由 PM 确认时录入；草稿阶段为 null（用内部 id 定位）
   projectNo            String?        @unique @map("project_no")
-  contractNo           String         @map("contract_no") // 可重复，建索引
+  // 合同号上游给定、建项目时未必知道，故可空（重构 §2.1）
+  contractNo           String?        @map("contract_no") // 可重复，建索引
   customerOrg          String         @map("customer_org")
   customerName         String         @map("customer_name")
   customerContact      String?        @map("customer_contact")
@@ -226,11 +248,13 @@ model Project {
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
 
-  salesOwner      User?            @relation("SalesOwner", fields: [salesOwnerId], references: [id])
-  projectManager  User?            @relation("ProjectManager", fields: [projectManagerId], references: [id])
-  samples         Sample[]
+  salesOwner      User?                   @relation("SalesOwner", fields: [salesOwnerId], references: [id])
+  projectManager  User?                   @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  sampleBatches   SampleBatch[]
+  samples         Sample[] // 冗余直连（叶子 projectId 冗余自批次，权威=batch.projectId），减少 project↔sample 查询改动面
   experimentTasks ExperimentTask[]
   bioinfoTasks    BioinfoTask[]
+  recordImages    ExperimentRecordImage[]
   projectGrants   ProjectGrant[]
 
   @@index([contractNo])
@@ -241,97 +265,137 @@ model Project {
   @@map("projects")
 }
 
-model Sample {
-  id                  String        @id @default(cuid())
-  sampleNo            String        @unique @map("sample_no") // 唯一
-  projectId           String        @map("project_id")
-  // 样本信息建项目时仅填 sampleNo + sampleCount（一编号=一组），其余收样时补，故可空
+// 样本批次 = 一次送样 / 一个样本编号(YP)，含多个具名样本。承接旧扁平 Sample 的批次级字段。
+// 本期一项目一批次，但 projectId 天然 1→N，将来放开建批次入口即多批次（重构 §2.2）。
+model SampleBatch {
+  id                  String            @id @default(cuid())
+  projectId           String            @map("project_id")
+  batchNo             String?           @unique @map("batch_no") // 样本编号 YP，收样时录入；空值不冲突、有值唯一（同 projectNo）
+  seq                 Int               @default(1) // 批次序号，为多批次留位
+  sampleCount         Int?              @map("sample_count") // 收样登记必填 ≥1（堵 0 叶子空洞，见 §5）
   species             String?
-  tissueType          String?       @map("tissue_type")
-  sampleCount         Int?          @map("sample_count")
-  experimentType      String?       @map("experiment_type")
-  transportCondition  String?       @map("transport_condition")
-  samplingDate        DateTime?     @map("sampling_date")
-  expectedArrivalDate DateTime?     @map("expected_arrival_date")
-  receivedAt          DateTime?     @map("received_at")
-  receiverId          String?       @map("receiver_id") // nullable：接收时填充
-  receiveStatus       ReceiveStatus @default(normal) @map("receive_status")
-  abnormalNote        String?       @map("abnormal_note")
-  status              SampleStatus  @default(waiting_arrival)
+  tissueType          String?           @map("tissue_type")
+  experimentType      String?           @map("experiment_type")
+  transportCondition  String?           @map("transport_condition")
+  samplingDate        DateTime?         @map("sampling_date")
+  expectedArrivalDate DateTime?         @map("expected_arrival_date")
+  // 到样接收记录（整批一次接收，接收时间权威源；实验日期校验读此）
+  receivedAt          DateTime?         @map("received_at")
+  receiverId          String?           @map("receiver_id")
+  abnormalNote        String?           @map("abnormal_note")
+  status              SampleBatchStatus @default(waiting_arrival)
   remark              String?
-  createdAt           DateTime      @default(now()) @map("created_at")
-  updatedAt           DateTime      @updatedAt @map("updated_at")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
 
-  project   Project          @relation(fields: [projectId], references: [id])
-  receiver  User?            @relation(fields: [receiverId], references: [id])
-  tasks     ExperimentTask[]
-  qcRecords QcRecord[]
+  project  Project  @relation(fields: [projectId], references: [id])
+  receiver User?    @relation(fields: [receiverId], references: [id])
+  samples  Sample[]
 
+  @@unique([projectId, seq])
   @@index([projectId])
   @@index([receiverId])
+  @@index([status])
+  @@map("sample_batches")
+}
+
+// 样本（叶子，具名）。承接经验表「一行一捕获」：逐样本 QC + 产出指标。
+// 假设：一样本=一次交付捕获，本期不建模重复上机（退出条件见重构设计 §2.3）。
+model Sample {
+  id               String          @id @default(cuid())
+  batchId          String          @map("batch_id")
+  projectId        String          @map("project_id") // 冗余自 batch.projectId（同事务复制、批次不可改挂项目），简化行级 scope/统计
+  sampleName       String?         @map("sample_name") // 样本名：任务单回填 / 手工 / 多模态补
+  species          String? // 逐样本属性，默认继承批次
+  tissueType       String?         @map("tissue_type")
+  status           SampleStatus    @default(waiting_arrival)
+  source           DataSource      @default(manual) // 录入来源（多模态确认标记）
+  // 逐样本下机产出指标（一行一捕获；recordRunMetrics / 生信 API 上报补录，可订正）
+  suspensionType   SuspensionType? @map("suspension_type")
+  sequencingAmount Float?          @map("sequencing_amount") // 测序量(G)
+  capturedCells    Int?            @map("captured_cells") // 捕获细胞数
+  medianGenes      Int?            @map("median_genes") // 基因中位数
+  remark           String?
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  batch       SampleBatch  @relation(fields: [batchId], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id])
+  qcRecords   QcRecord[]
+  taskSamples TaskSample[]
+
+  @@index([batchId])
+  @@index([projectId])
   @@index([status])
   @@map("samples")
 }
 
-// 实验任务。MVP：sampleId 单值 FK + loadedSampleCount；
-// 终局：引入 task_samples(task_id, sample_id) 关联表承接「一次上机多样品」，把捕获指标挂到 task_sample 粒度。本期预留接口位。
+// 实验任务 = 一次上机/实验事件。经 TaskSample 关联多个样本叶子（一次上机多样品）。
 model ExperimentTask {
-  id                String               @id @default(cuid())
-  taskNo            String               @map("task_no")
-  projectId         String               @map("project_id")
-  sampleId          String               @map("sample_id")
-  experimentType    String               @map("experiment_type")
-  runMethod         String?              @map("run_method") // 上机方式，排期/导入时由文本解析填充
-  suspensionType    SuspensionType?      @map("suspension_type") // 细胞/细胞核 scRNA vs snRNA（§6.8）
-  plannedDate       DateTime?            @map("planned_date")
-  actualDate        DateTime?            @map("actual_date")
-  operatorId        String?              @map("operator_id") // nullable：排期时指派
-  department        String?
-  loadedSampleCount Int?                 @map("loaded_sample_count")
-  status            ExperimentTaskStatus @default(waiting_schedule)
-  resultStatus      ResultStatus?        @map("result_status")
-  resultFeedback    String?              @map("result_feedback") // 原文全量保留
-  rawBookingText    String?              @map("raw_booking_text") // 旧表「上机方式」原始文本，导入留存
-  // 下机产出指标（测序+定量后由 recordRunMetrics 动作补录，§6.8 经验视图）。
-  // 与 resultStatus/resultFeedback 同属上机结果维度；活率/结团率/浓度在 qc_records。
-  // MVP 任务级单值；终局随 task_samples 迁到 task_sample 粒度（承接经验表「一行一捕获」）。
-  sequencingAmount  Float?               @map("sequencing_amount") // 测序量(G)
-  capturedCells     Int?                 @map("captured_cells") // 捕获细胞数
-  medianGenes       Int?                 @map("median_genes") // 基因中位数
-  createdAt         DateTime             @default(now()) @map("created_at")
-  updatedAt         DateTime             @updatedAt @map("updated_at")
+  id             String               @id @default(cuid())
+  taskNo         String               @map("task_no")
+  projectId      String               @map("project_id")
+  experimentType String               @map("experiment_type")
+  runMethod      String?              @map("run_method") // 上机方式，排期/导入时由文本解析填充
+  plannedDate    DateTime?            @map("planned_date")
+  actualDate     DateTime?            @map("actual_date")
+  operatorId     String?              @map("operator_id") // nullable：排期时指派
+  department     String?
+  status         ExperimentTaskStatus @default(waiting_schedule)
+  resultStatus   ResultStatus?        @map("result_status")
+  resultFeedback String?              @map("result_feedback") // 原文全量保留
+  rawBookingText String?              @map("raw_booking_text") // 旧表「上机方式」原始文本，导入留存
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
 
-  project      Project       @relation(fields: [projectId], references: [id])
-  sample       Sample        @relation(fields: [sampleId], references: [id])
-  operator     User?         @relation(fields: [operatorId], references: [id])
+  project      Project                 @relation(fields: [projectId], references: [id])
+  operator     User?                   @relation(fields: [operatorId], references: [id])
+  taskSamples  TaskSample[]
   qcRecords    QcRecord[]
   bioinfoTasks BioinfoTask[]
+  recordImages ExperimentRecordImage[]
 
   @@index([projectId])
-  @@index([sampleId])
   @@index([operatorId])
   @@index([status])
   @@map("experiment_tasks")
 }
 
+// 实验任务 × 样本叶子关联（承接「一次上机多样品」）。
+model TaskSample {
+  id       String @id @default(cuid())
+  taskId   String @map("task_id")
+  sampleId String @map("sample_id")
+
+  task   ExperimentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  sample Sample         @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, sampleId])
+  @@index([taskId])
+  @@index([sampleId])
+  @@map("task_samples")
+}
+
+// 上机前质控（逐样本叶子一条）。taskId 仅作来源引用（哪次上机录的），不再作多捕获区分键。
 model QcRecord {
-  id              String    @id @default(cuid())
-  sampleId        String    @map("sample_id")
-  taskId          String    @map("task_id")
+  id              String     @id @default(cuid())
+  sampleId        String     @map("sample_id")
+  taskId          String?    @map("task_id") // 来源任务（可空：可在建任务前/外录入）
   concentration   Float? // 悬液浓度
   viability       Float? // 活率
-  aggregationRate Float?    @map("aggregation_rate") // 结团率
-  qcResult        QCResult  @map("qc_result")
-  riskLevel       RiskLevel @map("risk_level")
+  aggregationRate Float?     @map("aggregation_rate") // 结团率
+  qcResult        QCResult   @map("qc_result")
+  riskLevel       RiskLevel  @map("risk_level")
   reason          String?
   feedback        String?
-  createdBy       String    @map("created_by") // 录入人，NOT NULL
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  source          DataSource @default(manual) // 录入来源（多模态确认标记）
+  createdBy       String     @map("created_by") // 录入人，NOT NULL
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
 
-  sample        Sample         @relation(fields: [sampleId], references: [id])
-  task          ExperimentTask @relation(fields: [taskId], references: [id])
-  createdByUser User           @relation(fields: [createdBy], references: [id])
+  sample        Sample          @relation(fields: [sampleId], references: [id])
+  task          ExperimentTask? @relation(fields: [taskId], references: [id])
+  createdByUser User            @relation(fields: [createdBy], references: [id])
 
   @@index([sampleId])
   @@index([taskId])
@@ -362,6 +426,34 @@ model BioinfoTask {
   @@index([analystId])
   @@index([status])
   @@map("bioinfo_tasks")
+}
+
+// 实验记录图片（多模态识别，M3）。绑定到一次上机(ExperimentTask)，其 TaskSample 集合即识别行可指派的候选叶子。
+model ExperimentRecordImage {
+  id            String    @id @default(cuid())
+  projectId     String    @map("project_id")
+  taskId        String    @map("task_id")
+  blobPathname  String    @map("blob_pathname") // Vercel Blob 私有对象 pathname（非可直贴 URL）
+  uploadedById  String    @map("uploaded_by_id")
+  uploadedAt    DateTime  @default(now()) @map("uploaded_at")
+  ocrStatus     OcrStatus @default(pending) @map("ocr_status")
+  ocrModel      String?   @map("ocr_model") // 实际所用 provider/model 串
+  ocrResult     Json?     @map("ocr_result") // { rows: [{ rawText?, sampleName, concentration, viability, aggregationRate }] }
+  ocrError      String?   @map("ocr_error")
+  confirmedById String?   @map("confirmed_by_id")
+  confirmedAt   DateTime? @map("confirmed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  project     Project        @relation(fields: [projectId], references: [id])
+  task        ExperimentTask @relation(fields: [taskId], references: [id])
+  uploadedBy  User           @relation("ImageUploader", fields: [uploadedById], references: [id])
+  confirmedBy User?          @relation("ImageConfirmer", fields: [confirmedById], references: [id])
+
+  @@index([projectId])
+  @@index([taskId])
+  @@index([ocrStatus])
+  @@map("experiment_record_images")
 }
 
 // 只读用户(viewer)显式项目授权（§3.3）

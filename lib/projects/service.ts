@@ -189,8 +189,9 @@ export async function getProjectDetail(operator: ProjectOperator, id: string) {
   })
   if (!project) throw new ProjectDomainError("项目不存在或无权访问", 404)
 
-  // 时间线 = 项目自身日志 + 子实体（样本/实验任务/生信任务）日志汇总（CLAUDE.md / §6.10）
-  const [samples, tasks, bioinfos] = await Promise.all([
+  // 时间线 = 项目自身日志 + 子实体（批次/样本/实验任务/生信任务）日志汇总（CLAUDE.md / §6.10）
+  const [batches, samples, tasks, bioinfos] = await Promise.all([
+    prisma.sampleBatch.findMany({ where: { projectId: id }, select: { id: true } }),
     prisma.sample.findMany({ where: { projectId: id }, select: { id: true } }),
     prisma.experimentTask.findMany({ where: { projectId: id }, select: { id: true } }),
     prisma.bioinfoTask.findMany({ where: { projectId: id }, select: { id: true } }),
@@ -199,6 +200,7 @@ export async function getProjectDetail(operator: ProjectOperator, id: string) {
     where: {
       OR: [
         { entityType: "project", entityId: id },
+        { entityType: "sample_batch", entityId: { in: batches.map((b) => b.id) } },
         { entityType: "sample", entityId: { in: samples.map((s) => s.id) } },
         { entityType: "experiment_task", entityId: { in: tasks.map((t) => t.id) } },
         { entityType: "bioinfo_task", entityId: { in: bioinfos.map((b) => b.id) } },
@@ -224,10 +226,13 @@ export async function createProject(operator: ProjectOperator, input: CreateProj
   const projectManagerId =
     input.projectManagerId || (operator.role === UserRole.project_manager ? operator.id : null)
 
-  // 一委托单一组样本：建项目即生成 1 条待到样样本（编号唯一预检）
-  const sampleNo = input.sampleNo.trim()
-  const sampleClash = await prisma.sample.findUnique({ where: { sampleNo }, select: { id: true } })
-  if (sampleClash) throw new ProjectDomainError(`样本编号 ${sampleNo} 已存在`, 409)
+  // 进度式收集：建项目即生成 1 个空样本批次（0 叶子），样本编号(YP)/数量收样时补（重构 §5）。
+  // WHY：收样工位的接缝队列需要一行可显示的待接收批次，对称于 projectNo-null 草稿。
+  const batchNo = input.batchNo?.trim() || null
+  if (batchNo) {
+    const clash = await prisma.sampleBatch.findUnique({ where: { batchNo }, select: { id: true } })
+    if (clash) throw new ProjectDomainError(`样本编号 ${batchNo} 已存在`, 409)
+  }
 
   return prisma.$transaction(async (tx) => {
     const project = await tx.project.create({
@@ -259,17 +264,22 @@ export async function createProject(operator: ProjectOperator, input: CreateProj
       after: project,
     })
 
-    // 样本信息（物种/组织/实验类型/运输条件）收样时补，建项目仅录编号+数量
-    const sample = await tx.sample.create({
-      data: { sampleNo, projectId: project.id, sampleCount: input.sampleCount },
+    // 批次信息（物种/组织/实验类型/运输条件）收样时补；样本叶子收样时按数量生成
+    const batch = await tx.sampleBatch.create({
+      data: {
+        projectId: project.id,
+        batchNo,
+        seq: 1,
+        sampleCount: input.sampleCount ?? null,
+      },
     })
     await recordOperation({
       tx,
-      entityType: "sample",
-      entityId: sample.id,
+      entityType: "sample_batch",
+      entityId: batch.id,
       action: OperationAction.create,
       operatorId: operator.id,
-      after: sample,
+      after: batch,
     })
 
     return project

@@ -185,9 +185,7 @@ export default async function ExperimentTasksPage({ searchParams }: ExperimentTa
                       </Link>
                     </TableCell>
                     <TableCell>
-                      <Link href={`/samples/${task.sample.id}`} className="hover:underline">
-                        {task.sample.sampleNo}
-                      </Link>
+                      {task.taskSamples.map((ts) => ts.sample.sampleName || "未命名").join("、") || "-"}
                     </TableCell>
                     <TableCell>
                       <Link href={`/projects/${task.project.id}`} className="hover:underline">

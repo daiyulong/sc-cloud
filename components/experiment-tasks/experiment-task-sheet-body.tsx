@@ -11,7 +11,7 @@ import { OperationTimeline } from "@/components/detail/operation-timeline"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { ExperimentTaskFields } from "@/components/experiment-tasks/experiment-task-fields"
 import { QcSection } from "@/components/experiment-tasks/qc-section"
-import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
+import { RunMetricsSection, pickRunMetrics } from "@/components/experiment-tasks/run-metrics-section"
 import type { OperatorOption } from "@/components/experiment-tasks/schedule-dialog"
 import { EXPERIMENT_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { Button } from "@/components/ui/button"
@@ -91,7 +91,7 @@ export function ExperimentTaskSheetBody({
         taskNo={task.taskNo}
         status={status}
         role={role}
-        metrics={task}
+        metrics={pickRunMetrics(task.taskSamples)}
       />
       <Separator />
 

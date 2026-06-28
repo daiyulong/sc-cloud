@@ -32,7 +32,7 @@ export default async function EditSamplePage({ params }: EditSamplePageProps) {
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">编辑样本</h1>
-        <p className="text-sm text-muted-foreground">{detail.sample.sampleNo}</p>
+        <p className="text-sm text-muted-foreground">{detail.sample.batchNo ?? "未编号"}</p>
       </div>
       <Card>
         <CardHeader>

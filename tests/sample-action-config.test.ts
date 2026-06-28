@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { partitionSampleActions } from "@/components/samples/sample-action-config"
-import { SampleStatus, UserRole } from "@/lib/enums"
+import { SampleBatchStatus, UserRole } from "@/lib/enums"
 
 describe("partitionSampleActions", () => {
   it("waiting_arrival + 接收员：主动作 receive（表单 Dialog），溢出 markAbnormal", () => {
     const { primary, overflow } = partitionSampleActions(
-      SampleStatus.waiting_arrival,
+      SampleBatchStatus.waiting_arrival,
       UserRole.sample_receiver
     )
     expect(primary?.action).toBe("receive")
@@ -17,7 +17,7 @@ describe("partitionSampleActions", () => {
 
   it("received：仅溢出 markAbnormal，无主动作", () => {
     const { primary, overflow } = partitionSampleActions(
-      SampleStatus.received,
+      SampleBatchStatus.received,
       UserRole.sample_receiver
     )
     expect(primary).toBeUndefined()
@@ -26,17 +26,18 @@ describe("partitionSampleActions", () => {
 
   it("无权限角色（销售/实验员/查看者）：两侧都为空", () => {
     for (const role of [UserRole.sales_owner, UserRole.lab_operator, UserRole.viewer]) {
-      const { primary, overflow } = partitionSampleActions(SampleStatus.waiting_arrival, role)
+      const { primary, overflow } = partitionSampleActions(SampleBatchStatus.waiting_arrival, role)
       expect(primary).toBeUndefined()
       expect(overflow).toEqual([])
     }
   })
 
-  it("abnormal / feedback_submitted 状态：无任何动作", () => {
-    for (const status of [SampleStatus.abnormal, SampleStatus.feedback_submitted]) {
-      const { primary, overflow } = partitionSampleActions(status, UserRole.sample_receiver)
-      expect(primary).toBeUndefined()
-      expect(overflow).toEqual([])
-    }
+  it("received_abnormal（已异常）：无任何动作", () => {
+    const { primary, overflow } = partitionSampleActions(
+      SampleBatchStatus.received_abnormal,
+      UserRole.sample_receiver
+    )
+    expect(primary).toBeUndefined()
+    expect(overflow).toEqual([])
   })
 })

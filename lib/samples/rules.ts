@@ -1,9 +1,9 @@
 import {
   ProjectStatus,
-  SampleStatus,
+  SampleBatchStatus,
   UserRole,
   type ProjectStatus as ProjectStatusValue,
-  type SampleStatus as SampleStatusValue,
+  type SampleBatchStatus as SampleBatchStatusValue,
 } from "@/lib/enums"
 
 export type SampleAction = "receive" | "markAbnormal"
@@ -33,11 +33,10 @@ export const sampleCreateRoles = [
   UserRole.sales_owner,
 ] as const
 
-/** 登记样本异常的样本前置状态（规格 §5.1：待到样/已接收） */
-export const abnormalMarkableSampleStatuses: readonly SampleStatusValue[] = [
-  SampleStatus.waiting_arrival,
-  SampleStatus.received,
-  SampleStatus.received_abnormal,
+/** 登记批次异常的前置状态（规格 §5.1：待到样/已接收） */
+export const abnormalMarkableSampleStatuses: readonly SampleBatchStatusValue[] = [
+  SampleBatchStatus.waiting_arrival,
+  SampleBatchStatus.received,
 ]
 
 /**
@@ -68,13 +67,13 @@ export function ensureSampleRole(
 }
 
 export function ensureSampleStatus(
-  current: SampleStatusValue,
-  allowed: readonly SampleStatusValue[],
+  current: SampleBatchStatusValue,
+  allowed: readonly SampleBatchStatusValue[],
   actionName: string
 ) {
   if (!allowed.includes(current)) {
     throw new SampleDomainError(
-      `${actionName}要求样本状态为：${allowed.join(", ")}，当前状态为：${current}`,
+      `${actionName}要求批次状态为：${allowed.join(", ")}，当前状态为：${current}`,
       409
     )
   }
@@ -96,7 +95,7 @@ export function ensureProjectCanCreateSample(projectStatus: ProjectStatusValue) 
 }
 
 export function getAvailableSampleActions(
-  status: SampleStatusValue,
+  status: SampleBatchStatusValue,
   role: string | undefined
 ): SampleAction[] {
   if (!role || !sampleReceiveRoles.includes(role as (typeof sampleReceiveRoles)[number])) {
@@ -104,7 +103,7 @@ export function getAvailableSampleActions(
   }
 
   const actions: SampleAction[] = []
-  if (status === SampleStatus.waiting_arrival) actions.push("receive")
+  if (status === SampleBatchStatus.waiting_arrival) actions.push("receive")
   if (abnormalMarkableSampleStatuses.includes(status)) actions.push("markAbnormal")
   return actions
 }

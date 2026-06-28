@@ -32,11 +32,10 @@ describe("seam pool 可见范围", () => {
 })
 
 describe("seam 列表参数", () => {
-  it("samples 支持 received=1 / awaiting=task", () => {
-    expect(sampleListQuerySchema.parse({ received: "1", awaiting: "task" })).toMatchObject({
-      received: "1",
-      awaiting: "task",
-    })
+  // 2026-06 重构：samples 列表改为样本批次粒度，received=1 仍支持；
+  // 叶子级「待建实验任务」(awaiting=task) 迁到 M2 实验工位，不再挂样本(批次)列表。
+  it("samples 支持 received=1", () => {
+    expect(sampleListQuerySchema.parse({ received: "1" })).toMatchObject({ received: "1" })
   })
 
   it("experiment-tasks 支持 awaiting=bioinfo", () => {

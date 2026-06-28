@@ -2,7 +2,6 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import {
-  ExperimentTaskStatus,
   ProjectStatus,
   type SuspensionType as SuspensionTypeValue,
   type UserRole as UserRoleValue,
@@ -49,7 +48,7 @@ export async function getAnalytics(operator: AnalyticsOperator): Promise<Analyti
   windowStart.setDate(1)
   windowStart.setMonth(windowStart.getMonth() - (MONTHS - 1))
 
-  const [sampleTotal, completedRows, speciesRows, tissueRows, metricTasks] =
+  const [sampleTotal, completedRows, speciesRows, tissueRows, metricSamples] =
     await Promise.all([
       prisma.sample.count({ where: sampleScope }),
       prisma.project.findMany({
@@ -58,9 +57,10 @@ export async function getAnalytics(operator: AnalyticsOperator): Promise<Analyti
       }),
       prisma.sample.groupBy({ by: ["species"], where: sampleScope, _count: { _all: true } }),
       prisma.sample.groupBy({ by: ["tissueType"], where: sampleScope, _count: { _all: true } }),
-      prisma.experimentTask.findMany({
+      // 产出指标已迁到样本叶子（一行一捕获）：直接查叶子
+      prisma.sample.findMany({
         where: { project: scope, capturedCells: { not: null } },
-        select: { capturedCells: true, sample: { select: { species: true } } },
+        select: { capturedCells: true, species: true },
       }),
     ])
 
@@ -81,13 +81,13 @@ export async function getAnalytics(operator: AnalyticsOperator): Promise<Analyti
     count,
   }))
 
-  // 捕获细胞数按物种均值
+  // 捕获细胞数按物种均值（叶子粒度）
   const bySpecies = new Map<string, { sum: number; n: number }>()
-  for (const t of metricTasks) {
-    if (t.capturedCells == null) continue
-    const sp = t.sample?.species?.trim() || "未填"
+  for (const s of metricSamples) {
+    if (s.capturedCells == null) continue
+    const sp = s.species?.trim() || "未填"
     const cur = bySpecies.get(sp) ?? { sum: 0, n: 0 }
-    cur.sum += t.capturedCells
+    cur.sum += s.capturedCells
     cur.n += 1
     bySpecies.set(sp, cur)
   }
@@ -162,53 +162,57 @@ export async function searchSimilarRuns(
   const scope = buildProjectScope(operator.role, operator.id)
   const ci = (v: string): Prisma.StringFilter => ({ contains: v.trim(), mode: "insensitive" })
 
-  const sampleFilter: Prisma.SampleWhereInput = {}
-  if (filters.species) sampleFilter.species = ci(filters.species)
-  if (filters.tissue) sampleFilter.tissueType = ci(filters.tissue)
-
-  const and: Prisma.ExperimentTaskWhereInput[] = [
+  // 一行一捕获 = 一条样本叶子（产出/QC 挂叶子）；建库化学/任务号经其上机任务取
+  const and: Prisma.SampleWhereInput[] = [
     { project: scope },
-    { status: ExperimentTaskStatus.completed },
     // 只取「有产出」的历史，才有参考价值
     { OR: [{ capturedCells: { not: null } }, { medianGenes: { not: null } }] },
   ]
-  if (Object.keys(sampleFilter).length) and.push({ sample: sampleFilter })
-  if (filters.runMethod) and.push({ runMethod: ci(filters.runMethod) })
+  if (filters.species) and.push({ species: ci(filters.species) })
+  if (filters.tissue) and.push({ tissueType: ci(filters.tissue) })
   if (filters.suspensionType) and.push({ suspensionType: filters.suspensionType })
+  if (filters.runMethod) {
+    and.push({ taskSamples: { some: { task: { runMethod: ci(filters.runMethod) } } } })
+  }
 
-  const [totalCount, tasks] = await Promise.all([
-    prisma.experimentTask.count({ where: { AND: and } }),
-    prisma.experimentTask.findMany({
-    where: { AND: and },
-    select: {
-      id: true,
-      taskNo: true,
-      runMethod: true,
-      suspensionType: true,
-      capturedCells: true,
-      medianGenes: true,
-      sequencingAmount: true,
-      project: { select: { projectNo: true } },
-      sample: { select: { species: true, tissueType: true } },
-      qcRecords: { select: { viability: true }, orderBy: { createdAt: "desc" }, take: 1 },
-    },
-    orderBy: { updatedAt: "desc" },
-    take: 100,
-  }),
+  const [totalCount, samples] = await Promise.all([
+    prisma.sample.count({ where: { AND: and } }),
+    prisma.sample.findMany({
+      where: { AND: and },
+      select: {
+        id: true,
+        sampleName: true,
+        species: true,
+        tissueType: true,
+        suspensionType: true,
+        capturedCells: true,
+        medianGenes: true,
+        sequencingAmount: true,
+        project: { select: { projectNo: true } },
+        qcRecords: { select: { viability: true }, orderBy: { createdAt: "desc" }, take: 1 },
+        taskSamples: {
+          select: { task: { select: { taskNo: true, runMethod: true } } },
+          orderBy: { task: { updatedAt: "desc" } },
+          take: 1,
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+    }),
   ])
 
-  const runs: SimilarRun[] = tasks.map((t) => ({
-    id: t.id,
-    taskNo: t.taskNo,
-    projectNo: t.project.projectNo,
-    species: t.sample?.species ?? null,
-    tissueType: t.sample?.tissueType ?? null,
-    runMethod: t.runMethod,
-    suspensionType: t.suspensionType,
-    capturedCells: t.capturedCells,
-    medianGenes: t.medianGenes,
-    sequencingAmount: t.sequencingAmount,
-    viability: t.qcRecords[0]?.viability ?? null,
+  const runs: SimilarRun[] = samples.map((s) => ({
+    id: s.id,
+    taskNo: s.taskSamples[0]?.task.taskNo ?? s.sampleName ?? s.id,
+    projectNo: s.project.projectNo,
+    species: s.species,
+    tissueType: s.tissueType,
+    runMethod: s.taskSamples[0]?.task.runMethod ?? null,
+    suspensionType: s.suspensionType,
+    capturedCells: s.capturedCells,
+    medianGenes: s.medianGenes,
+    sequencingAmount: s.sequencingAmount,
+    viability: s.qcRecords[0]?.viability ?? null,
   }))
 
   const pick = (key: "capturedCells" | "medianGenes" | "viability") =>

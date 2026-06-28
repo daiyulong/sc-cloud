@@ -20,10 +20,10 @@ import {
 
 export type TaskSampleOption = {
   id: string
-  sampleNo: string
+  sampleName: string | null
   species: string | null
   tissueType: string | null
-  experimentType: string | null
+  batch: { batchNo: string | null; experimentType: string | null } | null
   project: { id: string; projectNo: string | null; customerOrg: string }
 }
 
@@ -34,8 +34,7 @@ type TaskFormValue = {
   department?: string | null
   plannedDate?: Date | string | null
   operatorId?: string | null
-  loadedSampleCount?: number | null
-  sample?: { id: string; sampleNo: string }
+  taskSamples?: { sample: { id: string; sampleName: string | null } }[]
   project?: { projectNo: string | null }
 }
 
@@ -62,7 +61,9 @@ export function ExperimentTaskForm({
 }: ExperimentTaskFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = React.useTransition()
-  const [sampleId, setSampleId] = React.useState(task?.sample?.id || initialSampleId || "")
+  const [sampleId, setSampleId] = React.useState(
+    task?.taskSamples?.[0]?.sample?.id || initialSampleId || ""
+  )
   const [operatorId, setOperatorId] = React.useState(task?.operatorId || UNASSIGNED)
   const [experimentType, setExperimentType] = React.useState(task?.experimentType ?? "")
 
@@ -71,7 +72,7 @@ export function ExperimentTaskForm({
     // 选中样本后，实验类型为空则用样本的实验类型预填（可改）
     if (!experimentType.trim()) {
       const picked = sampleOptions.find((option) => option.id === next)
-      if (picked?.experimentType) setExperimentType(picked.experimentType)
+      if (picked?.batch?.experimentType) setExperimentType(picked.batch.experimentType)
     }
   }
 
@@ -92,7 +93,6 @@ export function ExperimentTaskForm({
       plannedDate: text("plannedDate"),
       operatorId: operatorId === UNASSIGNED ? null : operatorId,
     }
-    if (mode === "edit") payload.loadedSampleCount = text("loadedSampleCount")
 
     if (mode === "create" && !sampleId) {
       toast.error("请选择关联样本")
@@ -136,8 +136,8 @@ export function ExperimentTaskForm({
                   <SelectGroup>
                     {sampleOptions.map((sample) => (
                       <SelectItem key={sample.id} value={sample.id}>
-                        {sample.sampleNo} · {sample.species}/{sample.tissueType} ·{" "}
-                        {sample.project.projectNo}
+                        {sample.sampleName || sample.batch?.batchNo || "未命名样本"} ·{" "}
+                        {sample.species}/{sample.tissueType} · {sample.project.projectNo}
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -149,7 +149,7 @@ export function ExperimentTaskForm({
             <Field>
               <FieldLabel>关联样本</FieldLabel>
               <Input
-                value={`${task?.sample?.sampleNo ?? ""}${task?.project?.projectNo ? ` · ${task.project.projectNo}` : ""}`}
+                value={`${task?.taskSamples?.map((ts) => ts.sample.sampleName || "未命名").join("、") ?? ""}${task?.project?.projectNo ? ` · ${task.project.projectNo}` : ""}`}
                 disabled
               />
             </Field>
@@ -211,19 +211,6 @@ export function ExperimentTaskForm({
               </SelectContent>
             </Select>
           </Field>
-          {mode === "edit" && (
-            <Field>
-              <FieldLabel htmlFor="loadedSampleCount">上机样本个数</FieldLabel>
-              <Input
-                id="loadedSampleCount"
-                name="loadedSampleCount"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={task?.loadedSampleCount ?? ""}
-              />
-            </Field>
-          )}
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => router.back()}>

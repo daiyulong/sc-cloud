@@ -4,6 +4,7 @@ import {
   BioinfoTaskStatus,
   ExperimentTaskStatus,
   ProjectStatus,
+  SampleBatchStatus,
   SampleStatus,
   UserRole,
 } from "@/lib/enums"
@@ -21,7 +22,8 @@ export const samplesAwaitingTaskWhere: Prisma.SampleWhereInput = {
       SampleStatus.lab_in_progress,
     ],
   },
-  tasks: { none: {} },
+  // 叶子是否已进某次上机：经 TaskSample 关联（旧 Sample→ExperimentTask 直连已退役）
+  taskSamples: { none: {} },
   project: { status: { in: [ProjectStatus.sample_received, ProjectStatus.lab_in_progress] } },
 }
 
@@ -57,7 +59,8 @@ export function buildProjectScope(
     case UserRole.sales_owner:
       return { salesOwnerId: userId }
     case UserRole.sample_receiver:
-      return { samples: { some: { receiverId: userId } } }
+      // 接收记录迁到批次：项目下有自己接收过的批次即相关
+      return { sampleBatches: { some: { receiverId: userId } } }
     case UserRole.lab_operator:
       return { experimentTasks: { some: { operatorId: userId } } }
     case UserRole.bioinfo_analyst:
@@ -86,12 +89,33 @@ export function buildSampleScope(
 ): Prisma.SampleWhereInput {
   switch (role) {
     case UserRole.sample_receiver:
+      // 叶子无 receiverId，接收记录在批次：自己接收过的批次下的叶子 ∪ 全部待到样叶子
       return {
-        OR: [{ receiverId: userId }, { status: SampleStatus.waiting_arrival }],
+        OR: [{ batch: { receiverId: userId } }, { status: SampleStatus.waiting_arrival }],
       }
     case UserRole.lab_operator:
       // 鸡生蛋同实验任务池：实验员要建任务，却看不到尚无任务的已收样本——补「待建任务样本池」
       return { OR: [{ project: buildProjectScope(role, userId) }, samplesAwaitingTaskWhere] }
+    default:
+      return { project: buildProjectScope(role, userId) }
+  }
+}
+
+/**
+ * 样本批次的行级可见范围（收样工位 = 批次队列）。接收记录在批次上。
+ *
+ * 接收员鸡生蛋同旧样本逻辑：receiver_id 接收时才填，只按它过滤永远看不到待接收批次；
+ * 故接收员可见 = 自己接收过的批次 ∪ 全部待到样批次。其余角色由项目 scope 推导。
+ */
+export function buildSampleBatchScope(
+  role: UserRole | undefined,
+  userId: string
+): Prisma.SampleBatchWhereInput {
+  switch (role) {
+    case UserRole.sample_receiver:
+      return {
+        OR: [{ receiverId: userId }, { status: SampleBatchStatus.waiting_arrival }],
+      }
     default:
       return { project: buildProjectScope(role, userId) }
   }

@@ -18,10 +18,10 @@ export async function getTaskSampleOptions(operator: { id: string; role?: UserRo
     },
     select: {
       id: true,
-      sampleNo: true,
+      sampleName: true,
       species: true,
       tissueType: true,
-      experimentType: true,
+      batch: { select: { batchNo: true, experimentType: true } },
       project: { select: { id: true, projectNo: true, customerOrg: true } },
     },
     orderBy: { updatedAt: "desc" },

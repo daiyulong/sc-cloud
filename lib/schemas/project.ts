@@ -7,6 +7,7 @@ import {
 } from "@/lib/enums"
 import {
   nullableDate,
+  nullableNonNegativeInt,
   nullableString,
   optionalString,
   requiredString,
@@ -25,8 +26,9 @@ export const serviceLevelSchema = z.enum(serviceLevelValues)
 export const projectStatusSchema = z.enum(projectStatusValues)
 
 export const createProjectSchema = z.object({
-  // 项目编号（委托单号）不在创建时填，由 PM 确认时录入；创建仅登记客户/合同/服务等
-  contractNo: requiredString("请输入合同编号"),
+  // 项目编号（委托单号）不在创建时填，由 PM 确认时录入；创建仅登记客户/服务等
+  // 进度式收集：合同号/样本编号/数量上游给定、建项目时未必知道，均可空（重构 §2.1/§5）
+  contractNo: nullableString,
   customerOrg: requiredString("请输入客户单位"),
   customerName: requiredString("请输入客户姓名"),
   customerContact: nullableString,
@@ -39,12 +41,9 @@ export const createProjectSchema = z.object({
   priority: z.string().trim().min(1).default("普通"),
   expectedDeliveryDate: nullableDate,
   remark: nullableString,
-  // 一委托单一组样本：销售建项目时填 样本编号(YP) + 样本数量，创建即生成 1 条待到样样本
-  sampleNo: requiredString("请输入样本编号"),
-  sampleCount: z.preprocess(
-    (value) => (typeof value === "string" ? Number(value) : value),
-    z.number("样本数量必须为数字").int("样本数量必须为整数").positive("样本数量至少为 1")
-  ),
+  // 创建即生成 1 个空样本批次（0 叶子）；样本编号(YP)/数量收样时补（重构 §5）
+  batchNo: nullableString,
+  sampleCount: nullableNonNegativeInt,
 })
 export type CreateProjectInput = z.infer<typeof createProjectSchema>
 

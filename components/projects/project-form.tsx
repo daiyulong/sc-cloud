@@ -37,7 +37,7 @@ export type ProjectUserOption = {
 
 type ProjectFormValue = {
   id?: string
-  contractNo?: string
+  contractNo?: string | null
   customerOrg?: string
   customerName?: string
   customerContact?: string | null
@@ -118,10 +118,10 @@ export function ProjectForm({
       priority,
       expectedDeliveryDate: formString(formData, "expectedDeliveryDate"),
       remark: formString(formData, "remark"),
-      // 一委托单一组样本：仅创建时填 样本编号 + 数量（编辑时样本独立管理）
+      // 建项目即生成 1 个空样本批次：可选填 样本编号(YP) + 数量，均可空、收样时补
       ...(mode === "create"
         ? {
-            sampleNo: formString(formData, "sampleNo"),
+            batchNo: formString(formData, "batchNo"),
             sampleCount: formString(formData, "sampleCount"),
           }
         : {}),
@@ -151,7 +151,7 @@ export function ProjectForm({
         <div className="grid gap-5 md:grid-cols-2">
           <Field>
             <FieldLabel htmlFor="contractNo">合同编号</FieldLabel>
-            <Input id="contractNo" name="contractNo" defaultValue={project?.contractNo} required />
+            <Input id="contractNo" name="contractNo" defaultValue={textValue(project?.contractNo)} placeholder="上游给定，可后补" />
           </Field>
           <Field>
             <FieldLabel htmlFor="customerOrg">客户单位</FieldLabel>
@@ -277,8 +277,8 @@ export function ProjectForm({
           {mode === "create" && (
             <>
               <Field>
-                <FieldLabel htmlFor="sampleNo">样本编号</FieldLabel>
-                <Input id="sampleNo" name="sampleNo" placeholder="如 YP20260504587" required />
+                <FieldLabel htmlFor="batchNo">样本编号 (YP)</FieldLabel>
+                <Input id="batchNo" name="batchNo" placeholder="上游给定，可空、收样时补" />
               </Field>
               <Field>
                 <FieldLabel htmlFor="sampleCount">样本数量</FieldLabel>
@@ -288,8 +288,7 @@ export function ProjectForm({
                   type="number"
                   min={1}
                   step={1}
-                  defaultValue={1}
-                  required
+                  placeholder="可空、收样时补"
                 />
               </Field>
             </>

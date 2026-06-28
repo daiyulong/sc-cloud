@@ -6,24 +6,28 @@ import {
   updateSampleSchema,
 } from "@/lib/schemas/sample"
 
+// 2026-06 重构：「样本」schema 操作的是样本批次（SampleBatch）；批次字段进度式收集、多为可空。
 const validCreateInput = {
   projectId: "p1",
-  sampleNo: "YP-001",
+  batchNo: "YP-001",
   species: "人",
   tissueType: "肺组织",
   experimentType: "组织解离",
   transportCondition: "干冰",
 }
 
-describe("createSampleSchema", () => {
-  it("parses a minimal valid sample", () => {
-    const result = createSampleSchema.parse(validCreateInput)
-    expect(result.sampleNo).toBe("YP-001")
+describe("createSampleSchema (batch)", () => {
+  it("parses a minimal valid batch (only projectId required)", () => {
+    const result = createSampleSchema.parse({ projectId: "p1" })
+    expect(result.projectId).toBe("p1")
     expect(result.sampleCount).toBeUndefined()
   })
 
-  it("requires sampleNo and projectId", () => {
-    expect(() => createSampleSchema.parse({ ...validCreateInput, sampleNo: " " })).toThrow()
+  it("keeps batchNo when provided", () => {
+    expect(createSampleSchema.parse(validCreateInput).batchNo).toBe("YP-001")
+  })
+
+  it("requires projectId", () => {
     expect(() => createSampleSchema.parse({ ...validCreateInput, projectId: "" })).toThrow()
   })
 
@@ -51,14 +55,13 @@ describe("createSampleSchema", () => {
         expectedArrivalDate: "2026-06-05",
       })
     ).not.toThrow()
-    // 单边为空不参与比较
     expect(() =>
       createSampleSchema.parse({ ...validCreateInput, expectedArrivalDate: "2026-06-05" })
     ).not.toThrow()
   })
 })
 
-describe("updateSampleSchema", () => {
+describe("updateSampleSchema (batch)", () => {
   it("requires at least one field", () => {
     expect(() => updateSampleSchema.parse({})).toThrow()
     expect(() => updateSampleSchema.parse({ species: "小鼠" })).not.toThrow()
@@ -70,19 +73,20 @@ describe("updateSampleSchema", () => {
   })
 })
 
-describe("receiveSampleSchema", () => {
-  // 登记接收同时补全样本信息：物种/组织/实验类型/运输条件必填
-  const info = { species: "人", tissueType: "肺", experimentType: "scRNA", transportCondition: "干冰" }
+describe("receiveSampleSchema (batch)", () => {
+  // 登记接收：数量必填 ≥1（据此生成样本叶子）；批次信息字段可空、收样时补
+  const info = { sampleCount: 2, species: "人", tissueType: "肺", transportCondition: "干冰" }
 
-  it("requires sample info fields", () => {
+  it("requires sampleCount >= 1", () => {
     expect(() => receiveSampleSchema.parse({})).toThrow()
-    expect(() => receiveSampleSchema.parse({ ...info, species: "" })).toThrow()
+    expect(() => receiveSampleSchema.parse({ sampleCount: 0 })).toThrow()
+    expect(() => receiveSampleSchema.parse({ sampleCount: 2 })).not.toThrow()
   })
 
   it("defaults to normal receive", () => {
     const result = receiveSampleSchema.parse({ ...info })
     expect(result.receiveStatus).toBe("normal")
-    expect(result.species).toBe("人")
+    expect(result.sampleCount).toBe(2)
   })
 
   it("requires abnormalNote when receive status is abnormal", () => {

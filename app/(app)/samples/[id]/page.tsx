@@ -4,10 +4,10 @@ import { Edit } from "lucide-react"
 import { auth } from "@/lib/auth"
 import {
   PROJECT_STATUS_LABELS,
-  SAMPLE_STATUS_LABELS,
-  SampleStatus,
+  SAMPLE_BATCH_STATUS_LABELS,
+  SampleBatchStatus,
   type ProjectStatus as ProjectStatusValue,
-  type SampleStatus as SampleStatusValue,
+  type SampleBatchStatus as SampleBatchStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { getSampleDetail } from "@/lib/samples/service"
@@ -42,16 +42,16 @@ export default async function SampleDetailPage({ params }: SampleDetailPageProps
   if (!detail) notFound()
 
   const { sample, operationLogs } = detail
-  const status = sample.status as SampleStatusValue
+  const status = sample.status as SampleBatchStatusValue
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-normal">{sample.sampleNo}</h1>
-            <Badge variant={status === SampleStatus.abnormal ? "destructive" : "secondary"}>
-              {SAMPLE_STATUS_LABELS[status]}
+            <h1 className="text-2xl font-semibold tracking-normal">{sample.batchNo ?? "未编号批次"}</h1>
+            <Badge variant={status === SampleBatchStatus.received_abnormal ? "destructive" : "secondary"}>
+              {SAMPLE_BATCH_STATUS_LABELS[status]}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -65,7 +65,7 @@ export default async function SampleDetailPage({ params }: SampleDetailPageProps
         <div className="flex items-center gap-2">
           <SampleActionMenu
             sampleId={sample.id}
-            sampleNo={sample.sampleNo}
+            sampleNo={sample.batchNo ?? "未编号批次"}
             status={status}
             role={session.user.role}
           />

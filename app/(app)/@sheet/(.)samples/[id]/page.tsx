@@ -23,7 +23,7 @@ export default async function InterceptedSamplePage({ params }: InterceptedSampl
   ).catch(() => null)
 
   return (
-    <DetailSheet title={detail ? `样本 ${detail.sample.sampleNo}` : "样本详情"}>
+    <DetailSheet title={detail ? `样本 ${detail.sample.batchNo ?? "未编号"}` : "样本详情"}>
       {detail ? (
         <SampleSheetBody detail={detail} role={session.user.role} />
       ) : (

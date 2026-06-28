@@ -61,11 +61,21 @@ const bioinfoExperimentTaskSelect = {
   experimentType: true,
   resultStatus: true,
   status: true,
-  // 产出指标（§6.8 经验视图）：生信任务详情内嵌录入挂件用，主录入入口
-  suspensionType: true,
-  sequencingAmount: true,
-  capturedCells: true,
-  medianGenes: true,
+  // 产出指标（§6.8 经验视图）已迁到样本叶子：经 TaskSample 取，生信任务详情逐叶录入/展示
+  taskSamples: {
+    select: {
+      sample: {
+        select: {
+          id: true,
+          sampleName: true,
+          suspensionType: true,
+          sequencingAmount: true,
+          capturedCells: true,
+          medianGenes: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.ExperimentTaskSelect
 
 const bioinfoInclude = {

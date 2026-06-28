@@ -47,9 +47,8 @@ describe("submitFeedbackSchema", () => {
     const parsed = submitFeedbackSchema.parse({
       resultStatus: ResultStatus.normal_run,
       resultFeedback: "正常上机，捕获良好",
-      loadedSampleCount: "6",
     })
-    expect(parsed.loadedSampleCount).toBe(6)
+    expect(parsed.resultStatus).toBe("normal_run")
   })
 })
 
@@ -86,8 +85,8 @@ describe("updateExperimentTaskSchema", () => {
     expect(() => updateExperimentTaskSchema.parse({})).toThrow()
   })
 
-  it("单字段更新通过；loadedSampleCount 字符串转数字", () => {
-    expect(updateExperimentTaskSchema.parse({ loadedSampleCount: "8" }).loadedSampleCount).toBe(8)
+  it("单字段更新通过（runMethod）", () => {
+    expect(updateExperimentTaskSchema.parse({ runMethod: "GEM-X" }).runMethod).toBe("GEM-X")
   })
 })
 

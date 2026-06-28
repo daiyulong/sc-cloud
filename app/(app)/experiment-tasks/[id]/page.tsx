@@ -16,7 +16,7 @@ import { OperationTimeline } from "@/components/detail/operation-timeline"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { ExperimentTaskFields } from "@/components/experiment-tasks/experiment-task-fields"
 import { QcSection } from "@/components/experiment-tasks/qc-section"
-import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
+import { RunMetricsSection, pickRunMetrics } from "@/components/experiment-tasks/run-metrics-section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -122,7 +122,7 @@ export default async function ExperimentTaskDetailPage({ params }: ExperimentTas
             taskNo={task.taskNo}
             status={status}
             role={session.user.role}
-            metrics={task}
+            metrics={pickRunMetrics(task.taskSamples)}
           />
         </CardContent>
       </Card>
