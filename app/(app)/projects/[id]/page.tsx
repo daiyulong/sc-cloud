@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { Edit, Plus } from "lucide-react"
+import { Edit, FileDown, Plus } from "lucide-react"
 import { auth } from "@/lib/auth"
 import {
   BIOINFO_TASK_STATUS_LABELS,
@@ -103,6 +103,12 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
             status={project.status as ProjectStatusValue}
             role={session.user.role}
           />
+          <Button asChild variant="outline">
+            <a href={`/api/projects/${project.id}/task-order`}>
+              <FileDown data-icon="inline-start" aria-hidden="true" />
+              生成任务单
+            </a>
+          </Button>
           <Button asChild variant="outline">
             <Link href={`/projects/${project.id}/edit`}>
               <Edit data-icon="inline-start" aria-hidden="true" />
