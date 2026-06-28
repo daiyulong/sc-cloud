@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { getWorkstationBadges } from "@/lib/workstation/badges"
+import type { UserRole as UserRoleValue } from "@/lib/enums"
 import { AppSidebar } from "@/components/app-sidebar"
 import { PageTitle } from "@/components/page-title"
 import {
@@ -23,6 +25,11 @@ export default async function AppLayout({
     redirect("/login")
   }
 
+  const badges = await getWorkstationBadges({
+    id: session.user.id,
+    role: session.user.role as UserRoleValue | undefined,
+  })
+
   return (
     <SidebarProvider>
       <a
@@ -31,7 +38,7 @@ export default async function AppLayout({
       >
         跳到主要内容
       </a>
-      <AppSidebar user={session.user} />
+      <AppSidebar user={session.user} badges={badges} />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
           <SidebarTrigger />

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import type { Session } from "next-auth"
 import type { UserRole } from "@/lib/enums"
 import { landingPathForRole } from "@/lib/auth/landing"
+import type { WorkstationBadges } from "@/lib/workstation/badges"
 import { adminNavItems, primaryNavItems, type NavItem } from "@/components/nav-items"
 import { UserMenu } from "@/components/user-menu"
 import {
@@ -15,6 +16,7 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -23,15 +25,25 @@ import {
 
 type AppSidebarProps = {
   user: Session["user"]
+  badges?: WorkstationBadges
 }
 
-function NavGroup({ items, pathname }: { items: NavItem[]; pathname: string }) {
+function NavGroup({
+  items,
+  pathname,
+  badges,
+}: {
+  items: NavItem[]
+  pathname: string
+  badges?: WorkstationBadges
+}) {
   return (
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+            const count = item.key ? badges?.[item.key as keyof WorkstationBadges] : undefined
             return (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
@@ -40,6 +52,9 @@ function NavGroup({ items, pathname }: { items: NavItem[]; pathname: string }) {
                     <span>{item.title}</span>
                   </Link>
                 </SidebarMenuButton>
+                {count ? (
+                  <SidebarMenuBadge aria-label={`${count} 项待处理`}>{count}</SidebarMenuBadge>
+                ) : null}
               </SidebarMenuItem>
             )
           })}
@@ -49,7 +64,7 @@ function NavGroup({ items, pathname }: { items: NavItem[]; pathname: string }) {
   )
 }
 
-export function AppSidebar({ user }: AppSidebarProps) {
+export function AppSidebar({ user, badges }: AppSidebarProps) {
   const pathname = usePathname()
   const role = user.role as UserRole | undefined
   const isAdmin = role === "admin"
@@ -76,7 +91,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavGroup items={primaryNavItems} pathname={pathname} />
+        <NavGroup items={primaryNavItems} pathname={pathname} badges={badges} />
         {isAdmin && (
           <>
             <SidebarSeparator />
