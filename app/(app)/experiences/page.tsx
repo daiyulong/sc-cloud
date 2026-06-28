@@ -87,18 +87,14 @@ export default async function ExperiencesPage({ searchParams }: ExperiencesPageP
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-normal">经验库</h1>
-        <p className="text-sm text-muted-foreground">
-          相似经验检索 + 趋势构成（共 {a.sampleTotal} 个样本，按你的可见范围统计）。
-        </p>
-      </div>
+      <h1 className="sr-only">经验库</h1>
 
       <Card>
         <CardHeader>
           <CardTitle>相似经验检索</CardTitle>
           <CardDescription>
-            按维度匹配历史「已完成且有产出」的上机记录，估算这类样本能期望的产出（术前参考）。
+            按维度匹配历史「已完成且有产出」的上机记录，估算这类样本能期望的产出（术前参考）。共{" "}
+            {a.sampleTotal} 个样本，按你的可见范围统计。
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
