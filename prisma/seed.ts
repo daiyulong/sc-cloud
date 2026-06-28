@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs"
 import prisma from "../lib/prisma"
 import { UserRole } from "../lib/enums"
-import { seedExperience } from "./seed-experience"
+import { seedDemoData } from "./seed-experience"
 
 // 初始用户：管理员 + 7 角色各一个示例账号。username 唯一、幂等 upsert。
 // 历史导入功能已删（一次性 demo 数据走 seed-experience，见下）。
@@ -38,7 +38,7 @@ async function main() {
 
   console.log(`\n初始账号已就绪，统一初始密码：${DEFAULT_PASSWORD}`)
 
-  await seedExperience()
+  await seedDemoData()
 }
 
 main()

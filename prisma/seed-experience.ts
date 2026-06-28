@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx"
 import prisma from "../lib/prisma"
 import {
+  BioinfoTaskStatus,
   ExperimentTaskStatus,
   ProjectStatus,
   QCResult,
@@ -10,171 +11,256 @@ import {
   ServiceLevel,
   SuspensionType,
   UserRole,
+  type BioinfoTaskStatus as BioinfoTaskStatusValue,
+  type ExperimentTaskStatus as ExperimentTaskStatusValue,
+  type ProjectStatus as ProjectStatusValue,
+  type SampleStatus as SampleStatusValue,
+  type ServiceLevel as ServiceLevelValue,
 } from "../lib/enums"
 
 /**
- * Demo 经验数据 seed：把 data/单细胞项目经验.xlsx（对齐版，12 行 / 3 委托单、含样本名）灌成 demo
- * 已完成项目，供经验库（相似检索 + 图表）演示。**仅 demo 用**（重构 §2.6）：
- * - 项目编号加 `DEMO-` 前缀；客户/服务等级等用占位（demo 不进真实运营口径）
- * - 模型：项目 → 1 个样本批次 → N 个具名样本叶子（一行一捕获）；每叶子一条上机任务(TaskSample) + QC
- * - 产出指标（悬液类型/测序量/捕获数/基因中位数）挂样本叶子；deliveredAt 散布近 6 个月让趋势图有数
- * 幂等：每次先清掉所有 DEMO- 项目及其子实体再重建。SEED_DEMO=0 可跳过（正式部署）。
+ * Demo 业务数据 seed（重构 §2.6）：把对齐版样例灌成真实业务项目，供演示。
+ * - **完成锚点**：data/拜谱单细胞实验预约.xlsx 的 3 个委托单 → 真实业务字段的「已完成」项目
+ *   + 样本批次；再把 data/单细胞项目经验.xlsx 的产出（一行一捕获）按「委托单号 + 样本名」
+ *   挂到对应样本叶子（产出指标 + QC + 已完成上机任务）→ 喂经验库（相似检索 + 图表）。
+ *   不再造独立 DEMO- 壳：项目即业务项目、用真实委托单号。
+ * - **在途集**：再补一小批跨流程阶段的演示项目（草稿 / 待收样 / 实验中 / 待建生信 /
+ *   生信中 / 待交付 / 异常），让工位队列与侧栏角标非空，可视化 M2 工位制。
+ * 幂等：每次先清掉本 seed 造的项目（按已知委托单号 + 在途编号 + remark 哨兵）再重建。
+ * SEED_DEMO=0 可跳过（正式部署不灌 demo）。
  */
 
-const PREFIX = "DEMO-"
-const EXCEL = "data/单细胞项目经验.xlsx"
+const BOOKING_XLSX = "data/拜谱单细胞实验预约.xlsx"
+const EXPERIENCE_XLSX = "data/单细胞项目经验.xlsx"
+const DEMO_SENTINEL = "DEMO_SEED" // 标记无委托单号的草稿，便于幂等清理
 
+function str(v: unknown): string | null {
+  const s = String(v ?? "").trim()
+  return s || null
+}
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null
   const n = Number(v)
   return Number.isNaN(n) ? null : n
 }
-
 function intNum(v: unknown): number | null {
   const n = num(v)
   return n == null ? null : Math.round(n)
 }
-
 function suspensionOf(v: unknown): SuspensionType | null {
-  const s = String(v ?? "").trim()
+  const s = String(v ?? "")
   if (s.includes("核")) return SuspensionType.nucleus
   if (s.includes("细胞")) return SuspensionType.cell
   return null
 }
-
 function qcOf(viability: number | null): { qcResult: QCResult; riskLevel: RiskLevel } {
-  if (viability == null) return { qcResult: QCResult.passed, riskLevel: RiskLevel.normal }
-  if (viability >= 85) return { qcResult: QCResult.passed, riskLevel: RiskLevel.normal }
+  if (viability == null || viability >= 85) return { qcResult: QCResult.passed, riskLevel: RiskLevel.normal }
   if (viability >= 70) return { qcResult: QCResult.low_risk_passed, riskLevel: RiskLevel.low_risk }
   return { qcResult: QCResult.failed, riskLevel: RiskLevel.high_risk }
 }
+/** Excel 序列号 / 日期串 → Date（序列号基准 1899-12-30，含时分小数） */
+function asDate(v: unknown): Date | null {
+  if (v == null || v === "") return null
+  if (v instanceof Date) return v
+  const n = Number(v)
+  if (!Number.isNaN(n)) return new Date(Math.round((n - 25569) * 86400 * 1000))
+  const d = new Date(String(v))
+  return Number.isNaN(d.getTime()) ? null : d
+}
+function platformOf(runMethod: string | null): string | null {
+  const s = runMethod ?? ""
+  if (/10x/i.test(s)) return "10X Genomics"
+  return null
+}
+function daysFromNow(n: number): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + n)
+  return d
+}
 
-export async function seedExperience() {
+function readSheet(file: string): Record<string, unknown>[] {
+  const wb = XLSX.readFile(file)
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null })
+}
+
+// —— 在途演示集：覆盖各工位队列与侧栏角标 ——
+type InFlightSpec = {
+  no: string | null
+  status: ProjectStatusValue
+  service: ServiceLevelValue
+  batch: "none" | "waiting" | "received"
+  leaves?: number
+  leafStatus?: SampleStatusValue
+  task?: ExperimentTaskStatusValue
+  bioinfo?: BioinfoTaskStatusValue
+  statusBefore?: ProjectStatusValue
+}
+const INFLIGHT_SPECS: InFlightSpec[] = [
+  // 草稿（未编号）+ 待到样批次 → 项目「需关注」+ 收样队列
+  { no: null, status: ProjectStatus.draft, service: ServiceLevel.standard, batch: "waiting" },
+  // 待收样 → 收样队列
+  { no: "BP-G260601001", status: ProjectStatus.waiting_sample, service: ServiceLevel.qc, batch: "waiting" },
+  // 实验进行中 → 实验队列
+  {
+    no: "BP-G260601002",
+    status: ProjectStatus.lab_in_progress,
+    service: ServiceLevel.standard,
+    batch: "received",
+    leaves: 3,
+    leafStatus: SampleStatus.lab_in_progress,
+    task: ExperimentTaskStatus.in_progress,
+  },
+  // 待建生信（实验完成、含生信服务、尚无生信任务）→ 生信「待建」
+  {
+    no: "BP-G260601003",
+    status: ProjectStatus.waiting_bioinfo,
+    service: ServiceLevel.advanced,
+    batch: "received",
+    leaves: 2,
+    leafStatus: SampleStatus.feedback_submitted,
+    task: ExperimentTaskStatus.completed,
+  },
+  // 生信进行中 → 生信「进行中」
+  {
+    no: "BP-G260601004",
+    status: ProjectStatus.bioinfo_in_progress,
+    service: ServiceLevel.advanced,
+    batch: "received",
+    leaves: 2,
+    leafStatus: SampleStatus.feedback_submitted,
+    task: ExperimentTaskStatus.completed,
+    bioinfo: BioinfoTaskStatus.in_progress,
+  },
+  // 待交付 → 项目「需关注」
+  {
+    no: "BP-G260601005",
+    status: ProjectStatus.waiting_delivery,
+    service: ServiceLevel.standard,
+    batch: "received",
+    leaves: 2,
+    leafStatus: SampleStatus.feedback_submitted,
+    task: ExperimentTaskStatus.completed,
+  },
+  // 异常 → 项目「需关注」
+  {
+    no: "BP-G260601006",
+    status: ProjectStatus.abnormal,
+    service: ServiceLevel.standard,
+    batch: "received",
+    leaves: 1,
+    leafStatus: SampleStatus.received,
+    statusBefore: ProjectStatus.lab_in_progress,
+  },
+]
+
+export async function seedDemoData() {
   if (process.env.SEED_DEMO === "0") {
-    console.log("[seed-experience] SEED_DEMO=0，跳过 demo 经验数据")
+    console.log("[seed-demo] SEED_DEMO=0，跳过 demo 数据")
     return
   }
 
-  // 1. 幂等清理旧 demo（按 FK 顺序：QC → 任务 → 叶子 → 批次 → 项目；TaskSample 随任务/叶子级联删）
-  const old = await prisma.project.findMany({
-    where: { projectNo: { startsWith: PREFIX } },
-    select: { id: true },
-  })
-  const ids = old.map((p) => p.id)
-  if (ids.length) {
-    const [tasks, samples, batches] = await Promise.all([
-      prisma.experimentTask.findMany({ where: { projectId: { in: ids } }, select: { id: true } }),
-      prisma.sample.findMany({ where: { projectId: { in: ids } }, select: { id: true } }),
-      prisma.sampleBatch.findMany({ where: { projectId: { in: ids } }, select: { id: true } }),
-    ])
-    await prisma.qcRecord.deleteMany({ where: { sampleId: { in: samples.map((s) => s.id) } } })
-    await prisma.operationLog.deleteMany({
-      where: {
-        entityId: {
-          in: [
-            ...ids,
-            ...tasks.map((t) => t.id),
-            ...samples.map((s) => s.id),
-            ...batches.map((b) => b.id),
-          ],
-        },
-      },
-    })
-    await prisma.experimentTask.deleteMany({ where: { projectId: { in: ids } } })
-    await prisma.sample.deleteMany({ where: { projectId: { in: ids } } })
-    await prisma.sampleBatch.deleteMany({ where: { projectId: { in: ids } } })
-    await prisma.project.deleteMany({ where: { id: { in: ids } } })
-  }
-
-  // 2. 读经验表
-  let rows: Record<string, unknown>[]
+  let booking: Record<string, unknown>[]
+  let experience: Record<string, unknown>[]
   try {
-    const wb = XLSX.readFile(EXCEL)
-    rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null })
+    booking = readSheet(BOOKING_XLSX)
+    experience = readSheet(EXPERIENCE_XLSX)
   } catch (e) {
-    console.warn(`[seed-experience] 读 ${EXCEL} 失败，跳过：`, (e as Error).message)
+    console.warn(`[seed-demo] 读样例失败，跳过：`, (e as Error).message)
     return
   }
 
-  // 3. 关联用户（保证 demo 数据对 sales/pm 可见）
-  const [sales, pm, lab] = await Promise.all([
+  const [sales, pm, receiver, lab, bioinfo] = await Promise.all([
     prisma.user.findFirst({ where: { role: UserRole.sales_owner }, select: { id: true } }),
     prisma.user.findFirst({ where: { role: UserRole.project_manager }, select: { id: true } }),
+    prisma.user.findFirst({ where: { role: UserRole.sample_receiver }, select: { id: true } }),
     prisma.user.findFirst({ where: { role: UserRole.lab_operator }, select: { id: true } }),
+    prisma.user.findFirst({ where: { role: UserRole.bioinfo_analyst }, select: { id: true } }),
   ])
-  if (!sales || !pm || !lab) {
-    console.warn("[seed-experience] 缺 sales/pm/lab 用户，跳过")
+  if (!sales || !pm || !receiver || !lab || !bioinfo) {
+    console.warn("[seed-demo] 缺角色用户（sales/pm/receiver/lab/bioinfo），跳过")
     return
   }
 
-  // 4. 按委托单分组（项目编号），每组 = 1 项目 + 1 批次 + N 具名叶子
-  const groups = new Map<string, Record<string, unknown>[]>()
-  for (const r of rows) {
-    const k = String(r["项目编号"] ?? "").trim()
+  // 经验产出按委托单分组（项目编号 = 委托单号）
+  const expByOrder = new Map<string, Record<string, unknown>[]>()
+  for (const r of experience) {
+    const k = str(r["项目编号"])
     if (!k) continue
-    if (!groups.has(k)) groups.set(k, [])
-    groups.get(k)!.push(r)
+    if (!expByOrder.has(k)) expByOrder.set(k, [])
+    expByOrder.get(k)!.push(r)
   }
 
-  let pi = 0
-  let si = 0
-  for (const [orderNo, grp] of groups) {
-    const delivered = new Date()
-    delivered.setHours(0, 0, 0, 0)
-    delivered.setMonth(delivered.getMonth() - (pi % 6))
-    delivered.setDate(1 + (pi % 25))
-    const projectType = String(grp[0]["项目类型"] ?? "单细胞转录组")
-    const species0 = grp[0]["物种"] ? String(grp[0]["物种"]) : null
-    const tissue0 = grp[0]["部位"] ? String(grp[0]["部位"]) : null
+  const bookingOrderNos = booking.map((b) => str(b["项目编号"])).filter((x): x is string => !!x)
+  const inflightNos = INFLIGHT_SPECS.map((s) => s.no).filter((x): x is string => !!x)
+  const demoNos = [...bookingOrderNos, ...inflightNos]
+
+  await cleanupDemo(demoNos)
+
+  // —— 完成锚点：预约表委托单 → 已完成业务项目 + 经验挂叶子 ——
+  let leafTotal = 0
+  for (const b of booking) {
+    const orderNo = str(b["项目编号"])
+    if (!orderNo) continue
+    const runMethod = str(b["上机方式"])
+    const receivedAt = asDate(b["样本接收日期"]) ?? asDate(b["预计到样日期"])
+    const labDate = asDate(b["实验日期"]) ?? receivedAt ?? daysFromNow(-30)
+    const species0 = str(b["样本物种"])
+    const tissue0 = str(b["样本组织类型"])
+    const expType = str(b["实验类型"]) ?? "单细胞转录组"
 
     const project = await prisma.project.create({
       data: {
-        projectNo: `${PREFIX}${orderNo}`,
-        contractNo: "DEMO-BPC",
-        customerOrg: "示例客户（demo）",
-        customerName: "示例",
-        projectType,
-        serviceItems: projectType,
-        serviceLevel: ServiceLevel.standard,
+        projectNo: orderNo,
+        contractNo: str(b["合同编号*"]),
+        customerOrg: str(b["客户单位"]) ?? "示例客户",
+        customerName: str(b["客户姓名"]) ?? "示例",
+        projectType: str(b["上机方式"]) ?? expType,
+        serviceItems: runMethod ?? expType,
+        serviceLevel: ServiceLevel.standard, // 锚点含完整产出，按完整分析路径
+        sequencingPlatform: platformOf(runMethod),
         priority: "普通",
         status: ProjectStatus.completed,
-        deliveredAt: delivered,
+        expectedDeliveryDate: labDate,
+        deliveredAt: labDate,
         salesOwnerId: sales.id,
         projectManagerId: pm.id,
       },
     })
 
+    const grp = expByOrder.get(orderNo) ?? []
     const batch = await prisma.sampleBatch.create({
       data: {
         projectId: project.id,
-        batchNo: `${PREFIX}${orderNo}`,
+        batchNo: str(b["样品编号"]),
         seq: 1,
-        sampleCount: grp.length,
+        sampleCount: intNum(b["样本数量"]) ?? grp.length,
         species: species0,
         tissueType: tissue0,
-        experimentType: projectType,
+        experimentType: expType,
+        transportCondition: str(b["运输条件"]),
+        samplingDate: asDate(b["客户取样日期"]),
+        expectedArrivalDate: asDate(b["预计到样日期"]),
+        receivedAt,
         status: SampleBatchStatus.received,
-        receivedAt: delivered,
-        receiverId: lab.id,
+        receiverId: receiver.id,
       },
     })
 
     let ei = 0
     for (const r of grp) {
       ei++
-      si++
+      leafTotal++
       const viability = num(r["活率%"])
       const { qcResult, riskLevel } = qcOf(viability)
-      const rowType = r["项目类型"] ? String(r["项目类型"]) : projectType
-
-      // 具名样本叶子（一行一捕获），产出指标挂叶子
+      const rowType = str(r["项目类型"]) ?? expType
       const sample = await prisma.sample.create({
         data: {
           batchId: batch.id,
           projectId: project.id,
-          sampleName: r["样本名"] ? String(r["样本名"]) : null,
-          species: r["物种"] ? String(r["物种"]) : species0,
-          tissueType: r["部位"] ? String(r["部位"]) : tissue0,
+          sampleName: str(r["样本名"]),
+          species: str(r["物种"]) ?? species0,
+          tissueType: str(r["部位"]) ?? tissue0,
           status: SampleStatus.feedback_submitted,
           suspensionType: suspensionOf(r["细胞/细胞核"]),
           sequencingAmount: num(r["测序量（G）"]),
@@ -182,23 +268,23 @@ export async function seedExperience() {
           medianGenes: intNum(r["基因中位数"]),
         },
       })
-
-      // 一次上机（含该叶子），runMethod = 建库化学（项目类型）
-      await prisma.experimentTask.create({
+      const task = await prisma.experimentTask.create({
         data: {
-          taskNo: `${PREFIX}${orderNo}-E${String(ei).padStart(2, "0")}`,
+          taskNo: `${orderNo}-E${String(ei).padStart(2, "0")}`,
           projectId: project.id,
           experimentType: rowType,
           runMethod: rowType,
           status: ExperimentTaskStatus.completed,
+          actualDate: labDate,
           operatorId: lab.id,
           taskSamples: { create: { sampleId: sample.id } },
         },
       })
-
       await prisma.qcRecord.create({
         data: {
           sampleId: sample.id,
+          taskId: task.id,
+          source: "manual",
           concentration: num(r["悬液浓度(个/ul)"]),
           viability,
           aggregationRate: num(r["结团率%"]),
@@ -208,8 +294,151 @@ export async function seedExperience() {
         },
       })
     }
-    pi++
   }
 
-  console.log(`[seed-experience] demo 经验数据：${groups.size} 项目 / ${si} 样本叶子（一行一捕获）`)
+  // —— 在途集：跨阶段，喂工位队列 / 角标 ——
+  for (let i = 0; i < INFLIGHT_SPECS.length; i++) {
+    await createInFlight(INFLIGHT_SPECS[i], booking[i % booking.length], {
+      salesId: sales.id,
+      pmId: pm.id,
+      receiverId: receiver.id,
+      labId: lab.id,
+      bioinfoId: bioinfo.id,
+    })
+  }
+
+  console.log(
+    `[seed-demo] 完成锚点 ${bookingOrderNos.length} 项目 / ${leafTotal} 样本叶子（一行一捕获）` +
+      ` + 在途演示 ${INFLIGHT_SPECS.length} 项目`
+  )
+}
+
+async function createInFlight(
+  spec: InFlightSpec,
+  b: Record<string, unknown>,
+  users: { salesId: string; pmId: string; receiverId: string; labId: string; bioinfoId: string }
+) {
+  const species = str(b?.["样本物种"]) ?? "人"
+  const tissue = str(b?.["样本组织类型"]) ?? "组织"
+  const expType = str(b?.["实验类型"]) ?? "组织解离"
+  const runMethod = str(b?.["上机方式"]) ?? expType
+
+  const project = await prisma.project.create({
+    data: {
+      projectNo: spec.no,
+      contractNo: str(b?.["合同编号*"]),
+      customerOrg: str(b?.["客户单位"]) ?? "示例客户",
+      customerName: str(b?.["客户姓名"]) ?? "示例",
+      projectType: runMethod,
+      serviceItems: runMethod,
+      serviceLevel: spec.service,
+      sequencingPlatform: platformOf(runMethod),
+      priority: "普通",
+      status: spec.status,
+      statusBeforeAbnormal: spec.statusBefore ?? null,
+      expectedDeliveryDate: daysFromNow(14),
+      salesOwnerId: users.salesId,
+      projectManagerId: users.pmId,
+      remark: spec.no ? null : DEMO_SENTINEL, // 无委托单号草稿用哨兵保证幂等可清
+    },
+  })
+
+  if (spec.batch === "none") return
+
+  const received = spec.batch === "received"
+  const batch = await prisma.sampleBatch.create({
+    data: {
+      projectId: project.id,
+      batchNo: received ? `YP2026060${Math.floor(1000 + Math.abs(hashNo(spec.no)) % 9000)}` : null,
+      seq: 1,
+      sampleCount: spec.leaves ?? intNum(b?.["样本数量"]) ?? 1,
+      species,
+      tissueType: tissue,
+      experimentType: expType,
+      transportCondition: str(b?.["运输条件"]),
+      expectedArrivalDate: daysFromNow(received ? -5 : 3),
+      receivedAt: received ? daysFromNow(-3) : null,
+      status: received ? SampleBatchStatus.received : SampleBatchStatus.waiting_arrival,
+      receiverId: received ? users.receiverId : null,
+    },
+  })
+
+  if (!received || !spec.leaves) return
+
+  const sampleIds: string[] = []
+  for (let i = 0; i < spec.leaves; i++) {
+    const sample = await prisma.sample.create({
+      data: {
+        batchId: batch.id,
+        projectId: project.id,
+        sampleName: `S${i + 1}`,
+        species,
+        tissueType: tissue,
+        status: spec.leafStatus ?? SampleStatus.received,
+      },
+    })
+    sampleIds.push(sample.id)
+  }
+
+  if (!spec.task) return
+  const task = await prisma.experimentTask.create({
+    data: {
+      taskNo: `${spec.no}-E01`,
+      projectId: project.id,
+      experimentType: expType,
+      runMethod,
+      status: spec.task,
+      plannedDate: daysFromNow(-2),
+      actualDate: spec.task === ExperimentTaskStatus.completed ? daysFromNow(-1) : null,
+      operatorId: users.labId,
+      taskSamples: { create: sampleIds.map((sampleId) => ({ sampleId })) },
+    },
+  })
+
+  if (!spec.bioinfo) return
+  await prisma.bioinfoTask.create({
+    data: {
+      taskNo: `${spec.no}-B01`,
+      projectId: project.id,
+      experimentTaskId: task.id,
+      analysisType: "标准分析",
+      status: spec.bioinfo,
+      analystId: users.bioinfoId,
+    },
+  })
+}
+
+function hashNo(no: string | null): number {
+  let h = 0
+  for (const ch of no ?? "x") h = (h * 31 + ch.charCodeAt(0)) | 0
+  return h
+}
+
+/** 删除本 seed 造的 demo 项目及其全部子实体（按 FK 顺序），用于幂等重建。 */
+async function cleanupDemo(projectNos: string[]) {
+  const projects = await prisma.project.findMany({
+    where: { OR: [{ projectNo: { in: projectNos } }, { remark: DEMO_SENTINEL }] },
+    select: { id: true },
+  })
+  const ids = projects.map((p) => p.id)
+  if (!ids.length) return
+
+  const [tasks, samples, batches] = await Promise.all([
+    prisma.experimentTask.findMany({ where: { projectId: { in: ids } }, select: { id: true } }),
+    prisma.sample.findMany({ where: { projectId: { in: ids } }, select: { id: true } }),
+    prisma.sampleBatch.findMany({ where: { projectId: { in: ids } }, select: { id: true } }),
+  ])
+  await prisma.qcRecord.deleteMany({ where: { sampleId: { in: samples.map((s) => s.id) } } })
+  await prisma.bioinfoTask.deleteMany({ where: { projectId: { in: ids } } })
+  await prisma.operationLog.deleteMany({
+    where: {
+      entityId: {
+        in: [...ids, ...tasks.map((t) => t.id), ...samples.map((s) => s.id), ...batches.map((b) => b.id)],
+      },
+    },
+  })
+  await prisma.experimentTask.deleteMany({ where: { projectId: { in: ids } } })
+  await prisma.sample.deleteMany({ where: { projectId: { in: ids } } })
+  await prisma.sampleBatch.deleteMany({ where: { projectId: { in: ids } } })
+  await prisma.project.deleteMany({ where: { id: { in: ids } } })
 }
