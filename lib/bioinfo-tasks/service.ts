@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { buildBioinfoTaskScope, buildProjectScope } from "@/lib/auth/role-scope"
+import { staffRoles } from "@/lib/auth/action-roles"
 import { recordOperation } from "@/lib/operation-log"
 import { advanceProjectStatus } from "@/lib/projects/aggregation"
 import {
@@ -20,8 +21,6 @@ import type {
 } from "@/lib/schemas/bioinfo-task"
 import {
   BioinfoTaskDomainError,
-  bioinfoCreateRoles,
-  bioinfoManageRoles,
   ensureBioinfoRole,
   ensureBioinfoStatus,
   ensureExperimentTaskCompleted,
@@ -180,7 +179,7 @@ export async function createBioinfoTaskFromExperiment(
   experimentTaskId: string,
   input: CreateBioinfoTaskInput
 ) {
-  ensureBioinfoRole(operator.role, bioinfoCreateRoles, "创建生信任务")
+  ensureBioinfoRole(operator.role, staffRoles, "创建生信任务")
 
   const expTask = await prisma.experimentTask.findFirst({
     where: {
@@ -232,7 +231,7 @@ export async function updateBioinfoTask(
   id: string,
   input: UpdateBioinfoTaskInput
 ) {
-  ensureBioinfoRole(operator.role, bioinfoCreateRoles, "更新生信任务")
+  ensureBioinfoRole(operator.role, staffRoles, "更新生信任务")
   const before = await getWritableBioinfoTask(id)
 
   const data = Object.fromEntries(
@@ -275,7 +274,7 @@ export async function startBioinfoTask(
   id: string,
   input: StartBioinfoTaskInput
 ) {
-  ensureBioinfoRole(operator.role, bioinfoManageRoles, "开始分析")
+  ensureBioinfoRole(operator.role, staffRoles, "开始分析")
   const before = await getWritableBioinfoTask(id)
   ensureBioinfoStatus(before.status, [BioinfoTaskStatus.pending], "开始分析")
 
@@ -319,7 +318,7 @@ export async function startBioinfoTask(
 
 /** 提交审核（分析中 → 待审核）：分析完成、自检报告，可选中间步（不触发项目聚合） */
 export async function reviewBioinfoTask(operator: BioinfoTaskOperator, id: string) {
-  ensureBioinfoRole(operator.role, bioinfoManageRoles, "提交审核")
+  ensureBioinfoRole(operator.role, staffRoles, "提交审核")
   const before = await getWritableBioinfoTask(id)
   ensureBioinfoStatus(before.status, [BioinfoTaskStatus.in_progress], "提交审核")
 
@@ -352,7 +351,7 @@ export async function submitBioinfoTask(
   id: string,
   input: SubmitBioinfoTaskInput
 ) {
-  ensureBioinfoRole(operator.role, bioinfoManageRoles, "提交报告")
+  ensureBioinfoRole(operator.role, staffRoles, "提交报告")
   const before = await getWritableBioinfoTask(id)
   ensureBioinfoStatus(before.status, submittableBioinfoStatuses, "提交报告")
 

@@ -6,6 +6,7 @@ import {
   buildProjectScope,
   tasksAwaitingBioinfoWhere,
 } from "@/lib/auth/role-scope"
+import { staffRoles } from "@/lib/auth/action-roles"
 import { recordOperation } from "@/lib/operation-log"
 import { advanceProjectStatus } from "@/lib/projects/aggregation"
 import { compareDateOnly } from "@/lib/utils"
@@ -38,7 +39,6 @@ import {
   ensureProjectCanCreateTask,
   ensureSampleCanCreateTask,
   feedbackSubmittableTaskStatuses,
-  metricsRecordRoles,
   metricsRecordableTaskStatuses,
   qcRecordableTaskStatuses,
 } from "@/lib/experiment-tasks/rules"
@@ -582,7 +582,7 @@ export async function recordRunMetrics(
   id: string,
   input: RecordRunMetricsInput
 ) {
-  ensureExperimentTaskRole(operator.role, metricsRecordRoles, "录入产出指标")
+  ensureExperimentTaskRole(operator.role, staffRoles, "录入产出指标")
   const before = await getWritableTask(id)
   ensureExperimentTaskStatus(before.status, metricsRecordableTaskStatuses, "录入产出指标")
   const leaves = taskLeaves(before)

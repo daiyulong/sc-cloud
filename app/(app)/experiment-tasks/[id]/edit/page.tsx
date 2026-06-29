@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
-import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
 import { getExperimentTaskDetail } from "@/lib/experiment-tasks/service"
 import { ExperimentTaskForm } from "@/components/experiment-tasks/experiment-task-form"
@@ -23,7 +23,7 @@ export default async function EditExperimentTaskPage({ params }: EditExperimentT
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
   const role = session.user.role as UserRoleValue
-  if (!experimentManageRoles.includes(role as (typeof experimentManageRoles)[number])) {
+  if (!canActAsStaff(role)) {
     redirect("/lab")
   }
 

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { firstParam } from "@/lib/utils"
 import { auth } from "@/lib/auth"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
-import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getOperatorOptions, getTaskSampleOptions } from "@/lib/experiment-tasks/options"
 import { ExperimentTaskForm } from "@/components/experiment-tasks/experiment-task-form"
 import {
@@ -23,7 +23,7 @@ export default async function NewExperimentTaskPage({ searchParams }: NewExperim
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
   const role = session.user.role as UserRoleValue
-  if (!experimentManageRoles.includes(role as (typeof experimentManageRoles)[number])) {
+  if (!canActAsStaff(role)) {
     redirect("/lab")
   }
 

@@ -14,10 +14,9 @@ import {
 } from "@/lib/enums"
 import { getProjectDetail } from "@/lib/projects/service"
 import { listSamples } from "@/lib/samples/service"
-import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
-import { bioinfoCreateRoles } from "@/lib/bioinfo-tasks/rules"
 import { listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { canRegisterDelivery, listProjectDeliveries } from "@/lib/sequencing-deliveries/service"
 import { DeliverySection } from "@/components/sequencing-deliveries/delivery-section"
@@ -86,12 +85,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
     createdAtLabel: formatDateTime(d.createdAt),
     createdByName: d.createdBy?.name ?? null,
   }))
-  const canCreateTask = experimentManageRoles.includes(
-    operator.role as (typeof experimentManageRoles)[number]
-  )
-  const canCreateBioinfo = bioinfoCreateRoles.includes(
-    operator.role as (typeof bioinfoCreateRoles)[number]
-  )
+  const canCreateTask = canActAsStaff(operator.role)
+  const canCreateBioinfo = canActAsStaff(operator.role)
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">

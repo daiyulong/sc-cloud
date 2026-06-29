@@ -15,7 +15,7 @@ import {
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
-import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 import {
   isSupportedImageType,
   mimeForKey,
@@ -53,7 +53,7 @@ const UPLOADABLE_STATUSES: ExperimentTaskStatusValue[] = [
 const MAX_BYTES = 10 * 1024 * 1024 // 单图 ≤10MB（与 MiniMax 上限一致）
 
 function ensureManageRole(role: UserRoleValue | undefined, action: string) {
-  if (!role || !experimentManageRoles.includes(role as (typeof experimentManageRoles)[number])) {
+  if (!canActAsStaff(role)) {
     throw new ExperimentRecordError(`没有${action}权限`, 403)
   }
 }

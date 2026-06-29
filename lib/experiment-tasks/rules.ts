@@ -6,7 +6,7 @@ import {
   type ProjectStatus as ProjectStatusValue,
   type SampleStatus as SampleStatusValue,
 } from "@/lib/enums"
-import { staffRoles } from "@/lib/auth/action-roles"
+import { canActAsStaff, staffRoles } from "@/lib/auth/action-roles"
 
 export type ExperimentTaskAction = "schedule" | "start" | "finish" | "feedback" | "qc"
 
@@ -19,13 +19,6 @@ export class ExperimentTaskDomainError extends Error {
     this.name = "ExperimentTaskDomainError"
   }
 }
-
-/**
- * 实验任务全部动作（排期/开始/完成/反馈/质控/建任务）的角色边界。
- * 开放协作（2026-06）：上机实验是"谁在做谁记"的操作动作，全员在岗可做（除 viewer），支持替班。
- * 名为 manage 仅为兼容历史调用点，实际放开为 staffRoles。
- */
-export const experimentManageRoles = staffRoles
 
 /**
  * 录入质控允许的任务执行态：进行中 / 待反馈 / 已完成。质控是业务判定、不改执行态。
@@ -42,12 +35,6 @@ export const feedbackSubmittableTaskStatuses: readonly ExperimentTaskStatusValue
   ExperimentTaskStatus.in_progress,
   ExperimentTaskStatus.waiting_feedback,
 ]
-
-/**
- * 录入产出指标（细胞核/测序量/捕获数/基因中位数）允许的角色（§6.8 经验视图）：补录动作、不推进工作流。
- * 开放协作（2026-06）：全员在岗可补录（除 viewer）。
- */
-export const metricsRecordRoles = staffRoles
 
 /** 录入产出指标的前置态：实验已完成（上机+测序后才有下机指标），可重复订正 */
 export const metricsRecordableTaskStatuses: readonly ExperimentTaskStatusValue[] = [
@@ -70,7 +57,7 @@ export const taskCreatableSampleStatuses: readonly SampleStatusValue[] = [
 
 export function ensureExperimentTaskRole(
   role: string | undefined,
-  allowed: readonly string[] = experimentManageRoles,
+  allowed: readonly string[] = staffRoles,
   actionName = "该操作"
 ) {
   if (!role || !allowed.includes(role)) {
@@ -117,7 +104,7 @@ export function getAvailableExperimentTaskActions(
   status: ExperimentTaskStatusValue,
   role: string | undefined
 ): ExperimentTaskAction[] {
-  if (!role || !experimentManageRoles.includes(role as (typeof experimentManageRoles)[number])) {
+  if (!canActAsStaff(role)) {
     return []
   }
 
@@ -144,8 +131,7 @@ export function canRecordRunMetrics(
   role: string | undefined
 ): boolean {
   return (
-    !!role &&
-    metricsRecordRoles.includes(role as (typeof metricsRecordRoles)[number]) &&
+    canActAsStaff(role) &&
     metricsRecordableTaskStatuses.includes(status)
   )
 }
@@ -159,8 +145,7 @@ export function canRecordQc(
   role: string | undefined
 ): boolean {
   return (
-    !!role &&
-    experimentManageRoles.includes(role as (typeof experimentManageRoles)[number]) &&
+    canActAsStaff(role) &&
     qcRecordableTaskStatuses.includes(status)
   )
 }

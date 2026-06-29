@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { buildSampleBatchScope } from "@/lib/auth/role-scope"
-import { canActAsStaff } from "@/lib/auth/action-roles"
+import { canActAsStaff, staffRoles } from "@/lib/auth/action-roles"
 import { recordOperation } from "@/lib/operation-log"
 import {
   OperationAction,
@@ -27,8 +27,6 @@ import {
   ensureProjectCanReceiveSample,
   ensureSampleRole,
   ensureSampleStatus,
-  sampleCreateRoles,
-  sampleReceiveRoles,
 } from "@/lib/samples/rules"
 
 // 2026-06 重构：本「样本」域操作的是 SampleBatch（样本批次/YP）。收样 = 批次级登记 + 按数量生成样本叶子。
@@ -155,7 +153,7 @@ export async function getSampleDetail(operator: SampleOperator, id: string) {
 }
 
 export async function createSample(operator: SampleOperator, input: CreateSampleInput) {
-  ensureSampleRole(operator.role, sampleCreateRoles, "新增样本批次")
+  ensureSampleRole(operator.role, staffRoles, "新增样本批次")
 
   const project = await prisma.project.findUnique({
     where: { id: input.projectId },
@@ -270,7 +268,7 @@ export async function receiveSample(
   id: string,
   input: ReceiveSampleInput
 ) {
-  ensureSampleRole(operator.role, sampleReceiveRoles, "登记接收")
+  ensureSampleRole(operator.role, staffRoles, "登记接收")
   const before = await getWritableBatch(id)
   ensureSampleStatus(before.status, [SampleBatchStatus.waiting_arrival], "登记接收")
   ensureProjectCanReceiveSample(before.project.status)
@@ -360,7 +358,7 @@ export async function markSampleAbnormal(
   id: string,
   input: MarkSampleAbnormalInput
 ) {
-  ensureSampleRole(operator.role, sampleReceiveRoles, "登记批次异常")
+  ensureSampleRole(operator.role, staffRoles, "登记批次异常")
   const before = await getWritableBatch(id)
   ensureSampleStatus(before.status, abnormalMarkableSampleStatuses, "登记批次异常")
 

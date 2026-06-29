@@ -172,7 +172,6 @@ model User {
   confirmedImages ExperimentRecordImage[] @relation("ImageConfirmer")
   deliveries      SequencingDelivery[]    @relation("DeliveryCreator")
   operationLogs   OperationLog[]
-  importLogs      ImportLog[]
   projectGrants   ProjectGrant[]
 
   @@index([isActive, role])
@@ -517,22 +516,4 @@ model OperationLog {
   @@index([operatorId])
   @@index([createdAt])
   @@map("operation_logs")
-}
-
-model ImportLog {
-  id           String   @id @default(cuid())
-  module       String
-  fileName     String   @map("file_name")
-  totalCount   Int      @map("total_count")
-  successCount Int      @map("success_count")
-  failedCount  Int      @map("failed_count")
-  errorDetail  Json?    @map("error_detail")
-  operatorId   String   @map("operator_id") // 导入人，NOT NULL
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  operator User @relation(fields: [operatorId], references: [id])
-
-  @@index([module])
-  @@index([operatorId])
-  @@map("import_logs")
 }

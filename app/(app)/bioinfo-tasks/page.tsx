@@ -14,7 +14,7 @@ import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
 import { bioinfoTaskListQuerySchema } from "@/lib/schemas/bioinfo-task"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
-import { bioinfoCreateRoles } from "@/lib/bioinfo-tasks/rules"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 import { listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { ClickableRow } from "@/components/list/clickable-row"
@@ -103,7 +103,7 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
 
   const raw = (await searchParams) ?? {}
   const tab = firstParam(raw.tab) === "pending" ? "pending" : "active"
-  const canCreate = bioinfoCreateRoles.includes(role as (typeof bioinfoCreateRoles)[number])
+  const canCreate = canActAsStaff(role)
   const { page, limit, skip } = parsePagination({ page: firstParam(raw.page), limit: firstParam(raw.limit) })
 
   // 进行中（over BioinfoTask）查询

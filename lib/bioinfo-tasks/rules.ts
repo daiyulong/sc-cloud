@@ -8,7 +8,7 @@ import {
   type ServiceLevel as ServiceLevelValue,
 } from "@/lib/enums"
 import { BIOINFO_SERVICE_LEVELS } from "@/lib/enums"
-import { staffRoles } from "@/lib/auth/action-roles"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 
 export type BioinfoTaskAction = "start" | "review" | "submit"
 
@@ -21,12 +21,6 @@ export class BioinfoTaskDomainError extends Error {
     this.name = "BioinfoTaskDomainError"
   }
 }
-
-// 开放协作（2026-06）：建生信任务、开始/审核/提交报告都是"谁在分析谁记"的操作动作，
-// 全员在岗可做（除 viewer），支持替班。名为 create/manage 仅为兼容历史调用点，实际放开为 staffRoles。
-export const bioinfoCreateRoles = staffRoles
-
-export const bioinfoManageRoles = staffRoles
 
 /** 提交报告允许的前置态（分析中可直接提交，待审核也可提交） */
 export const submittableBioinfoStatuses: readonly BioinfoTaskStatusValue[] = [
@@ -97,7 +91,7 @@ export function getAvailableBioinfoTaskActions(
   status: BioinfoTaskStatusValue,
   role: string | undefined
 ): BioinfoTaskAction[] {
-  if (!role || !bioinfoManageRoles.includes(role as (typeof bioinfoManageRoles)[number])) {
+  if (!canActAsStaff(role)) {
     return []
   }
 

@@ -16,7 +16,7 @@ export type NamedCount = { name: string; count: number }
 export type SpeciesMetric = { name: string; avg: number; n: number }
 
 export type Analytics = {
-  // 注：项目当前状态各计数在工作台「项目流转」轨道展示，经验库不重复，仅做趋势/构成/产出
+  // 注：项目当前状态各计数由项目工位（需关注 + 角标）体现，经验库不重复，仅做趋势/构成/产出
   sampleTotal: number
   completedByMonth: { month: string; count: number }[]
   speciesDist: NamedCount[]

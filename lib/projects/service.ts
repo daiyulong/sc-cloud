@@ -85,7 +85,7 @@ function buildProjectListWhere(
   if (query.salesOwnerId) filters.push({ salesOwnerId: query.salesOwnerId })
   if (query.projectManagerId) filters.push({ projectManagerId: query.projectManagerId })
   if (query.due === "soon") {
-    // 与工作台 dueSoonProjects 口径一致：未来 7 个自然日内预计交付且未关闭
+    // 与项目工位「需关注」/ 角标 dueSoon 口径一致：未来 7 个自然日内预计交付且未关闭
     const start = new Date()
     start.setHours(0, 0, 0, 0)
     const end = new Date(start)

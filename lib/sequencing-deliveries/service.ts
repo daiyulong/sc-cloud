@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { OperationAction, UserRole, type UserRole as UserRoleValue } from "@/lib/enums"
 import { buildProjectScope } from "@/lib/auth/role-scope"
-import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 import { recordOperation } from "@/lib/operation-log"
 import { readDeliveryFile, saveDeliveryFile } from "@/lib/storage/local"
 import { isNotifyEnabled, sendMail } from "@/lib/notify/mailer"
@@ -11,11 +11,9 @@ import type { CreateSequencingDeliveryInput } from "@/lib/schemas/sequencing-del
 
 export type SequencingDeliveryOperator = { id: string; role?: UserRoleValue }
 
-/** 登记测序交付的角色边界：与实验管理同口径（管理员 / 项目经理 / 实验执行员）。 */
-export const deliveryManageRoles = experimentManageRoles
-
+/** 登记测序交付 = 操作类动作，全员在岗可做（除 viewer），见 ADR-0001。 */
 export function canRegisterDelivery(role: string | undefined): boolean {
-  return !!role && deliveryManageRoles.includes(role as (typeof deliveryManageRoles)[number])
+  return canActAsStaff(role)
 }
 
 export class SequencingDeliveryDomainError extends Error {

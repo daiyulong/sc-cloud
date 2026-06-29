@@ -7,8 +7,8 @@ import {
   ensureSampleRole,
   ensureSampleStatus,
   getAvailableSampleActions,
-  sampleReceiveRoles,
 } from "@/lib/samples/rules"
+import { staffRoles } from "@/lib/auth/action-roles"
 
 // 2026-06 重构：「样本」域动作作用于样本批次（SampleBatch）。
 describe("sample batch rules", () => {
@@ -44,15 +44,15 @@ describe("sample batch rules", () => {
   })
 
   it("ensureSampleRole：viewer / 空角色被拒，在岗角色（含销售）放行", () => {
-    expect(() => ensureSampleRole(UserRole.viewer, sampleReceiveRoles, "登记接收")).toThrow(
+    expect(() => ensureSampleRole(UserRole.viewer, staffRoles, "登记接收")).toThrow(
       SampleDomainError
     )
-    expect(() => ensureSampleRole(undefined, sampleReceiveRoles)).toThrow(SampleDomainError)
+    expect(() => ensureSampleRole(undefined, staffRoles)).toThrow(SampleDomainError)
     expect(() =>
-      ensureSampleRole(UserRole.sales_owner, sampleReceiveRoles, "登记接收")
+      ensureSampleRole(UserRole.sales_owner, staffRoles, "登记接收")
     ).not.toThrow()
     expect(() =>
-      ensureSampleRole(UserRole.sample_receiver, sampleReceiveRoles, "登记接收")
+      ensureSampleRole(UserRole.sample_receiver, staffRoles, "登记接收")
     ).not.toThrow()
   })
 

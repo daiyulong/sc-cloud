@@ -12,7 +12,7 @@ import {
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
-import { experimentManageRoles } from "@/lib/experiment-tasks/rules"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { firstParam, formatDate } from "@/lib/utils"
@@ -79,7 +79,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     params.set("limit", String(limit))
     return `/lab?${params.toString()}`
   }
-  const canCreate = experimentManageRoles.includes(role as (typeof experimentManageRoles)[number])
+  const canCreate = canActAsStaff(role)
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
   const hasActiveFilters = Boolean(query.q || query.status || query.date)
   const clearFiltersHref = query.projectId

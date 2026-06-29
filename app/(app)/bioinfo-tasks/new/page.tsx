@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { firstParam } from "@/lib/utils"
 import { auth } from "@/lib/auth"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
-import { bioinfoCreateRoles } from "@/lib/bioinfo-tasks/rules"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getAnalystOptions, getBioinfoExperimentTaskOptions } from "@/lib/bioinfo-tasks/options"
 import { BioinfoTaskForm } from "@/components/bioinfo-tasks/bioinfo-task-form"
 import {
@@ -23,7 +23,7 @@ export default async function NewBioinfoTaskPage({ searchParams }: NewBioinfoTas
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
   const role = session.user.role as UserRoleValue
-  if (!bioinfoCreateRoles.includes(role as (typeof bioinfoCreateRoles)[number])) {
+  if (!canActAsStaff(role)) {
     redirect("/bioinfo-tasks")
   }
 

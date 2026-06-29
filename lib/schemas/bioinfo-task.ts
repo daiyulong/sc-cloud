@@ -55,7 +55,7 @@ export const bioinfoTaskListQuerySchema = z.object({
   status: bioinfoTaskStatusSchema.optional(),
   projectId: optionalString,
   analystId: optionalString,
-  /** open = 进行中的开口任务（待开始/分析中/待审核），工作台「生信任务」入口 */
+  /** open = 进行中的开口任务（待开始/分析中/待审核），生信工位「进行中」入口 */
   open: z.enum(["1"]).optional(),
   page: optionalString,
   limit: optionalString,

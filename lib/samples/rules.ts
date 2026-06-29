@@ -4,7 +4,7 @@ import {
   type ProjectStatus as ProjectStatusValue,
   type SampleBatchStatus as SampleBatchStatusValue,
 } from "@/lib/enums"
-import { staffRoles } from "@/lib/auth/action-roles"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 
 export type SampleAction = "receive" | "markAbnormal"
 
@@ -17,12 +17,6 @@ export class SampleDomainError extends Error {
     this.name = "SampleDomainError"
   }
 }
-
-// 开放协作（2026-06）：登记接收/登记批次异常是"谁收到谁记"的操作动作，全员在岗可做（除 viewer）。
-export const sampleReceiveRoles = staffRoles
-
-// 新增样本批次同理，全员在岗可登记。
-export const sampleCreateRoles = staffRoles
 
 /** 登记批次异常的前置状态（规格 §5.1：待到样/已接收） */
 export const abnormalMarkableSampleStatuses: readonly SampleBatchStatusValue[] = [
@@ -89,7 +83,7 @@ export function getAvailableSampleActions(
   status: SampleBatchStatusValue,
   role: string | undefined
 ): SampleAction[] {
-  if (!role || !sampleReceiveRoles.includes(role as (typeof sampleReceiveRoles)[number])) {
+  if (!canActAsStaff(role)) {
     return []
   }
 
