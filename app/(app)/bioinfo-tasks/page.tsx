@@ -192,10 +192,7 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
       )}
 
       {viewId && (
-        <DetailSheet
-          title={viewDetail ? `生信任务 ${viewDetail.task.taskNo}` : "生信任务详情"}
-          fullHref={`/bioinfo-tasks/${viewId}`}
-        >
+        <DetailSheet title={viewDetail ? `生信任务 ${viewDetail.task.taskNo}` : "生信任务详情"}>
           {viewDetail ? (
             <BioinfoTaskSheetBody detail={viewDetail} role={session.user.role} />
           ) : (

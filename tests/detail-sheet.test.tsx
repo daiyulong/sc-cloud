@@ -53,14 +53,4 @@ describe("DetailSheet", () => {
     await user.keyboard("{Escape}")
     expect(push).toHaveBeenCalledWith("/lab?status=open", { scroll: false })
   })
-
-  it("提供 fullHref 时渲染「打开全页」链接", () => {
-    render(
-      <DetailSheet title="样本 YP-001" fullHref="/samples/s1">
-        <p>详情内容</p>
-      </DetailSheet>
-    )
-    const link = screen.getByRole("link", { name: /打开全页/ })
-    expect(link).toHaveAttribute("href", "/samples/s1")
-  })
 })

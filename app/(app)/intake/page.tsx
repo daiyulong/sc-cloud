@@ -264,10 +264,7 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
       )}
 
       {viewId && (
-        <DetailSheet
-          title={viewDetail ? `样本 ${viewDetail.sample.batchNo ?? "未编号"}` : "样本详情"}
-          fullHref={`/samples/${viewId}`}
-        >
+        <DetailSheet title={viewDetail ? `样本 ${viewDetail.sample.batchNo ?? "未编号"}` : "样本详情"}>
           {viewDetail ? (
             <SampleSheetBody detail={viewDetail} role={session.user.role} />
           ) : (

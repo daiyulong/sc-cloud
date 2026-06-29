@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
-import { ExternalLink } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 
 type DetailSheetProps = {
@@ -11,15 +10,13 @@ type DetailSheetProps = {
   children: React.ReactNode
   /** 触发抽屉的查询参数名；关闭即从 URL 移除（默认 view） */
   param?: string
-  /** 可选「打开全页」目标（叶子条目升级到全页详情，硬导航） */
-  fullHref?: string
 }
 
 /**
  * 查询参数驱动的侧滑详情容器（2026-06 取代旧拦截路由方案，见 ADR-0002）。
  * 由列表页在 `?<param>=<id>` 存在时渲染；关闭（ESC/遮罩/X）→ 从 URL 删除该参数回列表。
  */
-export function DetailSheet({ title, children, param = "view", fullHref }: DetailSheetProps) {
+export function DetailSheet({ title, children, param = "view" }: DetailSheetProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -47,17 +44,6 @@ export function DetailSheet({ title, children, param = "view", fullHref }: Detai
         className="w-full gap-0 overflow-y-auto sm:max-w-xl"
       >
         <SheetTitle className="sr-only">{title}</SheetTitle>
-        {fullHref && (
-          <div className="px-4 pt-3">
-            <a
-              href={fullHref}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ExternalLink className="size-3.5" aria-hidden="true" />
-              打开全页
-            </a>
-          </div>
-        )}
         {children}
       </SheetContent>
     </Sheet>

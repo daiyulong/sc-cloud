@@ -284,10 +284,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
       )}
 
       {viewId && (
-        <DetailSheet
-          title={viewDetail ? `实验任务 ${viewDetail.task.taskNo}` : "实验任务详情"}
-          fullHref={`/experiment-tasks/${viewId}`}
-        >
+        <DetailSheet title={viewDetail ? `实验任务 ${viewDetail.task.taskNo}` : "实验任务详情"}>
           {viewDetail ? (
             <ExperimentTaskSheetBody
               detail={viewDetail}
