@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { Edit } from "lucide-react"
 import { auth } from "@/lib/auth"
-import { DetailBreadcrumb } from "@/components/detail/detail-breadcrumb"
+import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import {
   PROJECT_STATUS_LABELS,
   SAMPLE_BATCH_STATUS_LABELS,
@@ -47,7 +47,7 @@ export default async function SampleDetailPage({ params }: SampleDetailPageProps
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-      <DetailBreadcrumb backHref="/intake" backLabel="收样" current={sample.batchNo ?? "未编号批次"} />
+      <SetBreadcrumb items={[{ label: "收样", href: "/intake" }, { label: sample.batchNo ?? "未编号批次" }]} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">

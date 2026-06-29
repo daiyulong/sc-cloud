@@ -79,7 +79,7 @@ export function SampleForm({ sample }: SampleFormProps) {
       }
 
       toast.success("样本已更新")
-      // 硬导航直达全页详情：软 push 会被 @sheet 拦截成「侧滑盖在表单上」
+      // 硬导航直达全页详情：整页刷新确保详情页拿到刚保存的数据
       window.location.assign(`/samples/${result.data.id}`)
     })
   }

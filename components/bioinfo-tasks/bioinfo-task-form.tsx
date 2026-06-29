@@ -118,7 +118,7 @@ export function BioinfoTaskForm({
         return
       }
       toast.success(mode === "create" ? "生信任务已创建" : "生信任务已更新")
-      // 硬导航直达全页详情：软 push 会被 @sheet 拦截成「侧滑盖在表单上」
+      // 硬导航直达全页详情：整页刷新确保详情页拿到刚保存的数据
       window.location.assign(`/bioinfo-tasks/${result.data.id}`)
     })
   }

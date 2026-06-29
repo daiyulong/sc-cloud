@@ -23,7 +23,7 @@ import {
  * 动作浮层落点（重构 §4）：
  * - `surface="sheet"` → 右侧抽屉，仅供**列表行**触发的高密度队列动作（登记接收 / 录反馈·质控…），
  *   工位制下「点行→右抽屉→处理→下一条」不丢列表上下文。
- * - `surface="dialog"`（默认）→ 居中 Dialog，供**详情侧滑内部**或全页触发——避免与右侧 @sheet 双右浮层叠打。
+ * - `surface="dialog"`（默认）→ 居中 Dialog，供**详情抽屉内部**或全页触发——避免与右侧 ?view 详情抽屉双右浮层叠打。
  * 表单组件用本壳替换原 Dialog/DialogContent，body 不变；动作菜单按调用面下传 surface。
  */
 export type ActionSurface = "dialog" | "sheet"

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import { UserRole, type UserRole as UserRoleValue } from "@/lib/enums"
 import { getProjectUserOptions } from "@/lib/projects/options"
 import { ProjectForm } from "@/components/projects/project-form"
@@ -26,6 +27,7 @@ export default async function NewProjectPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <SetBreadcrumb items={[{ label: "项目", href: "/projects" }, { label: "新建" }]} />
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">新建项目</h1>
         <p className="text-sm text-muted-foreground">项目按委托单编号作为业务粒度。</p>

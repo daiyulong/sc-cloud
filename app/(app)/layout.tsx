@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { getWorkstationBadges } from "@/lib/workstation/badges"
 import type { UserRole as UserRoleValue } from "@/lib/enums"
 import { AppSidebar } from "@/components/app-sidebar"
-import { PageTitle } from "@/components/page-title"
+import { DetailBreadcrumbProvider, HeaderTitle } from "@/components/header-breadcrumb"
 import {
   SidebarInset,
   SidebarProvider,
@@ -13,11 +13,8 @@ import { Separator } from "@/components/ui/separator"
 
 export default async function AppLayout({
   children,
-  sheet,
 }: Readonly<{
   children: React.ReactNode
-  /** @sheet 平行路由：详情软导航的侧滑层 */
-  sheet: React.ReactNode
 }>) {
   const session = await auth()
 
@@ -39,17 +36,18 @@ export default async function AppLayout({
         跳到主要内容
       </a>
       <AppSidebar user={session.user} badges={badges} />
+      <DetailBreadcrumbProvider>
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="!h-6" />
-          <PageTitle />
+          <HeaderTitle />
         </header>
         <main id="main-content" className="flex min-h-[calc(100svh-3.5rem)] flex-col">
           {children}
         </main>
-        {sheet}
       </SidebarInset>
+      </DetailBreadcrumbProvider>
     </SidebarProvider>
   )
 }

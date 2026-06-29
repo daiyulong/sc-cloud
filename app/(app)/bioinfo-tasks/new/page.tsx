@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { firstParam } from "@/lib/utils"
 import { auth } from "@/lib/auth"
+import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getAnalystOptions, getBioinfoExperimentTaskOptions } from "@/lib/bioinfo-tasks/options"
@@ -36,6 +37,7 @@ export default async function NewBioinfoTaskPage({ searchParams }: NewBioinfoTas
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <SetBreadcrumb items={[{ label: "生信", href: "/bioinfo-tasks" }, { label: "新建" }]} />
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">新建生信任务</h1>
         <p className="text-sm text-muted-foreground">

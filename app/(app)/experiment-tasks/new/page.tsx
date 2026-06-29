@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { firstParam } from "@/lib/utils"
 import { auth } from "@/lib/auth"
+import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getOperatorOptions, getTaskSampleOptions } from "@/lib/experiment-tasks/options"
@@ -36,6 +37,7 @@ export default async function NewExperimentTaskPage({ searchParams }: NewExperim
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <SetBreadcrumb items={[{ label: "实验", href: "/lab" }, { label: "新建" }]} />
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">新建实验任务</h1>
         <p className="text-sm text-muted-foreground">

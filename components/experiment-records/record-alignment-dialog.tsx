@@ -63,7 +63,7 @@ function numOrNull(v: string): number | null {
 
 /**
  * 识别结果对齐 + 人工确认（重构 §6）：左原图、右逐行编辑 + 指派到候选样本叶子。
- * 居中 Dialog（从详情侧滑内部触发，避免与右 @sheet 双右浮层，§4）；识别仅预填，确认才写回。
+ * 居中 Dialog（从详情抽屉内部触发，避免与右侧 ?view 详情抽屉双右浮层）；识别仅预填，确认才写回。
  */
 export function RecordAlignmentDialog({
   open,

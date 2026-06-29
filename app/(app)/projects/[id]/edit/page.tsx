@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
 import { getProjectDetail } from "@/lib/projects/service"
 import { getProjectUserOptions } from "@/lib/projects/options"
@@ -32,6 +33,13 @@ export default async function EditProjectPage({ params }: EditProjectPageProps) 
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <SetBreadcrumb
+        items={[
+          { label: "项目", href: "/projects" },
+          { label: project.projectNo ?? "未编号草稿", href: `/projects/${id}` },
+          { label: "编辑" },
+        ]}
+      />
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">编辑项目</h1>
         <p className="text-sm text-muted-foreground">{project.projectNo ?? "未编号草稿"}</p>

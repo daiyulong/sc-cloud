@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
 import { getSampleDetail } from "@/lib/samples/service"
 import { SampleForm } from "@/components/samples/sample-form"
@@ -30,6 +31,13 @@ export default async function EditSamplePage({ params }: EditSamplePageProps) {
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <SetBreadcrumb
+        items={[
+          { label: "收样", href: "/intake" },
+          { label: detail.sample.batchNo ?? "未编号", href: `/samples/${id}` },
+          { label: "编辑" },
+        ]}
+      />
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">编辑样本</h1>
         <p className="text-sm text-muted-foreground">{detail.sample.batchNo ?? "未编号"}</p>

@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
@@ -36,6 +37,13 @@ export default async function EditExperimentTaskPage({ params }: EditExperimentT
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <SetBreadcrumb
+        items={[
+          { label: "实验", href: "/lab" },
+          { label: detail.task.taskNo, href: `/experiment-tasks/${id}` },
+          { label: "编辑" },
+        ]}
+      />
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">编辑实验任务</h1>
         <p className="text-sm text-muted-foreground">{detail.task.taskNo}</p>

@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getAnalystOptions } from "@/lib/bioinfo-tasks/options"
@@ -36,6 +37,13 @@ export default async function EditBioinfoTaskPage({ params }: EditBioinfoTaskPag
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <SetBreadcrumb
+        items={[
+          { label: "生信", href: "/bioinfo-tasks" },
+          { label: detail.task.taskNo, href: `/bioinfo-tasks/${id}` },
+          { label: "编辑" },
+        ]}
+      />
       <div>
         <h1 className="text-2xl font-semibold tracking-normal">编辑生信任务</h1>
         <p className="text-sm text-muted-foreground">{detail.task.taskNo}</p>
