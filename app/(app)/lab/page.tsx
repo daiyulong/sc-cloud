@@ -18,6 +18,7 @@ import { listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { firstParam, formatDate } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
+import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { EXPERIMENT_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
@@ -162,8 +163,18 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         ) : (
           <ListEmpty
             icon={<FlaskConical />}
-            title={query.projectId ? "该项目暂无实验任务" : "暂无实验任务"}
-            description="样本接收后，由项目经理或实验执行员从样本创建实验任务。"
+            title={
+              query.projectId
+                ? "该项目暂无实验任务"
+                : useStatusDefault
+                  ? "暂无在途实验任务"
+                  : "暂无实验任务"
+            }
+            description={
+              useStatusDefault
+                ? "默认仅显示在途状态。点上方「任务状态」可查看含已完成等终态的全部。"
+                : "样本接收后，由项目经理或实验执行员从样本创建实验任务。"
+            }
           >
             {canCreate && (
               <Button asChild>
@@ -242,31 +253,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              共 {total} 个任务 · 第 {page} / {totalPages} 页
-            </p>
-            <div className="flex items-center gap-2">
-              {page <= 1 ? (
-                <Button variant="outline" size="sm" disabled>
-                  上一页
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={pageHref(page - 1)}>上一页</Link>
-                </Button>
-              )}
-              {page >= totalPages ? (
-                <Button variant="outline" size="sm" disabled>
-                  下一页
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={pageHref(page + 1)}>下一页</Link>
-                </Button>
-              )}
-            </div>
-          </div>
+          <ListPager total={total} page={page} totalPages={totalPages} noun="任务" hrefFor={pageHref} />
         </>
       )}
     </div>

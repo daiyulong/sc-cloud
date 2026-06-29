@@ -16,6 +16,7 @@ import { listSamples } from "@/lib/samples/service"
 import { firstParam, formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
+import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { SampleActionMenu } from "@/components/samples/sample-action-menu"
 import { SAMPLE_STATUS_DOT, StatusDot } from "@/components/status-dot"
@@ -156,8 +157,18 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
         ) : (
           <ListEmpty
             icon={<Microscope />}
-            title={query.projectId ? "该项目暂无样本" : "暂无样本"}
-            description="样本随项目创建生成，到样时由收样员登记接收。"
+            title={
+              query.projectId
+                ? "该项目暂无样本"
+                : useStatusDefault
+                  ? "暂无待到样批次"
+                  : "暂无样本"
+            }
+            description={
+              useStatusDefault
+                ? "默认仅显示「待到样」。点上方「样本状态」可查看含已接收的全部。"
+                : "样本随项目创建生成，到样时由收样员登记接收。"
+            }
           />
         )
       ) : (
@@ -231,31 +242,7 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              共 {total} 个样本 · 第 {page} / {totalPages} 页
-            </p>
-            <div className="flex items-center gap-2">
-              {page <= 1 ? (
-                <Button variant="outline" size="sm" disabled>
-                  上一页
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={pageHref(page - 1)}>上一页</Link>
-                </Button>
-              )}
-              {page >= totalPages ? (
-                <Button variant="outline" size="sm" disabled>
-                  下一页
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={pageHref(page + 1)}>下一页</Link>
-                </Button>
-              )}
-            </div>
-          </div>
+          <ListPager total={total} page={page} totalPages={totalPages} noun="样本" hrefFor={pageHref} />
         </>
       )}
     </div>

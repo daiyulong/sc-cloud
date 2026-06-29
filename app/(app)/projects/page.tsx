@@ -22,6 +22,7 @@ import {
 import { firstParam, formatDate } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
+import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { ProjectActionMenu } from "@/components/projects/project-action-menu"
 import { PROJECT_STATUS_DOT, StatusDot } from "@/components/status-dot"
@@ -263,7 +264,11 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             </Button>
           </ListEmpty>
         ) : (
-          <ListEmpty icon={<FolderKanban />} title="暂无项目" description="从新建第一个项目开始。">
+          <ListEmpty
+            icon={<FolderKanban />}
+            title="暂无在途项目"
+            description="默认隐藏已完成/已终止项目。点上方「项目状态」查看全部，或新建项目。"
+          >
             {canCreate && (
               <Button asChild>
                 <Link href="/projects/new">
@@ -305,33 +310,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             </Table>
           </div>
 
-          {total > 0 && (
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              共 {total} 个项目 · 第 {page} / {totalPages} 页
-            </p>
-            <div className="flex items-center gap-2">
-              {page <= 1 ? (
-                <Button variant="outline" size="sm" disabled>
-                  上一页
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={pageHref(page - 1)}>上一页</Link>
-                </Button>
-              )}
-              {page >= totalPages ? (
-                <Button variant="outline" size="sm" disabled>
-                  下一页
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={pageHref(page + 1)}>下一页</Link>
-                </Button>
-              )}
-            </div>
-          </div>
-          )}
+          <ListPager total={total} page={page} totalPages={totalPages} noun="项目" hrefFor={pageHref} />
         </>
       )}
     </div>

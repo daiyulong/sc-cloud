@@ -19,6 +19,7 @@ import { listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
+import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
 import { BIOINFO_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
@@ -76,31 +77,6 @@ function TabLink({
         {count}
       </Badge>
     </Link>
-  )
-}
-
-function Pager({ page, totalPages, hrefFor }: { page: number; totalPages: number; hrefFor: (p: number) => string }) {
-  return (
-    <div className="flex items-center justify-end gap-2">
-      {page <= 1 ? (
-        <Button variant="outline" size="sm" disabled>
-          上一页
-        </Button>
-      ) : (
-        <Button variant="outline" size="sm" asChild>
-          <Link href={hrefFor(page - 1)}>上一页</Link>
-        </Button>
-      )}
-      {page >= totalPages ? (
-        <Button variant="outline" size="sm" disabled>
-          下一页
-        </Button>
-      ) : (
-        <Button variant="outline" size="sm" asChild>
-          <Link href={hrefFor(page + 1)}>下一页</Link>
-        </Button>
-      )}
-    </div>
   )
 }
 
@@ -289,7 +265,11 @@ function ActiveTab({
             </Button>
           </ListEmpty>
         ) : (
-          <ListEmpty icon={<Dna />} title="暂无进行中的生信任务" description="到「待建」从已完成的实验任务创建生信分析任务。" />
+          <ListEmpty
+            icon={<Dna />}
+            title="暂无进行中的生信任务"
+            description="默认隐藏已交付/异常。点上方「分析状态」查看全部，或到「待建」从已完成实验任务建任务。"
+          />
         )
       ) : (
         <>
@@ -349,12 +329,7 @@ function ActiveTab({
               </TableBody>
             </Table>
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              共 {total} 个任务 · 第 {page} / {totalPages} 页
-            </p>
-            <Pager page={page} totalPages={totalPages} hrefFor={pageHref} />
-          </div>
+          <ListPager total={total} page={page} totalPages={totalPages} noun="任务" hrefFor={pageHref} />
         </>
       )}
     </>
@@ -456,12 +431,7 @@ function PendingTab({
               </TableBody>
             </Table>
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              共 {total} 个待建任务 · 第 {page} / {totalPages} 页
-            </p>
-            <Pager page={page} totalPages={totalPages} hrefFor={pageHref} />
-          </div>
+          <ListPager total={total} page={page} totalPages={totalPages} noun="待建任务" hrefFor={pageHref} />
         </>
       )}
     </>

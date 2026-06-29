@@ -13,6 +13,7 @@ import { userListQuerySchema } from "@/lib/schemas/user"
 import { listUsers } from "@/lib/users/service"
 import { firstParam, formatDateTime } from "@/lib/utils"
 import { ListEmpty } from "@/components/list/list-empty"
+import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { StatusDot } from "@/components/status-dot"
 import { UserActionMenu } from "@/components/users/user-action-menu"
@@ -180,31 +181,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              共 {total} 个用户 · 第 {page} / {totalPages} 页
-            </p>
-            <div className="flex items-center gap-2">
-              {page <= 1 ? (
-                <Button variant="outline" size="sm" disabled>
-                  上一页
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={pageHref(page - 1)}>上一页</Link>
-                </Button>
-              )}
-              {page >= totalPages ? (
-                <Button variant="outline" size="sm" disabled>
-                  下一页
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={pageHref(page + 1)}>下一页</Link>
-                </Button>
-              )}
-            </div>
-          </div>
+          <ListPager total={total} page={page} totalPages={totalPages} noun="用户" hrefFor={pageHref} />
         </>
       )}
     </div>
