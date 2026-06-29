@@ -16,13 +16,16 @@ import { bioinfoTaskListQuerySchema } from "@/lib/schemas/bioinfo-task"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getBioinfoTaskDetail, listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
+import { getAnalystOptions, getBioinfoExperimentTaskOptions } from "@/lib/bioinfo-tasks/options"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { DetailSheet, DetailSheetEmpty } from "@/components/detail/detail-sheet"
+import { FormDialog } from "@/components/detail/form-dialog"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
+import { BioinfoTaskForm } from "@/components/bioinfo-tasks/bioinfo-task-form"
 import { BioinfoTaskSheetBody } from "@/components/bioinfo-tasks/bioinfo-task-sheet-body"
 import { BIOINFO_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { UserCell } from "@/components/user-cell"
@@ -133,6 +136,13 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
   const viewDetail = viewId
     ? await getBioinfoTaskDetail(operator, viewId).catch(() => null)
     : null
+  // ?new=1 抽屉：在队列里建生信任务（成功后关抽屉回列表、不跳全页）
+  const isNew = firstParam(raw.new) === "1"
+  const initialExperimentTaskId = firstParam(raw.experimentTaskId)
+  const [newExperimentTaskOptions, newAnalystOptions] =
+    isNew && canCreate
+      ? await Promise.all([getBioinfoExperimentTaskOptions(operator), getAnalystOptions()])
+      : [[], []]
 
   const activeCount = bioinfoRes.total
   const pendingCount = pendingRes.total
@@ -193,6 +203,18 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
           )}
         </DetailSheet>
       )}
+
+      {isNew && canCreate && (
+        <FormDialog param="new" title="新建生信任务">
+          <BioinfoTaskForm
+            mode="create"
+            surface="modal"
+            experimentTaskOptions={newExperimentTaskOptions}
+            analystOptions={newAnalystOptions}
+            initialExperimentTaskId={initialExperimentTaskId}
+          />
+        </FormDialog>
+      )}
     </div>
   )
 }
@@ -243,6 +265,11 @@ function ActiveTab({
     params.set("view", id)
     return `/bioinfo-tasks?${params.toString()}`
   }
+  const newHref = (() => {
+    const params = new URLSearchParams(baseParams)
+    params.set("new", "1")
+    return `/bioinfo-tasks?${params.toString()}`
+  })()
   const hasActiveFilters = Boolean(query.q || hasExplicitStatus || query.open)
   const clearFiltersHref = query.projectId
     ? `/bioinfo-tasks?tab=active&projectId=${query.projectId}`
@@ -276,7 +303,7 @@ function ActiveTab({
       >
         {canCreate && (
           <Button asChild>
-            <Link href="/bioinfo-tasks/new">
+            <Link href={newHref}>
               <Plus data-icon="inline-start" aria-hidden="true" />
               新建任务
             </Link>
@@ -447,7 +474,7 @@ function PendingTab({
                     <TableCell className="text-right">
                       {canCreate ? (
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/bioinfo-tasks/new?experimentTaskId=${task.id}`}>建生信任务</Link>
+                          <Link href={`/bioinfo-tasks?tab=pending&new=1&experimentTaskId=${task.id}`}>建生信任务</Link>
                         </Button>
                       ) : (
                         <span className="text-sm text-muted-foreground">待生信建任务</span>

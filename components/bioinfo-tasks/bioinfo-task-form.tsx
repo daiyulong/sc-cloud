@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Save } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
@@ -45,6 +45,8 @@ type BioinfoTaskFormProps = {
   experimentTaskOptions?: BioinfoExperimentTaskOption[]
   analystOptions: AnalystOption[]
   initialExperimentTaskId?: string
+  /** modal = 在列表 ?new 居中模态内创建（成功后关模态回队列）；page = 全页表单（成功跳详情） */
+  surface?: "page" | "modal"
 }
 
 const UNASSIGNED = "__unassigned__"
@@ -65,8 +67,11 @@ export function BioinfoTaskForm({
   experimentTaskOptions = [],
   analystOptions,
   initialExperimentTaskId,
+  surface = "page",
 }: BioinfoTaskFormProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = React.useTransition()
   const [experimentTaskId, setExperimentTaskId] = React.useState(
     task?.experimentTask?.id || initialExperimentTaskId || ""
@@ -118,8 +123,17 @@ export function BioinfoTaskForm({
         return
       }
       toast.success(mode === "create" ? "生信任务已创建" : "生信任务已更新")
-      // 硬导航直达全页详情：整页刷新确保详情页拿到刚保存的数据
-      window.location.assign(`/bioinfo-tasks/${result.data.id}`)
+      if (surface === "modal") {
+        // 模态创建：关掉 ?new 模态、保留筛选回队列（列表刷新显示新任务）
+        const sp = new URLSearchParams(searchParams)
+        sp.delete("new")
+        sp.delete("experimentTaskId")
+        router.push(sp.toString() ? `${pathname}?${sp.toString()}` : pathname)
+        router.refresh()
+      } else {
+        // 硬导航直达全页详情：整页刷新确保详情页拿到刚保存的数据
+        window.location.assign(`/bioinfo-tasks/${result.data.id}`)
+      }
     })
   }
 
