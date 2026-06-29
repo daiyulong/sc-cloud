@@ -460,11 +460,11 @@ export async function recoverProject(
   id: string,
   input: OptionalProjectReasonInput
 ) {
-  ensureProjectRole(operator.role, [UserRole.admin, UserRole.project_manager], "恢复异常")
+  ensureProjectRole(operator.role, [UserRole.admin, UserRole.project_manager], "解除异常")
   const before = await getWritableProject(id)
-  ensureProjectStatus(before.status, [ProjectStatus.abnormal], "恢复异常")
+  ensureProjectStatus(before.status, [ProjectStatus.abnormal], "解除异常")
   if (!before.statusBeforeAbnormal) {
-    throw new ProjectDomainError("缺少异常前状态，无法恢复", 400)
+    throw new ProjectDomainError("缺少异常前状态，无法解除异常", 400)
   }
 
   return updateProjectStatusWithLog(

@@ -37,13 +37,13 @@ const descriptors: Record<ProjectAction, ProjectActionDescriptor> = {
   },
   recover: {
     action: "recover",
-    label: "恢复异常",
+    label: "解除异常",
     path: "recover",
     icon: RotateCcw,
     kind: "reasonDialog",
     reasonRequired: false,
     reasonLabel: "处理说明",
-    description: "恢复到异常前的状态。",
+    description: "解除异常标记，项目将回到异常前的状态。",
   },
   // reason 必填与 projectReasonSchema 对齐（旧 UI 当可选传空串会被 400 拒，此处修正）
   markAbnormal: {

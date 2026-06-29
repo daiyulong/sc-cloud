@@ -19,6 +19,6 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({ data: project })
   } catch (error) {
-    return handleProjectDomainError(error) ?? handleApiError(error, "恢复异常失败")
+    return handleProjectDomainError(error) ?? handleApiError(error, "解除异常失败")
   }
 }

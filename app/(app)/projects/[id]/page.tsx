@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
-import { ArrowUpRight, Edit, FileDown, Plus } from "lucide-react"
+import { ArrowUpRight, FileDown, Plus } from "lucide-react"
 import { auth } from "@/lib/auth"
 import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import {
@@ -29,7 +29,7 @@ import { firstParam, formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
 import { FormDialog } from "@/components/detail/form-dialog"
-import { ProjectActionMenu } from "@/components/projects/project-action-menu"
+import { ProjectHeaderActions } from "@/components/projects/project-header-actions"
 import { ProjectFields } from "@/components/projects/project-fields"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { ExperimentTaskForm } from "@/components/experiment-tasks/experiment-task-form"
@@ -315,6 +315,12 @@ export default async function ProjectDetailPage({
           </div>
           <div className="flex items-center gap-1.5">
             <Button asChild variant="ghost" size="sm">
+              <a href={`/api/projects/${project.id}/task-order`}>
+                <FileDown data-icon="inline-start" aria-hidden="true" />
+                下载任务单
+              </a>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
               <Link href={`/bioinfo-tasks?projectId=${project.id}`}>
                 在生信工位查看
                 <ArrowUpRight aria-hidden="true" />
@@ -440,24 +446,12 @@ export default async function ProjectDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ProjectActionMenu
+          <ProjectHeaderActions
             projectId={project.id}
             projectNo={project.projectNo}
             status={project.status as ProjectStatusValue}
             role={session.user.role}
           />
-          <Button asChild variant="outline">
-            <a href={`/api/projects/${project.id}/task-order`}>
-              <FileDown data-icon="inline-start" aria-hidden="true" />
-              生成任务单
-            </a>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href={`/projects/${project.id}/edit`}>
-              <Edit data-icon="inline-start" aria-hidden="true" />
-              编辑
-            </Link>
-          </Button>
         </div>
       </div>
 

@@ -26,6 +26,7 @@ describe("partitionProjectActions", () => {
       UserRole.project_manager
     )
     expect(primary?.action).toBe("recover")
+    expect(primary?.label).toBe("解除异常")
     expect(primary?.kind).toBe("reasonDialog")
     expect(primary?.reasonRequired).toBe(false)
     expect(overflow.map((d) => d.action)).toEqual(["terminate"])
