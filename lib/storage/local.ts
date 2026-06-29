@@ -6,7 +6,7 @@ import path from "node:path"
  * 实验记录原图存 STORAGE_DIR 下，私有——只经鉴权代理 Route 读，不直接对外暴露。
  * Docker 自托管时把 STORAGE_DIR 挂成持久卷。
  */
-const STORAGE_ROOT = process.env.STORAGE_DIR ?? path.join(process.cwd(), "storage")
+const STORAGE_ROOT = process.env.STORAGE_DIR ?? path.join(/*turbopackIgnore: true*/ process.cwd(), "storage")
 const RECORD_SUBDIR = "experiment-records"
 const DELIVERY_SUBDIR = "sequencing-deliveries"
 
@@ -37,8 +37,8 @@ export function mimeForKey(key: string): string {
 
 /** 解析并校验 key 落在指定子目录内，防路径穿越 */
 function resolveKey(subdir: string, key: string): string {
-  const baseDir = path.join(STORAGE_ROOT, subdir)
-  const full = path.normalize(path.join(baseDir, key))
+  const baseDir = path.join(/*turbopackIgnore: true*/ STORAGE_ROOT, subdir)
+  const full = path.normalize(path.join(/*turbopackIgnore: true*/ baseDir, key))
   if (full !== baseDir && !full.startsWith(baseDir + path.sep)) {
     throw new Error("非法存储 key")
   }

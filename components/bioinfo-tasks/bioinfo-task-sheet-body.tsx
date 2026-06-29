@@ -59,11 +59,10 @@ export function BioinfoTaskSheetBody({
           showEmptyHint
         />
         <div className="ml-auto flex items-center gap-1.5">
-          {/* 原生 <a> 硬导航绕过拦截，直达全页 */}
           <Button variant="ghost" size="icon-sm" asChild>
-            <a href={`/bioinfo-tasks/${task.id}`} aria-label="在全页中打开">
+            <Link href={`/bioinfo-tasks/${task.id}`} aria-label="在全页中打开">
               <Maximize2 aria-hidden="true" />
-            </a>
+            </Link>
           </Button>
           <Button variant="ghost" size="icon-sm" asChild>
             <Link href={`/bioinfo-tasks/${task.id}/edit`} aria-label="编辑生信任务">

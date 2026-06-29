@@ -64,11 +64,10 @@ export function ExperimentTaskSheetBody({
           showEmptyHint
         />
         <div className="ml-auto flex items-center gap-1.5">
-          {/* 原生 <a> 硬导航绕过拦截，直达全页 */}
           <Button variant="ghost" size="icon-sm" asChild>
-            <a href={`/experiment-tasks/${task.id}`} aria-label="在全页中打开">
+            <Link href={`/experiment-tasks/${task.id}`} aria-label="在全页中打开">
               <Maximize2 aria-hidden="true" />
-            </a>
+            </Link>
           </Button>
           <Button variant="ghost" size="icon-sm" asChild>
             <Link href={`/experiment-tasks/${task.id}/edit`} aria-label="编辑实验任务">

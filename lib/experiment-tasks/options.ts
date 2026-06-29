@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import {
@@ -7,15 +8,19 @@ import {
 import { UserRole, type UserRole as UserRoleValue } from "@/lib/enums"
 
 /** 创建实验任务时可选的样本：当前用户可见、已接收、且所属项目处于已到样/实验中 */
-export async function getTaskSampleOptions(operator: { id: string; role?: UserRoleValue }) {
+export async function getTaskSampleOptions(
+  operator: { id: string; role?: UserRoleValue },
+  filters: { projectId?: string | null } = {}
+) {
+  const clauses: Prisma.SampleWhereInput[] = [
+    { project: buildProjectScope(operator.role) },
+    { status: { in: [...taskCreatableSampleStatuses] } },
+    { project: { status: { in: [...taskCreatableProjectStatuses] } } },
+  ]
+  if (filters.projectId) clauses.push({ projectId: filters.projectId })
+
   return prisma.sample.findMany({
-    where: {
-      AND: [
-        { project: buildProjectScope(operator.role) },
-        { status: { in: [...taskCreatableSampleStatuses] } },
-        { project: { status: { in: [...taskCreatableProjectStatuses] } } },
-      ],
-    },
+    where: { AND: clauses },
     select: {
       id: true,
       sampleName: true,

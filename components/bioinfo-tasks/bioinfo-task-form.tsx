@@ -45,7 +45,7 @@ type BioinfoTaskFormProps = {
   experimentTaskOptions?: BioinfoExperimentTaskOption[]
   analystOptions: AnalystOption[]
   initialExperimentTaskId?: string
-  /** modal = 在列表 ?new 居中模态内创建（成功后关模态回队列）；page = 全页表单（成功跳详情） */
+  /** modal = 在当前上下文 ?new 居中模态内创建（成功后关模态）；page = 全页表单（成功跳详情） */
   surface?: "page" | "modal"
 }
 
@@ -88,6 +88,13 @@ export function BioinfoTaskForm({
     }
   }
 
+  function closeModal() {
+    const sp = new URLSearchParams(searchParams)
+    sp.delete("new")
+    sp.delete("experimentTaskId")
+    router.push(sp.toString() ? `${pathname}?${sp.toString()}` : pathname, { scroll: false })
+  }
+
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
@@ -124,11 +131,8 @@ export function BioinfoTaskForm({
       }
       toast.success(mode === "create" ? "生信任务已创建" : "生信任务已更新")
       if (surface === "modal") {
-        // 模态创建：关掉 ?new 模态、保留筛选回队列（列表刷新显示新任务）
-        const sp = new URLSearchParams(searchParams)
-        sp.delete("new")
-        sp.delete("experimentTaskId")
-        router.push(sp.toString() ? `${pathname}?${sp.toString()}` : pathname)
+        // 模态创建：关掉 ?new 模态、保留筛选/详情上下文
+        closeModal()
         router.refresh()
       } else {
         // 硬导航直达全页详情：整页刷新确保详情页拿到刚保存的数据
@@ -223,7 +227,14 @@ export function BioinfoTaskForm({
           <Textarea id="remark" name="remark" defaultValue={task?.remark ?? ""} />
         </Field>
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (surface === "modal") closeModal()
+              else router.back()
+            }}
+          >
             取消
           </Button>
           <Button type="submit" disabled={isPending}>

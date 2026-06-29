@@ -8,7 +8,7 @@ import { FieldLine } from "@/components/detail/field-line"
 
 type ProjectDetailEntity = Awaited<ReturnType<typeof getProjectDetail>>["project"]
 
-/** 项目核心字段网格（全页 3 列 / 侧滑 2 列共用） */
+/** 项目核心字段网格（全页 3 列 / 紧凑区块 2 列共用） */
 export function ProjectFields({
   project,
   columns = 3,

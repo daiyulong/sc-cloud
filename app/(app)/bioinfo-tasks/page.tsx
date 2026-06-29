@@ -136,12 +136,15 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
   const viewDetail = viewId
     ? await getBioinfoTaskDetail(operator, viewId).catch(() => null)
     : null
-  // ?new=1 抽屉：在队列里建生信任务（成功后关抽屉回列表、不跳全页）
+  // ?new=1 模态：在队列里建生信任务（成功后关模态回列表、不跳全页）
   const isNew = firstParam(raw.new) === "1"
   const initialExperimentTaskId = firstParam(raw.experimentTaskId)
   const [newExperimentTaskOptions, newAnalystOptions] =
     isNew && canCreate
-      ? await Promise.all([getBioinfoExperimentTaskOptions(operator), getAnalystOptions()])
+      ? await Promise.all([
+          getBioinfoExperimentTaskOptions(operator, { projectId: bioinfoQuery.projectId }),
+          getAnalystOptions(),
+        ])
       : [[], []]
 
   const activeCount = bioinfoRes.total

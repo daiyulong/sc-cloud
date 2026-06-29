@@ -55,7 +55,7 @@ const projectInclude = {
   projectManager: { select: projectUserSelect },
   _count: {
     select: {
-      samples: true,
+      sampleBatches: true,
       experimentTasks: true,
       bioinfoTasks: true,
     },

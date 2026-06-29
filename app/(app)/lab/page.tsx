@@ -117,7 +117,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   const viewDetail = viewId
     ? await getExperimentTaskDetail(operator, viewId).catch(() => null)
     : null
-  // ?new=1 抽屉：在队列里建任务（成功后关抽屉回列表、不跳全页）
+  // ?new=1 模态：在队列里建任务（成功后关模态回列表、不跳全页）
   const isNew = firstParam(raw.new) === "1"
   const initialSampleId = firstParam(raw.sampleId)
   const newHref = (() => {
@@ -127,7 +127,8 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     return `/lab?${params.toString()}`
   })()
   const canCreate = canActAsStaff(role)
-  const sampleOptions = isNew && canCreate ? await getTaskSampleOptions(operator) : []
+  const sampleOptions =
+    isNew && canCreate ? await getTaskSampleOptions(operator, { projectId: query.projectId }) : []
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
   const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.date)
   const clearFiltersHref = query.projectId

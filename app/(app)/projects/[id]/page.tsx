@@ -19,18 +19,22 @@ import { ProjectPipeline } from "@/components/projects/project-pipeline"
 import { ProjectDetailTabs } from "@/components/projects/project-detail-tabs"
 import { listSamples } from "@/lib/samples/service"
 import { canActAsStaff } from "@/lib/auth/action-roles"
-import { getOperatorOptions } from "@/lib/experiment-tasks/options"
+import { getOperatorOptions, getTaskSampleOptions } from "@/lib/experiment-tasks/options"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
+import { getAnalystOptions, getBioinfoExperimentTaskOptions } from "@/lib/bioinfo-tasks/options"
 import { listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { canRegisterDelivery, listProjectDeliveries } from "@/lib/sequencing-deliveries/service"
 import { DeliverySection } from "@/components/sequencing-deliveries/delivery-section"
 import { firstParam, formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
+import { FormDialog } from "@/components/detail/form-dialog"
 import { ProjectActionMenu } from "@/components/projects/project-action-menu"
 import { ProjectFields } from "@/components/projects/project-fields"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
+import { ExperimentTaskForm } from "@/components/experiment-tasks/experiment-task-form"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
+import { BioinfoTaskForm } from "@/components/bioinfo-tasks/bioinfo-task-form"
 import { SampleActionMenu } from "@/components/samples/sample-action-menu"
 import {
   BIOINFO_TASK_STATUS_DOT,
@@ -76,23 +80,44 @@ export default async function ProjectDetailPage({
   if (!session?.user?.id) redirect("/login")
 
   const { id } = await params
-  const rawTab = firstParam((await searchParams)?.tab)
+  const raw = (await searchParams) ?? {}
+  const rawTab = firstParam(raw.tab)
+  const rawNew = firstParam(raw.new)
   const activeTab = (TAB_VALUES as readonly string[]).includes(rawTab ?? "")
     ? (rawTab as string)
     : "overview"
   const operator = { id: session.user.id, role: session.user.role as UserRoleValue }
+  const canCreateTask = canActAsStaff(operator.role)
+  const canCreateBioinfo = canActAsStaff(operator.role)
+  const isNewExperimentTask = rawNew === "experiment-task"
+  const isNewBioinfoTask = rawNew === "bioinfo-task"
   const detail = await getProjectDetail(operator, id).catch(() => null)
   if (!detail) notFound()
 
   const { project, operationLogs } = detail
-  const [{ data: samples }, { data: tasks }, { data: bioinfoTasks }, operatorOptions, deliveries] =
-    await Promise.all([
-      listSamples(operator, { projectId: id }, { skip: 0, limit: 20 }),
-      listExperimentTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
-      listBioinfoTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
-      getOperatorOptions(),
-      listProjectDeliveries(operator, id),
-    ])
+  const [
+    { data: samples },
+    { data: tasks },
+    { data: bioinfoTasks },
+    operatorOptions,
+    deliveries,
+    taskSampleOptions,
+    bioinfoExperimentTaskOptions,
+    analystOptions,
+  ] = await Promise.all([
+    listSamples(operator, { projectId: id }, { skip: 0, limit: 20 }),
+    listExperimentTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
+    listBioinfoTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
+    getOperatorOptions(),
+    listProjectDeliveries(operator, id),
+    isNewExperimentTask && canCreateTask
+      ? getTaskSampleOptions(operator, { projectId: id })
+      : Promise.resolve([]),
+    isNewBioinfoTask && canCreateBioinfo
+      ? getBioinfoExperimentTaskOptions(operator, { projectId: id })
+      : Promise.resolve([]),
+    isNewBioinfoTask && canCreateBioinfo ? getAnalystOptions() : Promise.resolve([]),
+  ])
   const deliveryItems = deliveries.map((d) => ({
     id: d.id,
     storageUrl: d.storageUrl,
@@ -101,9 +126,6 @@ export default async function ProjectDetailPage({
     createdAtLabel: formatDateTime(d.createdAt),
     createdByName: d.createdBy?.name ?? null,
   }))
-  const canCreateTask = canActAsStaff(operator.role)
-  const canCreateBioinfo = canActAsStaff(operator.role)
-
   const overviewContent = (
     <Card>
       <CardHeader>
@@ -120,8 +142,8 @@ export default async function ProjectDetailPage({
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1.5">
-          <CardTitle>样本列表</CardTitle>
-          <CardDescription>该项目下的样本与接收进度（最多展示 20 条）</CardDescription>
+          <CardTitle>样本批次</CardTitle>
+          <CardDescription>该项目下的送样批次与接收进度（最多展示 20 条）</CardDescription>
         </div>
         <Button asChild variant="ghost" size="sm">
           <Link href={`/intake?projectId=${project.id}`}>
@@ -212,7 +234,7 @@ export default async function ProjectDetailPage({
           </Button>
           {canCreateTask && (
             <Button asChild size="sm">
-              <Link href="/experiment-tasks/new">
+              <Link href={`/projects/${project.id}?tab=tasks&new=experiment-task`} scroll={false}>
                 <Plus data-icon="inline-start" aria-hidden="true" />
                 新建任务
               </Link>
@@ -300,7 +322,7 @@ export default async function ProjectDetailPage({
             </Button>
             {canCreateBioinfo && (
               <Button asChild size="sm">
-                <Link href="/bioinfo-tasks/new">
+                <Link href={`/projects/${project.id}?tab=bioinfo&new=bioinfo-task`} scroll={false}>
                   <Plus data-icon="inline-start" aria-hidden="true" />
                   新建任务
                 </Link>
@@ -451,7 +473,7 @@ export default async function ProjectDetailPage({
           { value: "overview", label: "概览", content: overviewContent },
           {
             value: "samples",
-            label: `样本 · ${project._count.samples}`,
+            label: `样本批次 · ${project._count.sampleBatches}`,
             content: samplesContent,
           },
           {
@@ -467,6 +489,28 @@ export default async function ProjectDetailPage({
           { value: "timeline", label: "时间线", content: timelineContent },
         ]}
       />
+
+      {isNewExperimentTask && canCreateTask && (
+        <FormDialog param="new" title="新建实验任务">
+          <ExperimentTaskForm
+            mode="create"
+            surface="modal"
+            sampleOptions={taskSampleOptions}
+            operatorOptions={operatorOptions}
+          />
+        </FormDialog>
+      )}
+
+      {isNewBioinfoTask && canCreateBioinfo && (
+        <FormDialog param="new" title="新建生信任务">
+          <BioinfoTaskForm
+            mode="create"
+            surface="modal"
+            experimentTaskOptions={bioinfoExperimentTaskOptions}
+            analystOptions={analystOptions}
+          />
+        </FormDialog>
+      )}
     </div>
   )
 }
