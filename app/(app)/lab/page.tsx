@@ -38,6 +38,16 @@ type LabPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+// 任务终态：默认浏览队列时隐藏（多选状态默认勾选其余在途态）。搜索或显式勾选则照常显示。
+const TERMINAL_TASK_STATUSES: ExperimentTaskStatusValue[] = [
+  ExperimentTaskStatus.completed,
+  ExperimentTaskStatus.cancelled,
+  ExperimentTaskStatus.abnormal,
+]
+const DEFAULT_TASK_STATUS_SELECTION: ExperimentTaskStatusValue[] = (
+  Object.values(ExperimentTaskStatus) as ExperimentTaskStatusValue[]
+).filter((status) => !TERMINAL_TASK_STATUSES.includes(status))
+
 export default async function LabPage({ searchParams }: LabPageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
@@ -56,8 +66,20 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     limit: firstParam(raw.limit),
   })
   const { page, limit, skip } = parsePagination({ page: firstParam(raw.page), limit: firstParam(raw.limit) })
+
+  // 状态多选：未显式勾选且非 awaiting 队列时默认隐藏终态。awaiting=bioinfo 队列自带 completed 语义，
+  // 叠加"隐藏终态"会清空它，故此时不注入默认（让队列 where 决定状态集）。
+  const hasStatusFilter = Boolean(query.status?.length)
+  const useStatusDefault = !hasStatusFilter && !query.awaiting
+  const selectedStatuses = hasStatusFilter
+    ? (query.status as ExperimentTaskStatusValue[])
+    : useStatusDefault
+      ? DEFAULT_TASK_STATUS_SELECTION
+      : undefined
+  const effectiveQuery = { ...query, status: selectedStatuses }
+
   const [{ data: tasks, total }, contextProject, operatorOptions] = await Promise.all([
-    listExperimentTasks(operator, query, { skip, limit }),
+    listExperimentTasks(operator, effectiveQuery, { skip, limit }),
     query.projectId
       ? prisma.project.findFirst({
           where: { AND: [{ id: query.projectId }, buildProjectScope(role)] },
@@ -81,7 +103,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   }
   const canCreate = canActAsStaff(role)
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
-  const hasActiveFilters = Boolean(query.q || query.status || query.date)
+  const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.date)
   const clearFiltersHref = query.projectId
     ? `/lab?projectId=${query.projectId}`
     : "/lab"
@@ -98,7 +120,8 @@ export default async function LabPage({ searchParams }: LabPageProps) {
             key: "status",
             label: "任务状态",
             allLabel: "全部状态",
-            value: query.status,
+            multiple: true,
+            value: (selectedStatuses ?? []).join(","),
             options: Object.values(ExperimentTaskStatus).map((value) => ({
               value,
               label: EXPERIMENT_TASK_STATUS_LABELS[value],

@@ -118,7 +118,7 @@ function buildBioinfoListWhere(
       ],
     })
   }
-  if (query.status) filters.push({ status: query.status })
+  if (query.status?.length) filters.push({ status: { in: query.status } })
   if (query.projectId) filters.push({ projectId: query.projectId })
   if (query.analystId) filters.push({ analystId: query.analystId })
   if (query.open === "1") filters.push({ status: { in: openBioinfoStatuses } })

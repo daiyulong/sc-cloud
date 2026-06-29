@@ -19,6 +19,7 @@ import {
   nullableString,
   optionalString,
   requiredString,
+  statusListSchema,
 } from "@/lib/schemas/common"
 
 const experimentTaskStatusValues = Object.values(ExperimentTaskStatus) as [
@@ -139,7 +140,7 @@ export type RecordRunMetricsInput = z.infer<typeof recordRunMetricsSchema>
 
 export const experimentTaskListQuerySchema = z.object({
   q: optionalString,
-  status: experimentTaskStatusSchema.optional(),
+  status: statusListSchema(experimentTaskStatusValues),
   projectId: optionalString,
   operatorId: optionalString,
   /** today = 计划实验日期为今日（实验工位「今日实验」入口） */

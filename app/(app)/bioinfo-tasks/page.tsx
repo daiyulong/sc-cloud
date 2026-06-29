@@ -40,6 +40,15 @@ type BioinfoTasksPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+// 分析终态：默认浏览「进行中」tab 时隐藏（让 tab 名实相符）。搜索或显式勾选则照常显示。
+const TERMINAL_BIOINFO_STATUSES: BioinfoTaskStatusValue[] = [
+  BioinfoTaskStatus.delivered,
+  BioinfoTaskStatus.abnormal,
+]
+const DEFAULT_BIOINFO_STATUS_SELECTION: BioinfoTaskStatusValue[] = (
+  Object.values(BioinfoTaskStatus) as BioinfoTaskStatusValue[]
+).filter((status) => !TERMINAL_BIOINFO_STATUSES.includes(status))
+
 function TabLink({
   href,
   active,
@@ -120,9 +129,19 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
     awaiting: "bioinfo",
   })
 
+  // 状态多选（仅「进行中」tab）：未显式勾选且非 open 队列时默认隐藏终态，使"进行中"名实相符。
+  const hasStatusFilter = Boolean(bioinfoQuery.status?.length)
+  const useStatusDefault = !hasStatusFilter && !bioinfoQuery.open
+  const selectedStatuses = hasStatusFilter
+    ? (bioinfoQuery.status as BioinfoTaskStatusValue[])
+    : useStatusDefault
+      ? DEFAULT_BIOINFO_STATUS_SELECTION
+      : undefined
+  const effectiveBioinfoQuery = { ...bioinfoQuery, status: selectedStatuses }
+
   // 两 tab 实体粒度不同，需两套数据；非激活 tab 仅取 total 作角标（limit:1）。
   const [bioinfoRes, pendingRes, contextProject] = await Promise.all([
-    listBioinfoTasks(operator, bioinfoQuery, tab === "active" ? { skip, limit } : { skip: 0, limit: 1 }),
+    listBioinfoTasks(operator, effectiveBioinfoQuery, tab === "active" ? { skip, limit } : { skip: 0, limit: 1 }),
     listExperimentTasks(operator, pendingQuery, tab === "pending" ? { skip, limit } : { skip: 0, limit: 1 }),
     bioinfoQuery.projectId
       ? prisma.project.findFirst({
@@ -171,6 +190,8 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
           limit={limit}
           raw={raw}
           query={bioinfoQuery}
+          statusValue={(selectedStatuses ?? []).join(",")}
+          hasExplicitStatus={hasStatusFilter}
           contextProjectNo={contextProject?.projectNo}
           canCreate={canCreate}
           role={session.user.role}
@@ -188,6 +209,8 @@ function ActiveTab({
   limit,
   raw,
   query,
+  statusValue,
+  hasExplicitStatus,
   contextProjectNo,
   canCreate,
   role,
@@ -198,6 +221,8 @@ function ActiveTab({
   limit: number
   raw: Record<string, string | string[] | undefined>
   query: ReturnType<typeof bioinfoTaskListQuerySchema.parse>
+  statusValue: string
+  hasExplicitStatus: boolean
   contextProjectNo?: string | null
   canCreate: boolean
   role?: string
@@ -215,7 +240,7 @@ function ActiveTab({
     params.set("limit", String(limit))
     return `/bioinfo-tasks?${params.toString()}`
   }
-  const hasActiveFilters = Boolean(query.q || query.status || query.open)
+  const hasActiveFilters = Boolean(query.q || hasExplicitStatus || query.open)
   const clearFiltersHref = query.projectId
     ? `/bioinfo-tasks?tab=active&projectId=${query.projectId}`
     : "/bioinfo-tasks?tab=active"
@@ -231,7 +256,8 @@ function ActiveTab({
             key: "status",
             label: "分析状态",
             allLabel: "全部状态",
-            value: query.status,
+            multiple: true,
+            value: statusValue,
             options: Object.values(BioinfoTaskStatus).map((value) => ({
               value,
               label: BIOINFO_TASK_STATUS_LABELS[value],

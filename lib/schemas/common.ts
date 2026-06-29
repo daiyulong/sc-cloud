@@ -7,6 +7,23 @@ import { z } from "zod"
 
 export const requiredString = (message: string) => z.string().trim().min(1, message)
 
+/**
+ * 列表多选状态筛选：URL 逗号分隔串 → 去重校验后的状态数组（非法值丢弃，空则 undefined）。
+ * 单值串（旧链接 ?status=completed）天然兼容，解析为 1 元素数组。各实体列表共用。
+ */
+export function statusListSchema<T extends string>(values: readonly T[]) {
+  const valid = new Set(values as readonly string[])
+  return z
+    .string()
+    .transform((val) => {
+      const picked = [
+        ...new Set(val.split(",").map((s) => s.trim()).filter((s) => valid.has(s))),
+      ] as T[]
+      return picked.length ? picked : undefined
+    })
+    .optional()
+}
+
 export const optionalString = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
   z.string().trim().optional()

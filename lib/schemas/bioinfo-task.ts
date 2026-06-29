@@ -3,7 +3,7 @@ import {
   BioinfoTaskStatus,
   type BioinfoTaskStatus as BioinfoTaskStatusValue,
 } from "@/lib/enums"
-import { nullableDate, nullableString, optionalString } from "@/lib/schemas/common"
+import { nullableDate, nullableString, optionalString, statusListSchema } from "@/lib/schemas/common"
 
 const bioinfoTaskStatusValues = Object.values(BioinfoTaskStatus) as [
   BioinfoTaskStatusValue,
@@ -52,7 +52,7 @@ export type SubmitBioinfoTaskInput = z.infer<typeof submitBioinfoTaskSchema>
 
 export const bioinfoTaskListQuerySchema = z.object({
   q: optionalString,
-  status: bioinfoTaskStatusSchema.optional(),
+  status: statusListSchema(bioinfoTaskStatusValues),
   projectId: optionalString,
   analystId: optionalString,
   /** open = 进行中的开口任务（待开始/分析中/待审核），生信工位「进行中」入口 */

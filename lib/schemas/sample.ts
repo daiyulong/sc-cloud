@@ -10,6 +10,7 @@ import {
   nullableNonNegativeInt,
   nullableString,
   optionalString,
+  statusListSchema,
 } from "@/lib/schemas/common"
 import { compareDateOnly } from "@/lib/utils"
 
@@ -110,7 +111,7 @@ export type MarkSampleAbnormalInput = z.infer<typeof markSampleAbnormalSchema>
 
 export const sampleListQuerySchema = z.object({
   q: optionalString,
-  status: sampleBatchStatusSchema.optional(),
+  status: statusListSchema(batchStatusValues),
   projectId: optionalString,
   /** received=1：已接收（receivedAt 非空），收样工位「已接收」入口 */
   received: z.enum(["1"]).optional(),

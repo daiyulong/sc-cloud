@@ -36,6 +36,15 @@ type IntakePageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+// 批次终态（收样后冻结）：默认浏览队列时隐藏，聚焦「待到样」。搜索或显式勾选则照常显示。
+const TERMINAL_BATCH_STATUSES: SampleBatchStatusValue[] = [
+  SampleBatchStatus.received,
+  SampleBatchStatus.received_abnormal,
+]
+const DEFAULT_BATCH_STATUS_SELECTION: SampleBatchStatusValue[] = (
+  Object.values(SampleBatchStatus) as SampleBatchStatusValue[]
+).filter((status) => !TERMINAL_BATCH_STATUSES.includes(status))
+
 export default async function IntakePage({ searchParams }: IntakePageProps) {
   const session = await auth()
   if (!session?.user?.id) redirect("/login")
@@ -53,10 +62,22 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
     page: firstParam(raw.page),
     limit: firstParam(raw.limit),
   })
+
+  // 状态多选：未显式勾选且非 received 队列时默认隐藏终态（聚焦待到样）。received=1 队列要看已接收批次，
+  // 叠加"隐藏终态"会清空它，故此时不注入默认。
+  const hasStatusFilter = Boolean(query.status?.length)
+  const useStatusDefault = !hasStatusFilter && !query.received
+  const selectedStatuses = hasStatusFilter
+    ? (query.status as SampleBatchStatusValue[])
+    : useStatusDefault
+      ? DEFAULT_BATCH_STATUS_SELECTION
+      : undefined
+  const effectiveQuery = { ...query, status: selectedStatuses }
+
   const [{ data: samples, total }, contextProject] = await Promise.all([
     listSamples(
       { id: session.user.id, role: session.user.role as UserRoleValue },
-      query,
+      effectiveQuery,
       { skip, limit }
     ),
     // 上下文 chip 的项目号：不从结果集取（结果为空时会退化成裸 ID）；叠加行级 scope，越权时回退显示裸 ID
@@ -85,7 +106,7 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
     return `/intake?${params.toString()}`
   }
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定
-  const hasActiveFilters = Boolean(query.q || query.status)
+  const hasActiveFilters = Boolean(query.q || hasStatusFilter)
   const clearFiltersHref = query.projectId
     ? `/intake?projectId=${query.projectId}`
     : "/intake"
@@ -102,7 +123,8 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
             key: "status",
             label: "样本状态",
             allLabel: "全部状态",
-            value: query.status,
+            multiple: true,
+            value: (selectedStatuses ?? []).join(","),
             options: Object.values(SampleBatchStatus).map((value) => ({
               value,
               label: SAMPLE_BATCH_STATUS_LABELS[value],

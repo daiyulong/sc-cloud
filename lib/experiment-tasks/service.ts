@@ -130,7 +130,7 @@ function buildTaskListWhere(
       ],
     })
   }
-  if (query.status) filters.push({ status: query.status })
+  if (query.status?.length) filters.push({ status: { in: query.status } })
   if (query.projectId) filters.push({ projectId: query.projectId })
   if (query.operatorId) filters.push({ operatorId: query.operatorId })
   if (query.date === "today") {
