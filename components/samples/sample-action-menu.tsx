@@ -34,6 +34,11 @@ type SampleActionMenuProps = {
   showEmptyHint?: boolean
   /** 登记接收浮层落点：列表行传 "sheet"（右抽屉），详情侧滑/全页用默认 "dialog" 避免双右浮层 */
   surface?: ActionSurface
+  /** 登记接收浮层的上下文条（可选）：所属项目 + 预计到样 + 样本数，跨项目收样队列里锚定上下文 */
+  projectId?: string
+  projectNo?: string
+  expectedArrival?: string
+  sampleCount?: number | null
 }
 
 /** 样本动作菜单：主动作按钮 + 溢出菜单 + 表单浮层，列表行 / 侧滑 / 全页三处共用 */
@@ -45,6 +50,10 @@ export function SampleActionMenu({
   compact = false,
   showEmptyHint = false,
   surface,
+  projectId,
+  projectNo,
+  expectedArrival,
+  sampleCount,
 }: SampleActionMenuProps) {
   const { primary, overflow } = partitionSampleActions(status, role)
   const { run, isPending } = useEntityAction()
@@ -119,6 +128,10 @@ export function SampleActionMenu({
         sampleNo={sampleNo}
         isPending={isPending}
         surface={surface}
+        projectId={projectId}
+        projectNo={projectNo}
+        expectedArrival={expectedArrival}
+        sampleCount={sampleCount}
         onConfirm={(body: ReceiveSampleBody) => active && execute(active, body)}
       />
       <ReasonDialog

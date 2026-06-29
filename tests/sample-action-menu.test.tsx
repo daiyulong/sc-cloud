@@ -51,15 +51,15 @@ describe("SampleActionMenu", () => {
     expect(screen.getByText("当前状态暂无可执行样本动作。")).toBeInTheDocument()
   })
 
-  it("登记接收 Dialog：补全信息 + 异常说明必填，正常提交调用 receive API", async () => {
+  it("登记接收 Dialog：补全信息 + 异常需选类型或说明，类型与说明组合写入 receive API", async () => {
     const user = userEvent.setup()
     render(<SampleActionMenu {...baseProps} />)
 
     await user.click(screen.getByRole("button", { name: "登记接收" }))
     const dialog = screen.getByRole("dialog")
     expect(within(dialog).getByText("YP-001 · 补全样本信息并登记实际到样")).toBeInTheDocument()
-    // 正常接收时无异常说明字段
-    expect(within(dialog).queryByLabelText("异常说明")).not.toBeInTheDocument()
+    // 正常接收时无异常类型字段
+    expect(within(dialog).queryByRole("button", { name: "温度异常" })).not.toBeInTheDocument()
 
     // 补全样本信息（建项目时只有编号+数量）
     fireEvent.change(within(dialog).getByLabelText("物种"), { target: { value: "人" } })
@@ -67,14 +67,16 @@ describe("SampleActionMenu", () => {
     fireEvent.change(within(dialog).getByLabelText("实验类型"), { target: { value: "scRNA" } })
     fireEvent.change(within(dialog).getByLabelText("运输条件"), { target: { value: "干冰" } })
 
-    // 切到异常接收 → 说明必填
+    // 切到异常接收 → 需选类型或填说明
     await user.click(within(dialog).getByRole("combobox"))
     await user.click(screen.getByRole("option", { name: "异常" }))
     await user.click(within(dialog).getByRole("button", { name: "登记接收" }))
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(within(dialog).getByText("异常接收必填。")).toBeInTheDocument()
+    expect(within(dialog).getByText("异常接收需选择类型或填写说明。")).toBeInTheDocument()
 
-    fireEvent.change(within(dialog).getByLabelText("异常说明"), {
+    // 勾选异常类型 chip + 补充说明 → 组合写入 abnormalNote
+    await user.click(within(dialog).getByRole("button", { name: "温度异常" }))
+    fireEvent.change(within(dialog).getByPlaceholderText(/补充说明/), {
       target: { value: "运输超温" },
     })
     await user.click(within(dialog).getByRole("button", { name: "登记接收" }))
@@ -86,7 +88,7 @@ describe("SampleActionMenu", () => {
     expect(body.species).toBe("人")
     expect(body.experimentType).toBe("scRNA")
     expect(body.receiveStatus).toBe("abnormal")
-    expect(body.abnormalNote).toBe("运输超温")
+    expect(body.abnormalNote).toBe("温度异常 · 运输超温")
     expect(body.receivedAt).toBeTruthy()
   })
 

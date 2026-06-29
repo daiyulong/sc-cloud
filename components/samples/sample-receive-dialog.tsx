@@ -1,11 +1,14 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { AlertTriangle } from "lucide-react"
 import {
   RECEIVE_STATUS_LABELS,
   ReceiveStatus,
   type ReceiveStatus as ReceiveStatusValue,
 } from "@/lib/enums"
+import { cn } from "@/lib/utils"
 import { ActionOverlay, type ActionSurface } from "@/components/detail/action-overlay"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
@@ -45,7 +48,15 @@ type SampleReceiveDialogProps = {
   isPending: boolean
   onConfirm: (body: ReceiveSampleBody) => void
   surface?: ActionSurface
+  /** 上下文条（可选）：跨项目收样队列里锚定「这批属于哪个项目 / 预计到样 / 几个样本」 */
+  projectId?: string
+  projectNo?: string
+  expectedArrival?: string
+  sampleCount?: number | null
 }
+
+// 整批异常类型（勾选后组进异常说明，结构化快速录入；自由文本补细节）。
+const ABNORMAL_ISSUES = ["温度异常", "容器破损", "泄漏/污染", "数量不符"] as const
 
 /**
  * 登记接收表单 Dialog：建项目时只有编号+数量，到样时由收样员一次补全
@@ -58,17 +69,22 @@ export function SampleReceiveDialog({
   isPending,
   onConfirm,
   surface,
+  projectId,
+  projectNo,
+  expectedArrival,
+  sampleCount,
 }: SampleReceiveDialogProps) {
   const [species, setSpecies] = React.useState("")
   const [tissueType, setTissueType] = React.useState("")
   const [experimentType, setExperimentType] = React.useState("")
   const [transportCondition, setTransportCondition] = React.useState("")
-  const [sampleCount, setSampleCount] = React.useState("")
+  const [countInput, setCountInput] = React.useState("")
   const [receivedAt, setReceivedAt] = React.useState("")
   const [receiveStatus, setReceiveStatus] = React.useState<ReceiveStatusValue>(
     ReceiveStatus.normal
   )
   const [abnormalNote, setAbnormalNote] = React.useState("")
+  const [issues, setIssues] = React.useState<Set<string>>(() => new Set())
   const [showError, setShowError] = React.useState(false)
   const [prevOpen, setPrevOpen] = React.useState(open)
 
@@ -80,10 +96,11 @@ export function SampleReceiveDialog({
       setTissueType("")
       setExperimentType("")
       setTransportCondition("")
-      setSampleCount("")
+      setCountInput("")
       setReceivedAt(nowInputValue())
       setReceiveStatus(ReceiveStatus.normal)
       setAbnormalNote("")
+      setIssues(new Set())
       setShowError(false)
     }
   }
@@ -91,10 +108,28 @@ export function SampleReceiveDialog({
   const noteRequired = receiveStatus === ReceiveStatus.abnormal
   const missingInfo =
     !species.trim() || !tissueType.trim() || !experimentType.trim() || !transportCondition.trim()
-  const noteInvalid = showError && noteRequired && !abnormalNote.trim()
+  // 异常接收：至少勾一个类型或填一段说明
+  const noteMissing = noteRequired && issues.size === 0 && !abnormalNote.trim()
+  const noteInvalid = showError && noteMissing
+  const hasContext = Boolean(projectNo || (expectedArrival && expectedArrival !== "-") || sampleCount != null)
+
+  function toggleIssue(issue: string) {
+    setIssues((prev) => {
+      const next = new Set(prev)
+      if (next.has(issue)) next.delete(issue)
+      else next.add(issue)
+      return next
+    })
+  }
+
+  function composeAbnormalNote() {
+    if (!noteRequired) return null
+    const tags = ABNORMAL_ISSUES.filter((issue) => issues.has(issue)).join("、")
+    return [tags, abnormalNote.trim()].filter(Boolean).join(" · ") || null
+  }
 
   function handleConfirm() {
-    if (missingInfo || (noteRequired && !abnormalNote.trim())) {
+    if (missingInfo || noteMissing) {
       setShowError(true)
       return
     }
@@ -103,10 +138,10 @@ export function SampleReceiveDialog({
       tissueType: tissueType.trim(),
       experimentType: experimentType.trim(),
       transportCondition: transportCondition.trim(),
-      sampleCount: sampleCount.trim() || null,
+      sampleCount: countInput.trim() || null,
       receivedAt: receivedAt || null,
       receiveStatus,
-      abnormalNote: abnormalNote.trim() || null,
+      abnormalNote: composeAbnormalNote(),
     })
   }
 
@@ -133,6 +168,34 @@ export function SampleReceiveDialog({
       }
     >
       <div className="flex flex-col gap-4">
+          {hasContext && (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-xs">
+              {projectNo && (
+                <span>
+                  <span className="text-muted-foreground">项目 </span>
+                  {projectId ? (
+                    <Link href={`/projects/${projectId}`} className="font-medium hover:underline">
+                      {projectNo}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{projectNo}</span>
+                  )}
+                </span>
+              )}
+              {expectedArrival && expectedArrival !== "-" && (
+                <span>
+                  <span className="text-muted-foreground">预计到样 </span>
+                  <span className="font-medium tabular-nums">{expectedArrival}</span>
+                </span>
+              )}
+              {sampleCount != null && (
+                <span>
+                  <span className="text-muted-foreground">样本数 </span>
+                  <span className="font-medium tabular-nums">{sampleCount}</span>
+                </span>
+              )}
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field data-invalid={infoInvalid(species) || undefined}>
               <FieldLabel htmlFor="receive-species">物种</FieldLabel>
@@ -181,8 +244,8 @@ export function SampleReceiveDialog({
                 type="number"
                 min={0}
                 step={1}
-                value={sampleCount}
-                onChange={(event) => setSampleCount(event.target.value)}
+                value={countInput}
+                onChange={(event) => setCountInput(event.target.value)}
                 placeholder="留空保持建项目时的数量"
               />
             </Field>
@@ -223,16 +286,39 @@ export function SampleReceiveDialog({
           </Field>
           {noteRequired && (
             <Field data-invalid={noteInvalid || undefined}>
-              <FieldLabel htmlFor="receive-abnormal-note">异常说明</FieldLabel>
+              <FieldLabel>异常类型</FieldLabel>
+              <div className="flex flex-wrap gap-2">
+                {ABNORMAL_ISSUES.map((issue) => {
+                  const on = issues.has(issue)
+                  return (
+                    <button
+                      type="button"
+                      key={issue}
+                      onClick={() => toggleIssue(issue)}
+                      aria-pressed={on}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                        on
+                          ? "border-destructive/40 bg-destructive/10 text-destructive"
+                          : "border-input bg-background text-muted-foreground hover:bg-accent"
+                      )}
+                    >
+                      <AlertTriangle className="size-3.5" aria-hidden="true" />
+                      {issue}
+                    </button>
+                  )
+                })}
+              </div>
               <Textarea
                 id="receive-abnormal-note"
+                className="mt-2"
                 value={abnormalNote}
                 onChange={(event) => setAbnormalNote(event.target.value)}
-                placeholder="破损 / 超温 / 延迟 / 污染…"
+                placeholder="补充说明：破损程度 / 超温时长 / 延迟原因…"
                 aria-invalid={noteInvalid || undefined}
               />
               <FieldDescription className={noteInvalid ? "text-destructive" : undefined}>
-                异常接收必填。
+                异常接收需选择类型或填写说明。
               </FieldDescription>
             </Field>
           )}

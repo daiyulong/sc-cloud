@@ -248,6 +248,10 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
                           sampleNo={sample.batchNo ?? "未编号"}
                           status={sample.status as SampleBatchStatusValue}
                           role={session.user.role}
+                          projectId={sample.project.id}
+                          projectNo={sample.project.projectNo ?? undefined}
+                          expectedArrival={formatDate(sample.expectedArrivalDate)}
+                          sampleCount={sample.sampleCount}
                           compact
                           surface="sheet"
                         />
