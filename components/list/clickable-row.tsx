@@ -9,13 +9,15 @@ type ClickableRowProps = {
   href: string
   children: React.ReactNode
   className?: string
+  /** 软导航是否滚动到顶；打开 ?view 抽屉时传 false 以留在原位（默认整页跳转滚顶） */
+  scroll?: boolean
 }
 
 /**
- * 整行可点击的表格行：点击空白处软导航（被 @sheet 拦截开侧滑）。
+ * 整行可点击的表格行：点击空白处软导航到 href（整页详情，或 `?view=` 抽屉，取决于传入 href）。
  * 键盘/中键/无障碍由行内真实的编号 Link 承担；嵌套交互元素与选中文本不触发行导航。
  */
-export function ClickableRow({ href, children, className }: ClickableRowProps) {
+export function ClickableRow({ href, children, className, scroll = true }: ClickableRowProps) {
   const router = useRouter()
 
   function onClick(event: React.MouseEvent<HTMLTableRowElement>) {
@@ -24,7 +26,7 @@ export function ClickableRow({ href, children, className }: ClickableRowProps) {
       return
     }
     if (window.getSelection()?.toString()) return
-    router.push(href)
+    router.push(href, { scroll })
   }
 
   return (

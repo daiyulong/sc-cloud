@@ -12,13 +12,15 @@ import {
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
 import { sampleListQuerySchema } from "@/lib/schemas/sample"
-import { listSamples } from "@/lib/samples/service"
+import { getSampleDetail, listSamples } from "@/lib/samples/service"
 import { firstParam, formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
+import { DetailSheet, DetailSheetEmpty } from "@/components/detail/detail-sheet"
 import { SampleActionMenu } from "@/components/samples/sample-action-menu"
+import { SampleSheetBody } from "@/components/samples/sample-sheet-body"
 import { SAMPLE_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { UserCell } from "@/components/user-cell"
 import { Button } from "@/components/ui/button"
@@ -51,6 +53,7 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
   if (!session?.user?.id) redirect("/login")
 
   const raw = (await searchParams) ?? {}
+  const viewId = firstParam(raw.view)
   const query = sampleListQuerySchema.parse({
     q: firstParam(raw.q),
     status: firstParam(raw.status),
@@ -106,6 +109,19 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
     params.set("limit", String(limit))
     return `/intake?${params.toString()}`
   }
+  // ?view=<id> 抽屉：保留当前筛选/页，叠加 view 参数
+  const viewHref = (id: string) => {
+    const params = new URLSearchParams(baseParams)
+    if (page > 1) params.set("page", String(page))
+    params.set("view", id)
+    return `/intake?${params.toString()}`
+  }
+  const viewDetail = viewId
+    ? await getSampleDetail(
+        { id: session.user.id, role: session.user.role as UserRoleValue },
+        viewId
+      ).catch(() => null)
+    : null
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定
   const hasActiveFilters = Boolean(query.q || hasStatusFilter)
   const clearFiltersHref = query.projectId
@@ -190,10 +206,11 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
               </TableHeader>
               <TableBody>
                 {samples.map((sample) => (
-                  <ClickableRow key={sample.id} href={`/samples/${sample.id}`}>
+                  <ClickableRow key={sample.id} href={viewHref(sample.id)} scroll={false}>
                     <TableCell>
                       <Link
-                        href={`/samples/${sample.id}`}
+                        href={viewHref(sample.id)}
+                        scroll={false}
                         className="font-medium hover:underline"
                       >
                         {sample.batchNo ?? "未编号"}
@@ -244,6 +261,19 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
 
           <ListPager total={total} page={page} totalPages={totalPages} noun="样本" hrefFor={pageHref} />
         </>
+      )}
+
+      {viewId && (
+        <DetailSheet
+          title={viewDetail ? `样本 ${viewDetail.sample.batchNo ?? "未编号"}` : "样本详情"}
+          fullHref={`/samples/${viewId}`}
+        >
+          {viewDetail ? (
+            <SampleSheetBody detail={viewDetail} role={session.user.role} />
+          ) : (
+            <DetailSheetEmpty message="样本不存在或无权限查看。" />
+          )}
+        </DetailSheet>
       )}
     </div>
   )

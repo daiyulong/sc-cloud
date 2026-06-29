@@ -14,13 +14,15 @@ import { prisma } from "@/lib/prisma"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
-import { listExperimentTasks } from "@/lib/experiment-tasks/service"
+import { getExperimentTaskDetail, listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { firstParam, formatDate } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
+import { DetailSheet, DetailSheetEmpty } from "@/components/detail/detail-sheet"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
+import { ExperimentTaskSheetBody } from "@/components/experiment-tasks/experiment-task-sheet-body"
 import { EXPERIMENT_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { UserCell } from "@/components/user-cell"
 import { Button } from "@/components/ui/button"
@@ -56,6 +58,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   const operator = { id: session.user.id, role }
 
   const raw = (await searchParams) ?? {}
+  const viewId = firstParam(raw.view)
   const query = experimentTaskListQuerySchema.parse({
     q: firstParam(raw.q),
     status: firstParam(raw.status),
@@ -102,6 +105,16 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     params.set("limit", String(limit))
     return `/lab?${params.toString()}`
   }
+  // ?view=<id> 抽屉：保留当前筛选/页，叠加 view 参数
+  const viewHref = (id: string) => {
+    const params = new URLSearchParams(baseParams)
+    if (page > 1) params.set("page", String(page))
+    params.set("view", id)
+    return `/lab?${params.toString()}`
+  }
+  const viewDetail = viewId
+    ? await getExperimentTaskDetail(operator, viewId).catch(() => null)
+    : null
   const canCreate = canActAsStaff(role)
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
   const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.date)
@@ -204,10 +217,11 @@ export default async function LabPage({ searchParams }: LabPageProps) {
               </TableHeader>
               <TableBody>
                 {tasks.map((task) => (
-                  <ClickableRow key={task.id} href={`/experiment-tasks/${task.id}`}>
+                  <ClickableRow key={task.id} href={viewHref(task.id)} scroll={false}>
                     <TableCell>
                       <Link
-                        href={`/experiment-tasks/${task.id}`}
+                        href={viewHref(task.id)}
+                        scroll={false}
                         className="font-medium hover:underline"
                       >
                         {task.taskNo}
@@ -255,6 +269,23 @@ export default async function LabPage({ searchParams }: LabPageProps) {
 
           <ListPager total={total} page={page} totalPages={totalPages} noun="任务" hrefFor={pageHref} />
         </>
+      )}
+
+      {viewId && (
+        <DetailSheet
+          title={viewDetail ? `实验任务 ${viewDetail.task.taskNo}` : "实验任务详情"}
+          fullHref={`/experiment-tasks/${viewId}`}
+        >
+          {viewDetail ? (
+            <ExperimentTaskSheetBody
+              detail={viewDetail}
+              role={session.user.role}
+              operatorOptions={operatorOptions}
+            />
+          ) : (
+            <DetailSheetEmpty message="实验任务不存在或无权限查看。" />
+          )}
+        </DetailSheet>
       )}
     </div>
   )

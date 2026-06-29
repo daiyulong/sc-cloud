@@ -15,13 +15,15 @@ import { prisma } from "@/lib/prisma"
 import { bioinfoTaskListQuerySchema } from "@/lib/schemas/bioinfo-task"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
 import { canActAsStaff } from "@/lib/auth/action-roles"
-import { listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
+import { getBioinfoTaskDetail, listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
+import { DetailSheet, DetailSheetEmpty } from "@/components/detail/detail-sheet"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
+import { BioinfoTaskSheetBody } from "@/components/bioinfo-tasks/bioinfo-task-sheet-body"
 import { BIOINFO_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { UserCell } from "@/components/user-cell"
 import { Badge } from "@/components/ui/badge"
@@ -88,6 +90,7 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
 
   const raw = (await searchParams) ?? {}
   const tab = firstParam(raw.tab) === "pending" ? "pending" : "active"
+  const viewId = tab === "active" ? firstParam(raw.view) : undefined
   const canCreate = canActAsStaff(role)
   const { page, limit, skip } = parsePagination({ page: firstParam(raw.page), limit: firstParam(raw.limit) })
 
@@ -126,6 +129,10 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
         })
       : null,
   ])
+
+  const viewDetail = viewId
+    ? await getBioinfoTaskDetail(operator, viewId).catch(() => null)
+    : null
 
   const activeCount = bioinfoRes.total
   const pendingCount = pendingRes.total
@@ -173,6 +180,19 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
           role={session.user.role}
         />
       )}
+
+      {viewId && (
+        <DetailSheet
+          title={viewDetail ? `生信任务 ${viewDetail.task.taskNo}` : "生信任务详情"}
+          fullHref={`/bioinfo-tasks/${viewId}`}
+        >
+          {viewDetail ? (
+            <BioinfoTaskSheetBody detail={viewDetail} role={session.user.role} />
+          ) : (
+            <DetailSheetEmpty message="生信任务不存在或无权限查看。" />
+          )}
+        </DetailSheet>
+      )}
     </div>
   )
 }
@@ -214,6 +234,13 @@ function ActiveTab({
     const params = new URLSearchParams(baseParams)
     params.set("page", String(nextPage))
     params.set("limit", String(limit))
+    return `/bioinfo-tasks?${params.toString()}`
+  }
+  // ?view=<id> 抽屉：保留当前 tab/筛选/页，叠加 view 参数
+  const viewHref = (id: string) => {
+    const params = new URLSearchParams(baseParams)
+    if (page > 1) params.set("page", String(page))
+    params.set("view", id)
     return `/bioinfo-tasks?${params.toString()}`
   }
   const hasActiveFilters = Boolean(query.q || hasExplicitStatus || query.open)
@@ -288,9 +315,9 @@ function ActiveTab({
               </TableHeader>
               <TableBody>
                 {tasks.map((task) => (
-                  <ClickableRow key={task.id} href={`/bioinfo-tasks/${task.id}`}>
+                  <ClickableRow key={task.id} href={viewHref(task.id)} scroll={false}>
                     <TableCell>
-                      <Link href={`/bioinfo-tasks/${task.id}`} className="font-medium hover:underline">
+                      <Link href={viewHref(task.id)} scroll={false} className="font-medium hover:underline">
                         {task.taskNo}
                       </Link>
                     </TableCell>

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { Edit } from "lucide-react"
 import { auth } from "@/lib/auth"
+import { DetailBreadcrumb } from "@/components/detail/detail-breadcrumb"
 import {
   EXPERIMENT_TASK_STATUS_LABELS,
   ExperimentTaskStatus,
@@ -55,6 +56,7 @@ export default async function ExperimentTaskDetailPage({ params }: ExperimentTas
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
+      <DetailBreadcrumb backHref="/lab" backLabel="实验" current={task.taskNo} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">

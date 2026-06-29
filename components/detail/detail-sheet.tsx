@@ -1,32 +1,45 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
+import { ExternalLink } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 
 type DetailSheetProps = {
   /** 无障碍标题（可视标题由 children 渲染） */
   title: string
   children: React.ReactNode
+  /** 触发抽屉的查询参数名；关闭即从 URL 移除（默认 view） */
+  param?: string
+  /** 可选「打开全页」目标（叶子条目升级到全页详情，硬导航） */
+  fullHref?: string
 }
 
 /**
- * 拦截路由的侧滑详情容器。关闭（ESC/遮罩/X）→ router.back() 回列表。
- * 前提：拦截只在应用内软导航时触发，必有前史，back 安全。
+ * 查询参数驱动的侧滑详情容器（2026-06 取代旧拦截路由方案，见 ADR-0002）。
+ * 由列表页在 `?<param>=<id>` 存在时渲染；关闭（ESC/遮罩/X）→ 从 URL 删除该参数回列表。
  */
-export function DetailSheet({ title, children }: DetailSheetProps) {
+export function DetailSheet({ title, children, param = "view", fullHref }: DetailSheetProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [open, setOpen] = React.useState(true)
 
-  function onOpenChange(next: boolean) {
-    if (!next) {
-      setOpen(false)
-      router.back()
-    }
+  function close() {
+    setOpen(false)
+    const sp = new URLSearchParams(searchParams)
+    sp.delete(param)
+    const qs = sp.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) close()
+      }}
+    >
       {/* 详情正文即内容本身，无独立描述；显式置空以消除 Radix 警告 */}
       <SheetContent
         side="right"
@@ -34,6 +47,17 @@ export function DetailSheet({ title, children }: DetailSheetProps) {
         className="w-full gap-0 overflow-y-auto sm:max-w-xl"
       >
         <SheetTitle className="sr-only">{title}</SheetTitle>
+        {fullHref && (
+          <div className="px-4 pt-3">
+            <a
+              href={fullHref}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ExternalLink className="size-3.5" aria-hidden="true" />
+              打开全页
+            </a>
+          </div>
+        )}
         {children}
       </SheetContent>
     </Sheet>
