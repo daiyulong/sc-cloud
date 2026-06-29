@@ -91,7 +91,13 @@ export default async function ExperimentTaskDetailPage({ params }: ExperimentTas
       <Card>
         <CardHeader>
           <CardTitle>任务信息</CardTitle>
-          <CardDescription>排期与执行的核心字段</CardDescription>
+          <CardDescription>
+            排期与执行的核心字段。外包测序下：完成实验 = 送外包测序，待反馈 = 等厂商数据回；数据回来后到
+            <Link href={`/projects/${task.project.id}`} className="mx-1 font-medium text-foreground hover:underline">
+              所属项目
+            </Link>
+            「测序交付」登记并透传生信。
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <ExperimentTaskFields task={task} columns={3} />

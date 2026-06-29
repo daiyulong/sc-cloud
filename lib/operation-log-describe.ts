@@ -30,6 +30,7 @@ const ENTITY_LABEL: Record<string, string> = {
   experiment_task: "实验任务",
   bioinfo_task: "生信任务",
   qc_record: "质控",
+  sequencing_delivery: "测序交付",
   user: "用户",
 }
 

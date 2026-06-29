@@ -19,6 +19,8 @@ import { getOperatorOptions } from "@/lib/experiment-tasks/options"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { bioinfoCreateRoles } from "@/lib/bioinfo-tasks/rules"
 import { listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
+import { canRegisterDelivery, listProjectDeliveries } from "@/lib/sequencing-deliveries/service"
+import { DeliverySection } from "@/components/sequencing-deliveries/delivery-section"
 import { formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
@@ -68,13 +70,22 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
   if (!detail) notFound()
 
   const { project, operationLogs } = detail
-  const [{ data: samples }, { data: tasks }, { data: bioinfoTasks }, operatorOptions] =
+  const [{ data: samples }, { data: tasks }, { data: bioinfoTasks }, operatorOptions, deliveries] =
     await Promise.all([
       listSamples(operator, { projectId: id }, { skip: 0, limit: 20 }),
       listExperimentTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
       listBioinfoTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
       getOperatorOptions(),
+      listProjectDeliveries(operator, id),
     ])
+  const deliveryItems = deliveries.map((d) => ({
+    id: d.id,
+    storageUrl: d.storageUrl,
+    attachmentName: d.attachmentName,
+    note: d.note,
+    createdAtLabel: formatDateTime(d.createdAt),
+    createdByName: d.createdBy?.name ?? null,
+  }))
   const canCreateTask = experimentManageRoles.includes(
     operator.role as (typeof experimentManageRoles)[number]
   )
@@ -384,6 +395,20 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
               )}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>测序交付</CardTitle>
+          <CardDescription>外包测序回数据的登记与透传（数据存储链接 / 厂商交付存证）</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DeliverySection
+            projectId={project.id}
+            items={deliveryItems}
+            canRegister={canRegisterDelivery(session.user.role)}
+          />
         </CardContent>
       </Card>
 

@@ -229,11 +229,12 @@ export async function getProjectDetail(operator: ProjectOperator, id: string) {
   if (!project) throw new ProjectDomainError("项目不存在或无权访问", 404)
 
   // 时间线 = 项目自身日志 + 子实体（批次/样本/实验任务/生信任务）日志汇总（CLAUDE.md / §6.10）
-  const [batches, samples, tasks, bioinfos] = await Promise.all([
+  const [batches, samples, tasks, bioinfos, deliveries] = await Promise.all([
     prisma.sampleBatch.findMany({ where: { projectId: id }, select: { id: true } }),
     prisma.sample.findMany({ where: { projectId: id }, select: { id: true } }),
     prisma.experimentTask.findMany({ where: { projectId: id }, select: { id: true } }),
     prisma.bioinfoTask.findMany({ where: { projectId: id }, select: { id: true } }),
+    prisma.sequencingDelivery.findMany({ where: { projectId: id }, select: { id: true } }),
   ])
   const operationLogs = await prisma.operationLog.findMany({
     where: {
@@ -243,6 +244,7 @@ export async function getProjectDetail(operator: ProjectOperator, id: string) {
         { entityType: "sample", entityId: { in: samples.map((s) => s.id) } },
         { entityType: "experiment_task", entityId: { in: tasks.map((t) => t.id) } },
         { entityType: "bioinfo_task", entityId: { in: bioinfos.map((b) => b.id) } },
+        { entityType: "sequencing_delivery", entityId: { in: deliveries.map((d) => d.id) } },
       ],
     },
     include: { operator: { select: projectUserSelect } },

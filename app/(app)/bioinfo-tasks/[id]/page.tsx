@@ -12,6 +12,9 @@ import {
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { getBioinfoTaskDetail } from "@/lib/bioinfo-tasks/service"
+import { listProjectDeliveries } from "@/lib/sequencing-deliveries/service"
+import { formatDateTime } from "@/lib/utils"
+import { DeliverySection } from "@/components/sequencing-deliveries/delivery-section"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
 import { BioinfoTaskFields } from "@/components/bioinfo-tasks/bioinfo-task-fields"
@@ -38,14 +41,23 @@ export default async function BioinfoTaskDetailPage({ params }: BioinfoTaskDetai
   if (!session?.user?.id) redirect("/login")
 
   const { id } = await params
-  const detail = await getBioinfoTaskDetail(
-    { id: session.user.id, role: session.user.role as UserRoleValue },
-    id
-  ).catch(() => null)
+  const operator = { id: session.user.id, role: session.user.role as UserRoleValue }
+  const detail = await getBioinfoTaskDetail(operator, id).catch(() => null)
   if (!detail) notFound()
 
   const { task, operationLogs } = detail
   const status = task.status as BioinfoTaskStatusValue
+  // 待开始（未指派）任务经 pending 池可见，但项目 scope（要求该项目下有自己负责的生信任务）对其恒假，
+  // 直接调会 404 拖垮整页——兜底为空列表（认领任务后即可见交付）。
+  const deliveries = await listProjectDeliveries(operator, task.project.id).catch(() => [])
+  const deliveryItems = deliveries.map((d) => ({
+    id: d.id,
+    storageUrl: d.storageUrl,
+    attachmentName: d.attachmentName,
+    note: d.note,
+    createdAtLabel: formatDateTime(d.createdAt),
+    createdByName: d.createdBy?.name ?? null,
+  }))
 
   return (
     <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
@@ -89,6 +101,16 @@ export default async function BioinfoTaskDetailPage({ params }: BioinfoTaskDetai
         </CardHeader>
         <CardContent>
           <BioinfoTaskFields task={task} columns={3} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>测序交付</CardTitle>
+          <CardDescription>外包测序回的数据位置与厂商交付存证，据此取数分析</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DeliverySection projectId={task.project.id} items={deliveryItems} canRegister={false} />
         </CardContent>
       </Card>
 
