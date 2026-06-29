@@ -23,7 +23,12 @@ export function ProjectSheetBody({ detail, role }: { detail: ProjectDetail; role
     <div className="flex flex-col gap-5 p-6">
       <header className="flex flex-col gap-2 pr-8">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold">{project.projectNo ?? "未编号草稿"}</h2>
+          <h2 className="text-lg font-semibold">
+            {/* 原生 <a> 硬导航绕过拦截，直达全页详情 */}
+            <a href={`/projects/${project.id}`} className="hover:underline">
+              {project.projectNo ?? "未编号草稿"}
+            </a>
+          </h2>
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <StatusDot className={PROJECT_STATUS_DOT[status]} />
             {PROJECT_STATUS_LABELS[status]}
@@ -44,9 +49,10 @@ export function ProjectSheetBody({ detail, role }: { detail: ProjectDetail; role
         />
         <div className="ml-auto flex items-center gap-1.5">
           {/* 原生 <a> 硬导航绕过拦截，直达全页 */}
-          <Button variant="ghost" size="icon-sm" asChild>
-            <a href={`/projects/${project.id}`} aria-label="在全页中打开">
-              <Maximize2 aria-hidden="true" />
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/projects/${project.id}`}>
+              <Maximize2 data-icon="inline-start" aria-hidden="true" />
+              打开完整页面
             </a>
           </Button>
           <Button variant="ghost" size="icon-sm" asChild>
@@ -63,14 +69,14 @@ export function ProjectSheetBody({ detail, role }: { detail: ProjectDetail; role
 
       <p className="text-sm text-muted-foreground">
         <Link
-          href={`/samples?projectId=${project.id}`}
+          href={`/intake?projectId=${project.id}`}
           className="font-medium text-foreground hover:underline"
         >
           样本 {project._count.samples}
         </Link>
         {" · "}
         <Link
-          href={`/experiment-tasks?projectId=${project.id}`}
+          href={`/lab?projectId=${project.id}`}
           className="font-medium text-foreground hover:underline"
         >
           实验任务 {project._count.experimentTasks}

@@ -92,10 +92,7 @@ export default async function ExperiencesPage({ searchParams }: ExperiencesPageP
       <Card>
         <CardHeader>
           <CardTitle>相似经验检索</CardTitle>
-          <CardDescription>
-            按维度匹配历史「已完成且有产出」的上机记录，估算这类样本能期望的产出（术前参考）。共{" "}
-            {a.sampleTotal} 个样本，按你的可见范围统计。
-          </CardDescription>
+          <CardDescription>按物种 / 组织 / 建库化学匹配历史上机产出，估算这类样本可期望的指标。</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           <SimilarSearch
