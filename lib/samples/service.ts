@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { buildSampleBatchScope } from "@/lib/auth/role-scope"
+import { canActAsStaff } from "@/lib/auth/action-roles"
 import { recordOperation } from "@/lib/operation-log"
 import {
   OperationAction,
@@ -9,7 +10,6 @@ import {
   ReceiveStatus,
   SampleBatchStatus,
   SampleStatus,
-  UserRole,
   type SampleBatchStatus as SampleBatchStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
@@ -74,7 +74,7 @@ function buildBatchListWhere(
   operator: SampleOperator,
   query: SampleListQuery
 ): Prisma.SampleBatchWhereInput {
-  const filters: Prisma.SampleBatchWhereInput[] = [buildSampleBatchScope(operator.role, operator.id)]
+  const filters: Prisma.SampleBatchWhereInput[] = [buildSampleBatchScope(operator.role)]
 
   if (query.q) {
     filters.push({
@@ -93,6 +93,7 @@ function buildBatchListWhere(
   return { AND: filters }
 }
 
+// 开放协作：写操作前置读不带 scope（可见性全员开放），权限由各动作的 ensureSampleRole / ensureCanUpdateBatch 承担。
 async function getWritableBatch(id: string) {
   const batch = await prisma.sampleBatch.findUnique({
     where: { id },
@@ -102,33 +103,16 @@ async function getWritableBatch(id: string) {
   return batch
 }
 
+// 开放协作（2026-06）：全员在岗可订正任意样本批次，支持替班，不再限"本人项目/本人接收"。
 function ensureCanUpdateBatch(
-  batch: {
+  _batch: {
     status: SampleBatchStatusValue
     receiverId: string | null
     project: { salesOwnerId: string | null }
   },
   operator: SampleOperator
 ) {
-  if (operator.role === UserRole.admin || operator.role === UserRole.project_manager) return
-
-  // 销售：自己项目下、且批次尚未接收（到样前修正预计信息）
-  if (
-    operator.role === UserRole.sales_owner &&
-    batch.project.salesOwnerId === operator.id &&
-    batch.status === SampleBatchStatus.waiting_arrival
-  ) {
-    return
-  }
-
-  // 接收员：待到样批次（接收前修正）或自己接收的批次（修正接收登记信息）
-  if (
-    operator.role === UserRole.sample_receiver &&
-    (batch.status === SampleBatchStatus.waiting_arrival || batch.receiverId === operator.id)
-  ) {
-    return
-  }
-
+  if (canActAsStaff(operator.role)) return
   throw new SampleDomainError("没有更新样本批次权限", 403)
 }
 
@@ -155,7 +139,7 @@ export async function listSamples(
 export async function getSampleDetail(operator: SampleOperator, id: string) {
   const [batch, operationLogs] = await Promise.all([
     prisma.sampleBatch.findFirst({
-      where: { AND: [{ id }, buildSampleBatchScope(operator.role, operator.id)] },
+      where: { AND: [{ id }, buildSampleBatchScope(operator.role)] },
       include: batchInclude,
     }),
     prisma.operationLog.findMany({
@@ -179,10 +163,7 @@ export async function createSample(operator: SampleOperator, input: CreateSample
   })
   if (!project) throw new SampleDomainError("所属项目不存在", 404)
 
-  // 销售只能在自己负责的项目下登记
-  if (operator.role === UserRole.sales_owner && project.salesOwnerId !== operator.id) {
-    throw new SampleDomainError("只能在自己负责的项目下新增样本批次", 403)
-  }
+  // 开放协作：不再限"只能在自己负责的项目下登记"，全员在岗可登记。
   ensureProjectCanCreateSample(project.status)
 
   const batchNo = input.batchNo?.trim() || null

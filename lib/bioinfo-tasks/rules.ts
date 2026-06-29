@@ -2,13 +2,13 @@ import {
   BioinfoTaskStatus,
   ExperimentTaskStatus,
   ProjectStatus,
-  UserRole,
   type BioinfoTaskStatus as BioinfoTaskStatusValue,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
   type ServiceLevel as ServiceLevelValue,
 } from "@/lib/enums"
 import { BIOINFO_SERVICE_LEVELS } from "@/lib/enums"
+import { staffRoles } from "@/lib/auth/action-roles"
 
 export type BioinfoTaskAction = "start" | "review" | "submit"
 
@@ -22,20 +22,11 @@ export class BioinfoTaskDomainError extends Error {
   }
 }
 
-/** 创建生信任务的角色边界（§3.2：管理员/项目经理/实验执行员/生信分析员） */
-export const bioinfoCreateRoles = [
-  UserRole.admin,
-  UserRole.project_manager,
-  UserRole.lab_operator,
-  UserRole.bioinfo_analyst,
-] as const
+// 开放协作（2026-06）：建生信任务、开始/审核/提交报告都是"谁在分析谁记"的操作动作，
+// 全员在岗可做（除 viewer），支持替班。名为 create/manage 仅为兼容历史调用点，实际放开为 staffRoles。
+export const bioinfoCreateRoles = staffRoles
 
-/** 更新分析状态（开始/审核/提交报告）的角色边界（§3.2：管理员/项目经理/生信分析员） */
-export const bioinfoManageRoles = [
-  UserRole.admin,
-  UserRole.project_manager,
-  UserRole.bioinfo_analyst,
-] as const
+export const bioinfoManageRoles = staffRoles
 
 /** 提交报告允许的前置态（分析中可直接提交，待审核也可提交） */
 export const submittableBioinfoStatuses: readonly BioinfoTaskStatusValue[] = [

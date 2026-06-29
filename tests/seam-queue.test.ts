@@ -1,33 +1,42 @@
 import { describe, it, expect } from "vitest"
 import { UserRole } from "@/lib/enums"
 import {
+  buildBioinfoTaskScope,
   buildExperimentTaskScope,
+  buildProjectScope,
+  buildSampleBatchScope,
   buildSampleScope,
-  samplesAwaitingTaskWhere,
-  tasksAwaitingBioinfoWhere,
 } from "@/lib/auth/role-scope"
 import { sampleListQuerySchema } from "@/lib/schemas/sample"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
 
-// 创建接缝修复：待建子实体队列 + 行级 pool 例外（鸡生蛋）
-describe("seam pool 可见范围", () => {
-  it("实验员样本范围含「待建实验任务池」", () => {
-    const scope = buildSampleScope(UserRole.lab_operator, "u1")
-    expect(scope.OR).toContainEqual(samplesAwaitingTaskWhere)
+// 行级可见范围：内部提效系统全员开放（2026-06 反转 §3.3，原"鸡生蛋池例外"随硬 scope 一并移除）。
+describe("行级可见范围：全员开放", () => {
+  const allRoles = [
+    UserRole.admin,
+    UserRole.project_manager,
+    UserRole.sales_owner,
+    UserRole.sample_receiver,
+    UserRole.lab_operator,
+    UserRole.bioinfo_analyst,
+    UserRole.viewer,
+  ] as const
+
+  it("所有在册角色（含只读 viewer）scope 全开放：空 where，看到全部", () => {
+    for (const role of allRoles) {
+      expect(buildProjectScope(role)).toEqual({})
+      expect(buildSampleScope(role)).toEqual({})
+      expect(buildSampleBatchScope(role)).toEqual({})
+      expect(buildExperimentTaskScope(role)).toEqual({})
+      expect(buildBioinfoTaskScope(role)).toEqual({})
+    }
   })
 
-  it("分析员实验任务范围含「待建生信池」", () => {
-    const scope = buildExperimentTaskScope(UserRole.bioinfo_analyst, "u1")
-    expect(scope.OR).toContainEqual(tasksAwaitingBioinfoWhere)
-  })
-
-  it("收样员/项目经理样本范围不含待建任务池（不扩权）", () => {
-    expect(buildSampleScope(UserRole.sample_receiver, "u1").OR ?? []).not.toContainEqual(
-      samplesAwaitingTaskWhere
-    )
-    expect(buildSampleScope(UserRole.project_manager, "u1").OR ?? []).not.toContainEqual(
-      samplesAwaitingTaskWhere
-    )
+  it("未知/缺失角色 fail-closed：什么都看不到", () => {
+    expect(buildProjectScope(undefined)).toEqual({ id: "__none__" })
+    expect(buildProjectScope("bogus" as unknown as UserRole)).toEqual({ id: "__none__" })
+    expect(buildSampleScope(undefined)).toEqual({ id: "__none__" })
+    expect(buildBioinfoTaskScope(undefined)).toEqual({ id: "__none__" })
   })
 })
 

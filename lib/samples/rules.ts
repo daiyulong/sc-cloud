@@ -1,10 +1,10 @@
 import {
   ProjectStatus,
   SampleBatchStatus,
-  UserRole,
   type ProjectStatus as ProjectStatusValue,
   type SampleBatchStatus as SampleBatchStatusValue,
 } from "@/lib/enums"
+import { staffRoles } from "@/lib/auth/action-roles"
 
 export type SampleAction = "receive" | "markAbnormal"
 
@@ -18,20 +18,11 @@ export class SampleDomainError extends Error {
   }
 }
 
-// 角色边界（权限矩阵 §3.2：登记样本接收 = 管理员/项目经理/样本接收员）
-export const sampleReceiveRoles = [
-  UserRole.admin,
-  UserRole.project_manager,
-  UserRole.sample_receiver,
-] as const
+// 开放协作（2026-06）：登记接收/登记批次异常是"谁收到谁记"的操作动作，全员在岗可做（除 viewer）。
+export const sampleReceiveRoles = staffRoles
 
-// 新增样本：销售在建项时登记预计样本，接收员对临时到样补登记
-export const sampleCreateRoles = [
-  UserRole.admin,
-  UserRole.project_manager,
-  UserRole.sample_receiver,
-  UserRole.sales_owner,
-] as const
+// 新增样本批次同理，全员在岗可登记。
+export const sampleCreateRoles = staffRoles
 
 /** 登记批次异常的前置状态（规格 §5.1：待到样/已接收） */
 export const abnormalMarkableSampleStatuses: readonly SampleBatchStatusValue[] = [

@@ -8,7 +8,7 @@ export async function getSampleProjectOptions(operator: { id: string; role?: Use
   return prisma.project.findMany({
     where: {
       AND: [
-        buildProjectScope(operator.role, operator.id),
+        buildProjectScope(operator.role),
         { status: { notIn: [...sampleCreatableProjectBlockedStatuses] } },
       ],
     },

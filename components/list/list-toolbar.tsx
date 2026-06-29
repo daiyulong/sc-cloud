@@ -2,10 +2,17 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
-import { LoaderCircle, Search, X } from "lucide-react"
+import { ChevronDown, LoaderCircle, Search, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { StatusDot } from "@/components/status-dot"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -23,12 +30,14 @@ export type ListToolbarFilter = {
   key: string
   /** SelectValue placeholder，如 "项目状态" */
   label: string
-  /** 哨兵项文案，如 "全部状态" */
+  /** 哨兵项文案，如 "全部状态"（multiple 模式不用） */
   allLabel: string
   /** dot 为状态彩点的 tailwind 背景色类（可选） */
   options: { value: string; label: string; dot?: string }[]
-  /** server 解析后的当前值 */
+  /** server 解析后的当前值（multiple 模式为逗号分隔的已选集） */
   value?: string
+  /** 多选下拉（勾选式），适用于"按状态全集筛选"等；缺省单选 */
+  multiple?: boolean
 }
 
 type ListToolbarProps = {
@@ -158,29 +167,95 @@ export function ListToolbar({
           />
         )}
       </div>
-      {filters?.map((filter) => (
-        <Select
-          key={filter.key}
-          value={filter.value || ALL}
-          onValueChange={(next) => navigate({ [filter.key]: next === ALL ? null : next })}
-        >
-          <SelectTrigger className="w-[160px]" aria-label={filter.label}>
-            <SelectValue placeholder={filter.label} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value={ALL}>{filter.allLabel}</SelectItem>
-              {filter.options.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.dot && <StatusDot className={`mr-1.5 ${option.dot}`} />}
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      ))}
+      {filters?.map((filter) =>
+        filter.multiple ? (
+          <MultiFilter
+            key={filter.key}
+            filter={filter}
+            onChange={(next) => navigate({ [filter.key]: next })}
+          />
+        ) : (
+          <Select
+            key={filter.key}
+            value={filter.value || ALL}
+            onValueChange={(next) => navigate({ [filter.key]: next === ALL ? null : next })}
+          >
+            <SelectTrigger className="w-[160px]" aria-label={filter.label}>
+              <SelectValue placeholder={filter.label} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value={ALL}>{filter.allLabel}</SelectItem>
+                {filter.options.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.dot && <StatusDot className={`mr-1.5 ${option.dot}`} />}
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        )
+      )}
       {children && <div className="ml-auto flex items-center gap-2">{children}</div>}
     </div>
+  )
+}
+
+/**
+ * 多选状态筛选：勾选式下拉，Trigger 显示「标签 N/M」。
+ * 勾选即写 URL（逗号分隔）；全部取消则清空参数（页面回退到默认选择）。
+ * onSelect 阻止默认收起，支持连续勾选。
+ */
+function MultiFilter({
+  filter,
+  onChange,
+}: {
+  filter: ListToolbarFilter
+  onChange: (next: string | null) => void
+}) {
+  const selected = new Set((filter.value ?? "").split(",").filter(Boolean))
+  const total = filter.options.length
+
+  function toggle(value: string, checked: boolean) {
+    const next = new Set(selected)
+    if (checked) next.add(value)
+    else next.delete(value)
+    onChange(next.size ? [...next].join(",") : null)
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          className="w-[160px] justify-between gap-2 font-normal"
+          aria-label={filter.label}
+        >
+          <span className="truncate">{filter.label}</span>
+          <span className="flex items-center gap-1 text-muted-foreground">
+            <span className="text-xs tabular-nums">
+              {selected.size}/{total}
+            </span>
+            <ChevronDown className="size-4 opacity-60" aria-hidden="true" />
+          </span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        {filter.options.map((option) => (
+          <DropdownMenuCheckboxItem
+            key={option.value}
+            checked={selected.has(option.value)}
+            onCheckedChange={(checked) => toggle(option.value, checked === true)}
+            onSelect={(event) => event.preventDefault()}
+          >
+            <span className="flex items-center gap-1.5">
+              {option.dot && <StatusDot className={option.dot} />}
+              {option.label}
+            </span>
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

@@ -24,11 +24,15 @@ describe("partitionSampleActions", () => {
     expect(overflow.map((d) => d.action)).toEqual(["markAbnormal"])
   })
 
-  it("无权限角色（销售/实验员/查看者）：两侧都为空", () => {
-    for (const role of [UserRole.sales_owner, UserRole.lab_operator, UserRole.viewer]) {
+  it("仅 viewer 两侧都为空；销售/实验员等在岗角色可替班登记接收（开放协作）", () => {
+    const blocked = partitionSampleActions(SampleBatchStatus.waiting_arrival, UserRole.viewer)
+    expect(blocked.primary).toBeUndefined()
+    expect(blocked.overflow).toEqual([])
+
+    for (const role of [UserRole.sales_owner, UserRole.lab_operator]) {
       const { primary, overflow } = partitionSampleActions(SampleBatchStatus.waiting_arrival, role)
-      expect(primary).toBeUndefined()
-      expect(overflow).toEqual([])
+      expect(primary?.action).toBe("receive")
+      expect(overflow.map((d) => d.action)).toEqual(["markAbnormal"])
     }
   })
 

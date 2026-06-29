@@ -1,17 +1,15 @@
 import type { Prisma } from "@prisma/client"
 import {
   BIOINFO_SERVICE_LEVELS,
-  BioinfoTaskStatus,
   ExperimentTaskStatus,
   ProjectStatus,
-  SampleBatchStatus,
   SampleStatus,
   UserRole,
 } from "@/lib/enums"
 
 /**
  * 「待建实验任务」队列条件：已接收、所属项目在可建任务态、且尚无实验任务。
- * 供行级 scope（实验员 pool 例外）、列表 `awaiting=task` 筛选、工作台计数共用，确保三者口径一致。
+ * 供列表 `awaiting=task` 筛选、工位徽章计数共用（聚焦信号，非可见性墙）。
  */
 export const samplesAwaitingTaskWhere: Prisma.SampleWhereInput = {
   status: {
@@ -29,7 +27,7 @@ export const samplesAwaitingTaskWhere: Prisma.SampleWhereInput = {
 
 /**
  * 「待建生信任务」队列条件：实验已完成、所属项目含生信且在可建生信态、且尚无生信任务。
- * 供行级 scope（分析员 pool 例外）、列表 `awaiting=bioinfo` 筛选、工作台计数共用。
+ * 供列表 `awaiting=bioinfo` 筛选、工位徽章计数共用（聚焦信号，非可见性墙）。
  */
 export const tasksAwaitingBioinfoWhere: Prisma.ExperimentTaskWhereInput = {
   status: ExperimentTaskStatus.completed,
@@ -41,126 +39,38 @@ export const tasksAwaitingBioinfoWhere: Prisma.ExperimentTaskWhereInput = {
 }
 
 /**
- * 行级数据可见范围（规格 §3.3）。返回 Project 的 where 片段，与用户筛选 AND 叠加：
- *   where: { AND: [ buildProjectScope(role, userId), userFilter ] }
+ * 行级可见范围（2026-06 反转规格 §3.3 的「安全横切」约定）。
  *
- * 注意：历史导入项目的人员字段（sales_owner_id/receiver_id/...）多为空，
- * 因此非全局角色对这些项目的「相关」判定恒为假——这是设计预期（回填关联后才可见）。
- * 所有列表 / 详情 / 导出 / 统计查询都必须叠加本 scope，别漏。
+ * WHY：这是**公司内部提效系统**，全员是可信同事、无外部租户。为「看起来正规的权限」
+ * 而按角色藏行只会制造摩擦（曾因此打断协作、被迫加一堆"鸡生蛋池例外/404 兜底"补丁）。
+ * 故可见性**全员开放**——所有列表/详情/导出/统计对任何在册角色（含只读 viewer）一律可见，
+ * 仅对未知/缺失角色 fail-closed。
+ *
+ * 「工位聚焦」改由正交机制承担：角色落地页（landingPathForRole）、队列/awaiting/需关注筛选、
+ * 侧栏徽章（团队待办计数，谁都能接手）。**动作权限**仍按角色锁（见各 rules.ts），与可见性无关。
  */
-export function buildProjectScope(
-  role: UserRole | undefined,
-  userId: string
-): Prisma.ProjectWhereInput {
-  switch (role) {
-    case UserRole.admin:
-    case UserRole.project_manager:
-      return {} // 全部可见，无过滤
-    case UserRole.sales_owner:
-      return { salesOwnerId: userId }
-    case UserRole.sample_receiver:
-      // 接收记录迁到批次：项目下有自己接收过的批次即相关
-      return { sampleBatches: { some: { receiverId: userId } } }
-    case UserRole.lab_operator:
-      return { experimentTasks: { some: { operatorId: userId } } }
-    case UserRole.bioinfo_analyst:
-      return { bioinfoTasks: { some: { analystId: userId } } }
-    case UserRole.viewer:
-      // 第一期 viewer 简化为全局只读；终局若需按项目授权，通过 projectGrants 关联表实现。
-      // 参见 CLAUDE.md 需求评审结论，viewer 的「授权范围」不可落地——无授权 UI/API。
-      return {}
-    default:
-      // 未知 / 缺失角色：fail-closed，什么都看不到
-      return { id: "__none__" }
-  }
+function visibleScope<T extends { id?: unknown }>(role: UserRole | undefined): T {
+  // 已知角色全可见（空 where）；未知/缺失角色什么都看不到（fail-closed）
+  const known = !!role && (Object.values(UserRole) as string[]).includes(role)
+  return (known ? {} : { id: "__none__" }) as T
 }
 
-/**
- * 样本的行级可见范围。除接收员外都由项目 scope 推导（销售=自己项目下样本等）。
- *
- * 接收员特殊：§3.3 的项目 scope（samples.some.receiverId=me）在样本层会鸡生蛋——
- * receiver_id 在接收动作时才填充，只按它过滤接收员永远看不到待接收样本、无法完成首次接收；
- * 且工作台规格 §6.2 明确要求接收员可见「今日预计到样、待接收样本」。
- * 因此接收员可见 = 自己接收过的样本 ∪ 全部待到样样本。
- */
-export function buildSampleScope(
-  role: UserRole | undefined,
-  userId: string
-): Prisma.SampleWhereInput {
-  switch (role) {
-    case UserRole.sample_receiver:
-      // 叶子无 receiverId，接收记录在批次：自己接收过的批次下的叶子 ∪ 全部待到样叶子
-      return {
-        OR: [{ batch: { receiverId: userId } }, { status: SampleStatus.waiting_arrival }],
-      }
-    case UserRole.lab_operator:
-      // 鸡生蛋同实验任务池：实验员要建任务，却看不到尚无任务的已收样本——补「待建任务样本池」
-      return { OR: [{ project: buildProjectScope(role, userId) }, samplesAwaitingTaskWhere] }
-    default:
-      return { project: buildProjectScope(role, userId) }
-  }
+export function buildProjectScope(role: UserRole | undefined): Prisma.ProjectWhereInput {
+  return visibleScope<Prisma.ProjectWhereInput>(role)
 }
 
-/**
- * 样本批次的行级可见范围（收样工位 = 批次队列）。接收记录在批次上。
- *
- * 接收员鸡生蛋同旧样本逻辑：receiver_id 接收时才填，只按它过滤永远看不到待接收批次；
- * 故接收员可见 = 自己接收过的批次 ∪ 全部待到样批次。其余角色由项目 scope 推导。
- */
-export function buildSampleBatchScope(
-  role: UserRole | undefined,
-  userId: string
-): Prisma.SampleBatchWhereInput {
-  switch (role) {
-    case UserRole.sample_receiver:
-      return {
-        OR: [{ receiverId: userId }, { status: SampleBatchStatus.waiting_arrival }],
-      }
-    default:
-      return { project: buildProjectScope(role, userId) }
-  }
+export function buildSampleScope(role: UserRole | undefined): Prisma.SampleWhereInput {
+  return visibleScope<Prisma.SampleWhereInput>(role)
 }
 
-/**
- * 实验任务的行级可见范围。除实验执行员外都由项目 scope 推导。
- *
- * 实验执行员特殊（同接收员鸡生蛋）：§3.3 项目 scope（experiment_tasks.some.operatorId=me）
- * 对刚由项目经理创建、尚未指派负责人的待排期任务恒为假，实验员将看不到任务、无法设置排期/认领。
- * §6.5 又要求实验员可见「待排期任务池」。因此实验员可见 = 自己负责的任务 ∪ 全部待排期任务。
- */
-export function buildExperimentTaskScope(
-  role: UserRole | undefined,
-  userId: string
-): Prisma.ExperimentTaskWhereInput {
-  switch (role) {
-    case UserRole.lab_operator:
-      return {
-        OR: [{ operatorId: userId }, { status: ExperimentTaskStatus.waiting_schedule }],
-      }
-    case UserRole.bioinfo_analyst:
-      // 鸡生蛋同实验员：分析员要建生信任务，却看不到尚无生信任务的完成实验任务——补「待建生信池」
-      return { OR: [{ project: buildProjectScope(role, userId) }, tasksAwaitingBioinfoWhere] }
-    default:
-      return { project: buildProjectScope(role, userId) }
-  }
+export function buildSampleBatchScope(role: UserRole | undefined): Prisma.SampleBatchWhereInput {
+  return visibleScope<Prisma.SampleBatchWhereInput>(role)
 }
 
-/**
- * 生信任务的行级可见范围。除生信分析员外都由项目 scope 推导。
- *
- * 生信分析员特殊（同实验员鸡生蛋）：项目 scope（bioinfo_tasks.some.analystId=me）对
- * 刚创建、尚未指派分析员的待开始任务恒为假。因此分析员可见 = 自己负责 ∪ 全部待开始任务池。
- */
-export function buildBioinfoTaskScope(
-  role: UserRole | undefined,
-  userId: string
-): Prisma.BioinfoTaskWhereInput {
-  switch (role) {
-    case UserRole.bioinfo_analyst:
-      return {
-        OR: [{ analystId: userId }, { status: BioinfoTaskStatus.pending }],
-      }
-    default:
-      return { project: buildProjectScope(role, userId) }
-  }
+export function buildExperimentTaskScope(role: UserRole | undefined): Prisma.ExperimentTaskWhereInput {
+  return visibleScope<Prisma.ExperimentTaskWhereInput>(role)
+}
+
+export function buildBioinfoTaskScope(role: UserRole | undefined): Prisma.BioinfoTaskWhereInput {
+  return visibleScope<Prisma.BioinfoTaskWhereInput>(role)
 }

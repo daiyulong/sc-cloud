@@ -116,7 +116,7 @@ function buildTaskListWhere(
   query: ExperimentTaskListQuery
 ): Prisma.ExperimentTaskWhereInput {
   const filters: Prisma.ExperimentTaskWhereInput[] = [
-    buildExperimentTaskScope(operator.role, operator.id),
+    buildExperimentTaskScope(operator.role),
   ]
 
   if (query.q) {
@@ -142,6 +142,7 @@ function buildTaskListWhere(
   return { AND: filters }
 }
 
+// 开放协作：写操作前置读不带 scope（可见性全员开放），权限由各动作的 ensureExperimentTaskRole 承担。
 async function getWritableTask(id: string) {
   const task = await prisma.experimentTask.findUnique({
     where: { id },
@@ -149,20 +150,6 @@ async function getWritableTask(id: string) {
   })
   if (!task) throw new ExperimentTaskDomainError("实验任务不存在", 404)
   return task
-}
-
-/**
- * 实例级归属校验：admin/PM 可操作所有任务；lab_operator 只能操作自己负责（或尚未指派）的任务。
- */
-function ensureCanOperateTask(
-  task: { operatorId: string | null },
-  operator: ExperimentTaskOperator
-) {
-  if (operator.role === UserRole.admin || operator.role === UserRole.project_manager) return
-  if (!task.operatorId) return // 未指派：合法角色均可操作
-  if (task.operatorId !== operator.id) {
-    throw new ExperimentTaskDomainError("没有操作该实验任务的权限", 403)
-  }
 }
 
 /**
@@ -205,7 +192,7 @@ export async function listExperimentTasks(
 export async function getExperimentTaskDetail(operator: ExperimentTaskOperator, id: string) {
   const [task, operationLogs] = await Promise.all([
     prisma.experimentTask.findFirst({
-      where: { AND: [{ id }, buildExperimentTaskScope(operator.role, operator.id)] },
+      where: { AND: [{ id }, buildExperimentTaskScope(operator.role)] },
       include: {
         ...taskInclude,
         qcRecords: {
@@ -229,7 +216,7 @@ export async function getExperimentTaskDetail(operator: ExperimentTaskOperator, 
 /** 该任务下的质控记录（带可见范围校验） */
 export async function listTaskQcRecords(operator: ExperimentTaskOperator, taskId: string) {
   const task = await prisma.experimentTask.findFirst({
-    where: { AND: [{ id: taskId }, buildExperimentTaskScope(operator.role, operator.id)] },
+    where: { AND: [{ id: taskId }, buildExperimentTaskScope(operator.role)] },
     select: { id: true },
   })
   if (!task) throw new ExperimentTaskDomainError("实验任务不存在或无权访问", 404)
@@ -253,7 +240,7 @@ export async function createExperimentTaskFromSample(
   ensureExperimentTaskRole(operator.role, undefined, "创建实验任务")
 
   const sample = await prisma.sample.findFirst({
-    where: { AND: [{ id: sampleId }, { project: buildProjectScope(operator.role, operator.id) }] },
+    where: { AND: [{ id: sampleId }, { project: buildProjectScope(operator.role) }] },
     include: { project: { select: taskProjectSelect } },
   })
   if (!sample) throw new ExperimentTaskDomainError("样本不存在或无权访问", 404)
@@ -384,7 +371,6 @@ export async function startExperimentTask(
 ) {
   ensureExperimentTaskRole(operator.role, undefined, "开始实验")
   const before = await getWritableTask(id)
-  ensureCanOperateTask(before, operator)
   ensureExperimentTaskStatus(before.status, [ExperimentTaskStatus.scheduled], "开始实验")
   ensureActualDateValid(input.actualDate, latestReceivedAt(before), operator.role)
 
@@ -431,7 +417,6 @@ export async function finishExperimentTask(
 ) {
   ensureExperimentTaskRole(operator.role, undefined, "完成实验")
   const before = await getWritableTask(id)
-  ensureCanOperateTask(before, operator)
   ensureExperimentTaskStatus(before.status, [ExperimentTaskStatus.in_progress], "完成实验")
   ensureActualDateValid(input.actualDate, latestReceivedAt(before), operator.role)
 
@@ -468,7 +453,6 @@ export async function submitExperimentFeedback(
 ) {
   ensureExperimentTaskRole(operator.role, undefined, "提交实验反馈")
   const before = await getWritableTask(id)
-  ensureCanOperateTask(before, operator)
   ensureExperimentTaskStatus(before.status, feedbackSubmittableTaskStatuses, "提交实验反馈")
   ensureActualDateValid(input.actualDate, latestReceivedAt(before), operator.role)
 

@@ -33,10 +33,13 @@ export type ProjectOperator = {
   role?: UserRoleValue
 }
 
-const salesEditableProjectStatuses = new Set<ProjectStatusValue>([
-  ProjectStatus.draft,
-  ProjectStatus.waiting_sample,
-])
+// 项目头信息（客户/服务档次等）的拥有方：管理 + 销售。操作岗（收样/实验/生信）在各自实体上替班，
+// 但不编辑项目头——这才是"不同工位关注不同信息"。与 createProject 同集。
+const projectOwnerRoles: readonly string[] = [
+  UserRole.admin,
+  UserRole.project_manager,
+  UserRole.sales_owner,
+]
 
 const projectUserSelect = {
   id: true,
@@ -63,7 +66,7 @@ function buildProjectListWhere(
   operator: ProjectOperator,
   query: ProjectListQuery
 ): Prisma.ProjectWhereInput {
-  const filters: Prisma.ProjectWhereInput[] = [buildProjectScope(operator.role, operator.id)]
+  const filters: Prisma.ProjectWhereInput[] = [buildProjectScope(operator.role)]
 
   if (query.q) {
     filters.push({
@@ -75,8 +78,8 @@ function buildProjectListWhere(
       ],
     })
   }
-  if (query.status) {
-    filters.push({ status: query.status })
+  if (query.status?.length) {
+    filters.push({ status: { in: query.status } })
   }
   if (query.serviceLevel) filters.push({ serviceLevel: query.serviceLevel })
   if (query.salesOwnerId) filters.push({ salesOwnerId: query.salesOwnerId })
@@ -100,7 +103,7 @@ function projectVisibleWhere(
   operator: ProjectOperator,
   id: string
 ): Prisma.ProjectWhereInput {
-  return { AND: [{ id }, buildProjectScope(operator.role, operator.id)] }
+  return { AND: [{ id }, buildProjectScope(operator.role)] }
 }
 
 function omitUndefined<T extends Record<string, unknown>>(value: T) {
@@ -136,26 +139,20 @@ function toProjectUpdateData(input: UpdateProjectInput): Prisma.ProjectUpdateInp
   return data
 }
 
+// 开放协作：写操作前置读不带 scope（可见性全员开放），权限由各动作的 ensureProjectRole 承担。
 async function getWritableProject(id: string) {
   const project = await prisma.project.findUnique({ where: { id } })
   if (!project) throw new ProjectDomainError("项目不存在", 404)
   return project
 }
 
+// 开放协作（2026-06）：项目头由"项目拥有方"（管理+销售）编辑，放开销售"仅自己项目"的旧子限制；
+// 不开给操作岗（编辑项目头不属替班动作）。
 function ensureCanUpdateProject(
-  project: { salesOwnerId: string | null; status: ProjectStatusValue },
+  _project: { salesOwnerId: string | null; status: ProjectStatusValue },
   operator: ProjectOperator
 ) {
-  if (operator.role === UserRole.admin || operator.role === UserRole.project_manager) return
-
-  if (
-    operator.role === UserRole.sales_owner &&
-    project.salesOwnerId === operator.id &&
-    salesEditableProjectStatuses.has(project.status)
-  ) {
-    return
-  }
-
+  if (operator.role && projectOwnerRoles.includes(operator.role)) return
   throw new ProjectDomainError("没有更新项目权限", 403)
 }
 
@@ -172,13 +169,23 @@ const ATTENTION_RANK: Record<string, number> = {
   [ProjectStatus.draft]: 2,
 }
 
-/** 工位置顶的需关注项目：按 scope 取三态、组内按预计交付近在前；不分页（已上限）。 */
-export async function listAttentionProjects(operator: ProjectOperator) {
+/**
+ * 工位置顶的需关注项目：按 scope 取三态、组内按预计交付近在前；不分页（已上限）。
+ * statusIn 给定时再与之求交（多选状态筛选下，需关注组只显示仍被勾选的态）。
+ */
+export async function listAttentionProjects(
+  operator: ProjectOperator,
+  statusIn?: ProjectStatusValue[]
+) {
+  const statuses = statusIn
+    ? ATTENTION_STATUSES.filter((s) => statusIn.includes(s))
+    : ATTENTION_STATUSES
+  if (statuses.length === 0) return []
   const rows = await prisma.project.findMany({
     where: {
       AND: [
-        buildProjectScope(operator.role, operator.id),
-        { status: { in: ATTENTION_STATUSES } },
+        buildProjectScope(operator.role),
+        { status: { in: statuses } },
       ],
     },
     include: projectInclude,

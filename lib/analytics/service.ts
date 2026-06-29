@@ -39,7 +39,7 @@ function topN(rows: { key: string | null; count: number }[]): NamedCount[] {
 }
 
 export async function getAnalytics(operator: AnalyticsOperator): Promise<Analytics> {
-  const scope = buildProjectScope(operator.role, operator.id)
+  const scope = buildProjectScope(operator.role)
   const sampleScope = { project: scope }
 
   // 近 N 个月窗口（含本月），按完成（deliveredAt）月份分桶
@@ -159,7 +159,7 @@ export async function searchSimilarRuns(
   operator: AnalyticsOperator,
   filters: SimilarFilters
 ): Promise<SimilarResult> {
-  const scope = buildProjectScope(operator.role, operator.id)
+  const scope = buildProjectScope(operator.role)
   const ci = (v: string): Prisma.StringFilter => ({ contains: v.trim(), mode: "insensitive" })
 
   // 一行一捕获 = 一条样本叶子（产出/QC 挂叶子）；建库化学/任务号经其上机任务取

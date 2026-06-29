@@ -60,7 +60,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     listExperimentTasks(operator, query, { skip, limit }),
     query.projectId
       ? prisma.project.findFirst({
-          where: { AND: [{ id: query.projectId }, buildProjectScope(role, operator.id)] },
+          where: { AND: [{ id: query.projectId }, buildProjectScope(role)] },
           select: { projectNo: true },
         })
       : null,

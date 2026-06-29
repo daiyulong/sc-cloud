@@ -126,7 +126,7 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
     listExperimentTasks(operator, pendingQuery, tab === "pending" ? { skip, limit } : { skip: 0, limit: 1 }),
     bioinfoQuery.projectId
       ? prisma.project.findFirst({
-          where: { AND: [{ id: bioinfoQuery.projectId }, buildProjectScope(role, operator.id)] },
+          where: { AND: [{ id: bioinfoQuery.projectId }, buildProjectScope(role)] },
           select: { projectNo: true },
         })
       : null,

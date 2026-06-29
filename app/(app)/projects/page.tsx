@@ -42,8 +42,50 @@ type ProjectsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+// 项目终态：默认浏览队列时隐藏（多选状态默认勾选其余 8 态）。搜索或显式勾选则照常显示。
+const TERMINAL_PROJECT_STATUSES: ProjectStatusValue[] = [
+  ProjectStatus.completed,
+  ProjectStatus.terminated,
+]
+const DEFAULT_STATUS_SELECTION: ProjectStatusValue[] = (
+  Object.values(ProjectStatus) as ProjectStatusValue[]
+).filter((status) => !TERMINAL_PROJECT_STATUSES.includes(status))
+
+// 项目表列数（含操作列），供分组标题行 colSpan 用
+const PROJECT_TABLE_COLS = 9
+
 function canCreateProject(role?: UserRoleValue) {
   return role === UserRole.admin || role === UserRole.sales_owner || role === UserRole.project_manager
+}
+
+/** 单表内的分组标题行（需关注 / 其余项目）：跨列、不参与 hover、轻量分隔。 */
+function GroupHeaderRow({
+  label,
+  count,
+  tone,
+}: {
+  label: string
+  count?: number
+  tone?: "attention"
+}) {
+  return (
+    <TableRow className="hover:bg-transparent">
+      <TableCell
+        colSpan={PROJECT_TABLE_COLS}
+        className="!py-2 bg-muted/40 text-xs font-medium text-muted-foreground"
+      >
+        <span className="flex items-center gap-1.5">
+          {tone === "attention" && (
+            <AlertCircle className="size-3.5 text-amber-500" aria-hidden="true" />
+          )}
+          <span className={tone === "attention" ? "text-amber-700 dark:text-amber-400" : undefined}>
+            {label}
+          </span>
+          {count !== undefined && <span className="text-muted-foreground/70">（{count}）</span>}
+        </span>
+      </TableCell>
+    </TableRow>
+  )
 }
 
 type ProjectRow = Awaited<ReturnType<typeof listProjects>>["data"][number]
@@ -125,21 +167,31 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     limit: firstParam(raw.limit),
   })
 
-  // 工位默认视图（第 1 页、无筛选/搜索）：置顶「需关注」+ 主列表排除三态、按预计交付近在前。
-  // 任一筛选/搜索生效或翻页 → 退回普通全量列表（不置顶、最近更新序）。
-  const hasActiveFilters = Boolean(query.q || query.status || query.serviceLevel || query.due)
-  const isWorkstationView = !hasActiveFilters && page === 1
+  // 状态多选：未显式勾选时默认选「非终态」（隐藏已完成/已终止）。把解析后的选择注入 query，
+  // 由 buildProjectListWhere 统一以 status IN 应用——浏览/搜索口径一致，工具栏「N/M」始终如实。
+  const hasStatusFilter = Boolean(query.status?.length)
+  const selectedStatuses = hasStatusFilter
+    ? (query.status as ProjectStatusValue[])
+    : DEFAULT_STATUS_SELECTION
+  const effectiveQuery = { ...query, status: selectedStatuses }
+
+  // 工位默认视图（第 1 页、无搜索/档次/到期筛选）：置顶「需关注」+ 其余排除三态、按预计交付近在前。
+  // 状态多选不破坏分组（它只决定可见状态全集）；搜索/档次/到期/翻页 → 退回普通列表（最近更新序）。
+  const hasNonStatusFilters = Boolean(query.q || query.serviceLevel || query.due)
+  const isWorkstationView = !hasNonStatusFilters && page === 1
+  // 空态判定：用户主动收窄（搜索/档次/到期/显式状态）才算"有筛选"，区分"无匹配"与"暂无项目"
+  const hasActiveFilters = hasNonStatusFilters || hasStatusFilter
 
   const [{ data: projects, total }, attention] = await Promise.all([
     listProjects(
       operator,
-      query,
+      effectiveQuery,
       { skip, limit },
       isWorkstationView
         ? { excludeStatuses: ATTENTION_STATUSES, order: "deliverySoon" }
         : undefined
     ),
-    isWorkstationView ? listAttentionProjects(operator) : Promise.resolve([]),
+    isWorkstationView ? listAttentionProjects(operator, selectedStatuses) : Promise.resolve([]),
   ])
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
@@ -169,7 +221,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             key: "status",
             label: "项目状态",
             allLabel: "全部状态",
-            value: query.status,
+            multiple: true,
+            value: selectedStatuses.join(","),
             options: Object.values(ProjectStatus).map((value) => ({
               value,
               label: PROJECT_STATUS_LABELS[value],
@@ -198,34 +251,12 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         )}
       </ListToolbar>
 
-      {attention.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <AlertCircle className="size-4 text-amber-500" aria-hidden="true" />
-            需关注
-            <span className="text-muted-foreground">（{attention.length}）</span>
-          </div>
-          <div className="overflow-hidden rounded-lg border border-amber-200/70 bg-card dark:border-amber-900/40">
-            <Table className="[&_td]:px-4 [&_td]:py-3 [&_th]:px-4">
-              <ProjectTableHead />
-              <TableBody>
-                {attention.map((project) => (
-                  <ClickableRow key={project.id} href={`/projects/${project.id}`}>
-                    <ProjectRowCells project={project} role={session.user.role} />
-                  </ClickableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
-      )}
-
       {showEmpty ? (
         hasActiveFilters ? (
           <ListEmpty
             icon={<SearchX />}
             title="无匹配结果"
-            description="当前筛选条件下没有项目，调整或清除筛选后重试。"
+            description="当前筛选条件下没有项目，调整状态筛选或清除后重试。"
           >
             <Button variant="outline" asChild>
               <Link href="/projects">清除筛选</Link>
@@ -243,18 +274,28 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             )}
           </ListEmpty>
         )
-      ) : total === 0 ? (
-        // 需关注有内容、但主列表（其余项目）为空：不再重复空态
-        null
       ) : (
         <>
-          {isWorkstationView && attention.length > 0 && (
-            <div className="text-sm font-medium text-muted-foreground">其余项目</div>
-          )}
+          {/* 单表 + 置顶分组：一份表头、一层边框，列天然对齐（替代旧两表叠放） */}
           <div className="overflow-hidden rounded-lg border bg-card transition-opacity group-has-[[data-pending]]/list:opacity-60">
             <Table className="[&_td]:px-4 [&_td]:py-3 [&_th]:px-4">
               <ProjectTableHead />
               <TableBody>
+                {isWorkstationView && attention.length > 0 && (
+                  <>
+                    <GroupHeaderRow tone="attention" label="需关注" count={attention.length} />
+                    {attention.map((project) => (
+                      <ClickableRow
+                        key={project.id}
+                        href={`/projects/${project.id}`}
+                        className="bg-amber-50/40 hover:bg-amber-50/70 dark:bg-amber-950/15 dark:hover:bg-amber-950/25"
+                      >
+                        <ProjectRowCells project={project} role={session.user.role} />
+                      </ClickableRow>
+                    ))}
+                    {projects.length > 0 && <GroupHeaderRow label="其余项目" />}
+                  </>
+                )}
                 {projects.map((project) => (
                   <ClickableRow key={project.id} href={`/projects/${project.id}`}>
                     <ProjectRowCells project={project} role={session.user.role} />
@@ -264,6 +305,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             </Table>
           </div>
 
+          {total > 0 && (
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">
               共 {total} 个项目 · 第 {page} / {totalPages} 页
@@ -289,6 +331,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               )}
             </div>
           </div>
+          )}
         </>
       )}
     </div>

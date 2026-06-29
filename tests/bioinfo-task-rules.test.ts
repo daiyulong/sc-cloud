@@ -31,17 +31,17 @@ describe("getAvailableBioinfoTaskActions", () => {
     }
   })
 
-  it("管理员 / 项目经理可执行；销售 / 接收员 / 实验员 / 查看者无权", () => {
-    for (const role of [UserRole.admin, UserRole.project_manager]) {
-      expect(getAvailableBioinfoTaskActions(BioinfoTaskStatus.pending, role)).toEqual(["start"])
-    }
+  it("在岗角色可执行（开放协作，含销售/接收/实验替班）；仅 viewer/空角色无权", () => {
     for (const role of [
+      UserRole.admin,
+      UserRole.project_manager,
       UserRole.sales_owner,
       UserRole.sample_receiver,
       UserRole.lab_operator,
-      UserRole.viewer,
-      undefined,
     ]) {
+      expect(getAvailableBioinfoTaskActions(BioinfoTaskStatus.pending, role)).toEqual(["start"])
+    }
+    for (const role of [UserRole.viewer, undefined]) {
       expect(getAvailableBioinfoTaskActions(BioinfoTaskStatus.in_progress, role)).toEqual([])
     }
   })

@@ -65,7 +65,7 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
           where: {
             AND: [
               { id: query.projectId },
-              buildProjectScope(session.user.role as UserRoleValue, session.user.id),
+              buildProjectScope(session.user.role as UserRoleValue),
             ],
           },
           select: { projectNo: true },

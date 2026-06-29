@@ -45,7 +45,7 @@ export type DeliveryView = Prisma.SequencingDeliveryGetPayload<{ include: typeof
 /** 校验项目在操作者可见范围内，返回最小项目信息；不可见即 404。 */
 async function ensureProjectVisible(operator: SequencingDeliveryOperator, projectId: string) {
   const project = await prisma.project.findFirst({
-    where: { AND: [{ id: projectId }, buildProjectScope(operator.role, operator.id)] },
+    where: { AND: [{ id: projectId }, buildProjectScope(operator.role)] },
     select: { id: true, projectNo: true, customerOrg: true },
   })
   if (!project) throw new SequencingDeliveryDomainError("项目不存在或无权访问", 404)
@@ -124,7 +124,7 @@ export async function readDeliveryAttachment(
   deliveryId: string
 ): Promise<{ bytes: Buffer; mediaType: string; filename: string }> {
   const delivery = await prisma.sequencingDelivery.findFirst({
-    where: { AND: [{ id: deliveryId }, { project: buildProjectScope(operator.role, operator.id) }] },
+    where: { AND: [{ id: deliveryId }, { project: buildProjectScope(operator.role) }] },
     select: { attachmentKey: true, attachmentName: true, attachmentMime: true },
   })
   if (!delivery?.attachmentKey) {

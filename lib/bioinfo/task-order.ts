@@ -42,7 +42,7 @@ export async function buildTaskOrderData(
   projectId: string
 ): Promise<TaskOrderData | null> {
   const project = await prisma.project.findFirst({
-    where: { AND: [{ id: projectId }, buildProjectScope(operator.role, operator.id)] },
+    where: { AND: [{ id: projectId }, buildProjectScope(operator.role)] },
     select: {
       projectNo: true,
       projectType: true,

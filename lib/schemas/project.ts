@@ -25,6 +25,27 @@ const projectStatusValues = Object.values(ProjectStatus) as [
 export const serviceLevelSchema = z.enum(serviceLevelValues)
 export const projectStatusSchema = z.enum(projectStatusValues)
 
+/**
+ * 列表多选状态：URL 逗号分隔串 → 去重校验后的状态数组（非法值丢弃，空则 undefined）。
+ * 单值串（旧链接 ?status=completed）天然兼容，解析为 1 元素数组。
+ */
+export const projectStatusListSchema = z
+  .string()
+  .optional()
+  .transform((val) => {
+    if (!val) return undefined
+    const valid = new Set(projectStatusValues as readonly string[])
+    const picked = [
+      ...new Set(
+        val
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => valid.has(s))
+      ),
+    ] as ProjectStatusValue[]
+    return picked.length ? picked : undefined
+  })
+
 export const createProjectSchema = z.object({
   // 项目编号（委托单号）不在创建时填，由 PM 确认时录入；创建仅登记客户/服务等
   // 进度式收集：合同号/样本编号/数量上游给定、建项目时未必知道，均可空（重构 §2.1/§5）
@@ -81,7 +102,7 @@ export type DeliverProjectInput = z.infer<typeof deliverProjectSchema>
 
 export const projectListQuerySchema = z.object({
   q: optionalString,
-  status: projectStatusSchema.optional(),
+  status: projectStatusListSchema,
   serviceLevel: serviceLevelSchema.optional(),
   salesOwnerId: optionalString,
   projectManagerId: optionalString,

@@ -16,7 +16,7 @@ export async function getBioinfoExperimentTaskOptions(operator: {
   return prisma.experimentTask.findMany({
     where: {
       AND: [
-        { project: buildProjectScope(operator.role, operator.id) },
+        { project: buildProjectScope(operator.role) },
         { status: ExperimentTaskStatus.completed },
         { project: { serviceLevel: { in: [...BIOINFO_SERVICE_LEVELS] } } },
         { project: { status: { in: [...bioinfoCreatableProjectStatuses] } } },

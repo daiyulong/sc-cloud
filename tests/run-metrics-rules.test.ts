@@ -24,9 +24,9 @@ describe("canRecordRunMetrics", () => {
     }
   })
 
-  it("无关角色 / 空角色不可录", () => {
+  it("viewer / 空角色不可录；其余在岗角色（含接收员）可录（开放协作）", () => {
     expect(canRecordRunMetrics(ExperimentTaskStatus.completed, UserRole.viewer)).toBe(false)
-    expect(canRecordRunMetrics(ExperimentTaskStatus.completed, UserRole.sample_receiver)).toBe(false)
     expect(canRecordRunMetrics(ExperimentTaskStatus.completed, undefined)).toBe(false)
+    expect(canRecordRunMetrics(ExperimentTaskStatus.completed, UserRole.sample_receiver)).toBe(true)
   })
 })

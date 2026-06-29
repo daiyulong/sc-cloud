@@ -66,7 +66,7 @@ function deriveQc(viability: number | null | undefined): { qcResult: QCResult; r
 }
 
 const taskLeafWhere = (operator: RecordOperator, taskId: string) => ({
-  AND: [{ id: taskId }, buildExperimentTaskScope(operator.role, operator.id)],
+  AND: [{ id: taskId }, buildExperimentTaskScope(operator.role)],
 })
 
 /** 载入任务（在操作者可见范围内）+ 其样本叶子，作为对齐候选 */
@@ -196,7 +196,7 @@ export async function uploadRecordImage(
 /** 重新打开对齐：取识别结果 + 候选叶子（确认前/重新确认用） */
 export async function getRecordImageAlignment(operator: RecordOperator, imageId: string) {
   const image = await prisma.experimentRecordImage.findFirst({
-    where: { AND: [{ id: imageId }, { project: buildProjectScope(operator.role, operator.id) }] },
+    where: { AND: [{ id: imageId }, { project: buildProjectScope(operator.role) }] },
   })
   if (!image) throw new ExperimentRecordError("识别记录不存在或无权访问", 404)
   const { leaves } = await loadTaskInScope(operator, image.taskId)
@@ -207,7 +207,7 @@ export async function getRecordImageAlignment(operator: RecordOperator, imageId:
 /** 鉴权代理读原图：校验操作者在该图所属项目 scope 内 → 返回字节流 */
 export async function readRecordImageFile(operator: RecordOperator, imageId: string) {
   const image = await prisma.experimentRecordImage.findFirst({
-    where: { AND: [{ id: imageId }, { project: buildProjectScope(operator.role, operator.id) }] },
+    where: { AND: [{ id: imageId }, { project: buildProjectScope(operator.role) }] },
     select: { storageKey: true },
   })
   if (!image) throw new ExperimentRecordError("识别记录不存在或无权访问", 404)
@@ -226,7 +226,7 @@ export async function confirmRecordImage(
 ) {
   ensureManageRole(operator.role, "确认实验记录")
   const image = await prisma.experimentRecordImage.findFirst({
-    where: { AND: [{ id: imageId }, { project: buildProjectScope(operator.role, operator.id) }] },
+    where: { AND: [{ id: imageId }, { project: buildProjectScope(operator.role) }] },
   })
   if (!image) throw new ExperimentRecordError("识别记录不存在或无权访问", 404)
   if (image.confirmedAt && !input.reconfirm) {

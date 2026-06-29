@@ -2,11 +2,11 @@ import {
   ExperimentTaskStatus,
   ProjectStatus,
   SampleStatus,
-  UserRole,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
   type SampleStatus as SampleStatusValue,
 } from "@/lib/enums"
+import { staffRoles } from "@/lib/auth/action-roles"
 
 export type ExperimentTaskAction = "schedule" | "start" | "finish" | "feedback" | "qc"
 
@@ -21,14 +21,11 @@ export class ExperimentTaskDomainError extends Error {
 }
 
 /**
- * 实验任务全部动作的角色边界（§3.2：设置实验排期 / 录入质控 / 录入上机反馈 = 管理员/项目经理/实验执行员）。
- * 创建实验任务同样限这三类（接收员「可选」第一期不开，避免无关角色进入实验流）。
+ * 实验任务全部动作（排期/开始/完成/反馈/质控/建任务）的角色边界。
+ * 开放协作（2026-06）：上机实验是"谁在做谁记"的操作动作，全员在岗可做（除 viewer），支持替班。
+ * 名为 manage 仅为兼容历史调用点，实际放开为 staffRoles。
  */
-export const experimentManageRoles = [
-  UserRole.admin,
-  UserRole.project_manager,
-  UserRole.lab_operator,
-] as const
+export const experimentManageRoles = staffRoles
 
 /**
  * 录入质控允许的任务执行态：进行中 / 待反馈 / 已完成。质控是业务判定、不改执行态。
@@ -47,16 +44,10 @@ export const feedbackSubmittableTaskStatuses: readonly ExperimentTaskStatusValue
 ]
 
 /**
- * 录入产出指标（细胞核/测序量/捕获数/基因中位数）允许的角色（§6.8 经验视图）：
- * 实验管理三类 + 生信分析员（下机数据到手者）。这是补录动作、不推进工作流，
- * 故角色集与 experimentManageRoles 不同，独立于 getAvailableExperimentTaskActions。
+ * 录入产出指标（细胞核/测序量/捕获数/基因中位数）允许的角色（§6.8 经验视图）：补录动作、不推进工作流。
+ * 开放协作（2026-06）：全员在岗可补录（除 viewer）。
  */
-export const metricsRecordRoles = [
-  UserRole.admin,
-  UserRole.project_manager,
-  UserRole.lab_operator,
-  UserRole.bioinfo_analyst,
-] as const
+export const metricsRecordRoles = staffRoles
 
 /** 录入产出指标的前置态：实验已完成（上机+测序后才有下机指标），可重复订正 */
 export const metricsRecordableTaskStatuses: readonly ExperimentTaskStatusValue[] = [

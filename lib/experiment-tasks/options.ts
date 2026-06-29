@@ -11,7 +11,7 @@ export async function getTaskSampleOptions(operator: { id: string; role?: UserRo
   return prisma.sample.findMany({
     where: {
       AND: [
-        { project: buildProjectScope(operator.role, operator.id) },
+        { project: buildProjectScope(operator.role) },
         { status: { in: [...taskCreatableSampleStatuses] } },
         { project: { status: { in: [...taskCreatableProjectStatuses] } } },
       ],

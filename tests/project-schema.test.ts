@@ -41,7 +41,7 @@ describe("project schemas", () => {
     }
   })
 
-  it("parses list filters", () => {
+  it("parses list filters（status 单值串 → 1 元素数组）", () => {
     expect(
       projectListQuerySchema.parse({
         q: "BP-G",
@@ -50,9 +50,20 @@ describe("project schemas", () => {
       })
     ).toMatchObject({
       q: "BP-G",
-      status: ProjectStatus.waiting_sample,
+      status: [ProjectStatus.waiting_sample],
       serviceLevel: ServiceLevel.qc,
     })
+  })
+
+  it("parses multi-status: 逗号分隔去重、丢弃非法、空则 undefined", () => {
+    expect(
+      projectListQuerySchema.parse({
+        status: `${ProjectStatus.completed},${ProjectStatus.abnormal},bogus,${ProjectStatus.completed}`,
+      }).status
+    ).toEqual([ProjectStatus.completed, ProjectStatus.abnormal])
+
+    expect(projectListQuerySchema.parse({ status: "bogus" }).status).toBeUndefined()
+    expect(projectListQuerySchema.parse({}).status).toBeUndefined()
   })
 
   it("accepts the due=soon filter", () => {

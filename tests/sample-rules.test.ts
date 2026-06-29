@@ -33,20 +33,24 @@ describe("sample batch rules", () => {
     ).toEqual([])
   })
 
-  it("exposes no actions for non-receiver roles", () => {
-    expect(
-      getAvailableSampleActions(SampleBatchStatus.waiting_arrival, UserRole.sales_owner)
-    ).toEqual([])
-    expect(
-      getAvailableSampleActions(SampleBatchStatus.waiting_arrival, UserRole.lab_operator)
-    ).toEqual([])
+  it("仅 viewer / 空角色无动作；其余在岗角色可替班登记接收（开放协作）", () => {
+    expect(getAvailableSampleActions(SampleBatchStatus.waiting_arrival, UserRole.viewer)).toEqual([])
+    expect(getAvailableSampleActions(SampleBatchStatus.waiting_arrival, undefined)).toEqual([])
+    for (const role of [UserRole.sales_owner, UserRole.lab_operator]) {
+      expect(
+        getAvailableSampleActions(SampleBatchStatus.waiting_arrival, role)
+      ).toContain("receive")
+    }
   })
 
-  it("rejects roles outside the allowed list", () => {
-    expect(() => ensureSampleRole(UserRole.sales_owner, sampleReceiveRoles, "登记接收")).toThrow(
+  it("ensureSampleRole：viewer / 空角色被拒，在岗角色（含销售）放行", () => {
+    expect(() => ensureSampleRole(UserRole.viewer, sampleReceiveRoles, "登记接收")).toThrow(
       SampleDomainError
     )
     expect(() => ensureSampleRole(undefined, sampleReceiveRoles)).toThrow(SampleDomainError)
+    expect(() =>
+      ensureSampleRole(UserRole.sales_owner, sampleReceiveRoles, "登记接收")
+    ).not.toThrow()
     expect(() =>
       ensureSampleRole(UserRole.sample_receiver, sampleReceiveRoles, "登记接收")
     ).not.toThrow()

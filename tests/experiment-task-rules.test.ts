@@ -37,19 +37,19 @@ describe("getAvailableExperimentTaskActions", () => {
     }
   })
 
-  it("管理员 / 项目经理同样可执行；销售 / 接收员 / 生信 / 查看者无权", () => {
-    for (const role of [UserRole.admin, UserRole.project_manager]) {
+  it("在岗角色可执行（开放协作，含销售/接收/生信替班）；仅 viewer/空角色无权", () => {
+    for (const role of [
+      UserRole.admin,
+      UserRole.project_manager,
+      UserRole.sales_owner,
+      UserRole.sample_receiver,
+      UserRole.bioinfo_analyst,
+    ]) {
       expect(
         getAvailableExperimentTaskActions(ExperimentTaskStatus.waiting_schedule, role)
       ).toEqual(["schedule"])
     }
-    for (const role of [
-      UserRole.sales_owner,
-      UserRole.sample_receiver,
-      UserRole.bioinfo_analyst,
-      UserRole.viewer,
-      undefined,
-    ]) {
+    for (const role of [UserRole.viewer, undefined]) {
       expect(
         getAvailableExperimentTaskActions(ExperimentTaskStatus.in_progress, role)
       ).toEqual([])
