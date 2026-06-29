@@ -483,7 +483,7 @@ export async function terminateProject(
   id: string,
   input: OptionalProjectReasonInput
 ) {
-  ensureProjectRole(operator.role, [UserRole.admin, UserRole.project_manager], "异常终止")
+  ensureProjectRole(operator.role, [UserRole.admin, UserRole.project_manager], "终止项目")
   const before = await getWritableProject(id)
   ensureProjectCanTerminate(before.status)
 

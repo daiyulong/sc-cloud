@@ -58,14 +58,14 @@ const descriptors: Record<ProjectAction, ProjectActionDescriptor> = {
   },
   terminate: {
     action: "terminate",
-    label: "异常终止",
+    label: "终止项目",
     path: "terminate",
     icon: XCircle,
     kind: "reasonDialog",
     destructive: true,
     reasonRequired: false,
     reasonLabel: "终止原因",
-    description: "终止后项目进入终态，不可恢复。",
+    description: "终止后项目进入已终止状态，并从默认列表和需关注队列中隐藏。",
   },
 }
 

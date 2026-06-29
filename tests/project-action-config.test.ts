@@ -30,6 +30,7 @@ describe("partitionProjectActions", () => {
     expect(primary?.kind).toBe("reasonDialog")
     expect(primary?.reasonRequired).toBe(false)
     expect(overflow.map((d) => d.action)).toEqual(["terminate"])
+    expect(overflow[0]?.label).toBe("终止项目")
   })
 
   it("中段状态（实验中）：无主动作，破坏性动作全在溢出", () => {

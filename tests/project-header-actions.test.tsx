@@ -35,7 +35,7 @@ describe("ProjectHeaderActions", () => {
     const menu = screen.getByRole("menu")
     expect(within(menu).getByRole("menuitem", { name: "编辑项目" })).toBeInTheDocument()
     expect(within(menu).getByRole("menuitem", { name: "标记异常" })).toBeInTheDocument()
-    expect(within(menu).getByRole("menuitem", { name: "异常终止" })).toBeInTheDocument()
+    expect(within(menu).getByRole("menuitem", { name: "终止项目" })).toBeInTheDocument()
   })
 
   it("确认交付仍走项目状态动作 API", async () => {
