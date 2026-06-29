@@ -52,6 +52,10 @@ type SampleReceiveDialogProps = {
   projectId?: string
   projectNo?: string
   expectedArrival?: string
+  species?: string | null
+  tissueType?: string | null
+  experimentType?: string | null
+  transportCondition?: string | null
   sampleCount?: number | null
 }
 
@@ -59,8 +63,8 @@ type SampleReceiveDialogProps = {
 const ABNORMAL_ISSUES = ["温度异常", "容器破损", "泄漏/污染", "数量不符"] as const
 
 /**
- * 登记接收表单 Dialog：建项目时只有编号+数量，到样时由收样员一次补全
- * 样本信息（物种/组织/实验类型/运输条件）+ 记录实际到样（时间/状态/异常说明）。
+ * 登记接收表单：沿用建项目/样本编辑时已填的批次信息，到样时核对；
+ * 缺失项由收样员补齐，并记录实际到样（时间/状态/异常说明）。
  */
 export function SampleReceiveDialog({
   open,
@@ -72,6 +76,10 @@ export function SampleReceiveDialog({
   projectId,
   projectNo,
   expectedArrival,
+  species: initialSpecies,
+  tissueType: initialTissueType,
+  experimentType: initialExperimentType,
+  transportCondition: initialTransportCondition,
   sampleCount,
 }: SampleReceiveDialogProps) {
   const [species, setSpecies] = React.useState("")
@@ -92,11 +100,11 @@ export function SampleReceiveDialog({
   if (open !== prevOpen) {
     setPrevOpen(open)
     if (open) {
-      setSpecies("")
-      setTissueType("")
-      setExperimentType("")
-      setTransportCondition("")
-      setCountInput("")
+      setSpecies(initialSpecies ?? "")
+      setTissueType(initialTissueType ?? "")
+      setExperimentType(initialExperimentType ?? "")
+      setTransportCondition(initialTransportCondition ?? "")
+      setCountInput(sampleCount == null ? "" : String(sampleCount))
       setReceivedAt(nowInputValue())
       setReceiveStatus(ReceiveStatus.normal)
       setAbnormalNote("")
@@ -106,8 +114,17 @@ export function SampleReceiveDialog({
   }
 
   const noteRequired = receiveStatus === ReceiveStatus.abnormal
+  const countMissing = !countInput.trim()
+  const countValue = Number(countInput)
+  const countInvalidValue =
+    !countMissing && (!Number.isInteger(countValue) || countValue < 1)
   const missingInfo =
-    !species.trim() || !tissueType.trim() || !experimentType.trim() || !transportCondition.trim()
+    !species.trim() ||
+    !tissueType.trim() ||
+    !experimentType.trim() ||
+    !transportCondition.trim() ||
+    countMissing ||
+    countInvalidValue
   // 异常接收：至少勾一个类型或填一段说明
   const noteMissing = noteRequired && issues.size === 0 && !abnormalNote.trim()
   const noteInvalid = showError && noteMissing
@@ -138,7 +155,7 @@ export function SampleReceiveDialog({
       tissueType: tissueType.trim(),
       experimentType: experimentType.trim(),
       transportCondition: transportCondition.trim(),
-      sampleCount: countInput.trim() || null,
+      sampleCount: countInput.trim(),
       receivedAt: receivedAt || null,
       receiveStatus,
       abnormalNote: composeAbnormalNote(),
@@ -149,13 +166,21 @@ export function SampleReceiveDialog({
     return showError && !value.trim()
   }
 
+  const allInfoPrefilled = Boolean(
+    initialSpecies?.trim() &&
+      initialTissueType?.trim() &&
+      initialExperimentType?.trim() &&
+      initialTransportCondition?.trim() &&
+      sampleCount
+  )
+
   return (
     <ActionOverlay
       surface={surface}
       open={open}
       onOpenChange={onOpenChange}
       title="登记接收"
-      description={`${sampleNo} · 补全样本信息并登记实际到样`}
+      description={`${sampleNo} · ${allInfoPrefilled ? "核对样本信息" : "补全样本信息"}并登记实际到样`}
       footer={
         <>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
@@ -237,16 +262,17 @@ export function SampleReceiveDialog({
                 aria-invalid={infoInvalid(transportCondition) || undefined}
               />
             </Field>
-            <Field>
+            <Field data-invalid={(showError && (countMissing || countInvalidValue)) || undefined}>
               <FieldLabel htmlFor="receive-count">样本数量</FieldLabel>
               <Input
                 id="receive-count"
                 type="number"
-                min={0}
+                min={1}
                 step={1}
                 value={countInput}
                 onChange={(event) => setCountInput(event.target.value)}
-                placeholder="留空保持建项目时的数量"
+                placeholder="实物数量，至少 1"
+                aria-invalid={(showError && (countMissing || countInvalidValue)) || undefined}
               />
             </Field>
             <Field>
@@ -261,7 +287,7 @@ export function SampleReceiveDialog({
           </div>
           {showError && missingInfo && (
             <FieldDescription className="text-destructive">
-              物种 / 组织类型 / 实验类型 / 运输条件为必填。
+              物种 / 组织类型 / 实验类型 / 运输条件 / 样本数量为必填，样本数量至少为 1。
             </FieldDescription>
           )}
           <Field>

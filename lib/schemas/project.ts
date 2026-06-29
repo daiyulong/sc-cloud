@@ -31,7 +31,7 @@ export const projectStatusListSchema = statusListSchema(projectStatusValues)
 
 export const createProjectSchema = z.object({
   // 项目编号（委托单号）不在创建时填，由 PM 确认时录入；创建仅登记客户/服务等
-  // 进度式收集：合同号/样本编号/数量上游给定、建项目时未必知道，均可空（重构 §2.1/§5）
+  // 进度式收集：合同号/样本批次信息上游给定、建项目时未必知道，均可空（重构 §2.1/§5）
   contractNo: nullableString,
   customerOrg: requiredString("请输入客户单位"),
   customerName: requiredString("请输入客户姓名"),
@@ -45,9 +45,13 @@ export const createProjectSchema = z.object({
   priority: z.string().trim().min(1).default("普通"),
   expectedDeliveryDate: nullableDate,
   remark: nullableString,
-  // 创建即生成 1 个空样本批次（0 叶子）；样本编号(YP)/数量收样时补（重构 §5）
+  // 创建即生成 1 个空样本批次（0 叶子）；批次信息可提前填，收样时核对/补齐。
   batchNo: nullableString,
+  species: nullableString,
+  tissueType: nullableString,
   sampleCount: nullableNonNegativeInt,
+  experimentType: nullableString,
+  transportCondition: nullableString,
 })
 export type CreateProjectInput = z.infer<typeof createProjectSchema>
 

@@ -251,6 +251,10 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
                           projectId={sample.project.id}
                           projectNo={sample.project.projectNo ?? undefined}
                           expectedArrival={formatDate(sample.expectedArrivalDate)}
+                          species={sample.species}
+                          tissueType={sample.tissueType}
+                          experimentType={sample.experimentType}
+                          transportCondition={sample.transportCondition}
                           sampleCount={sample.sampleCount}
                           compact
                           surface="sheet"

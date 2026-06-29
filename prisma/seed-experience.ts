@@ -90,6 +90,7 @@ type InFlightSpec = {
   status: ProjectStatusValue
   service: ServiceLevelValue
   batch: "none" | "waiting" | "received"
+  batchInfo?: "prefilled" | "blank"
   leaves?: number
   leafStatus?: SampleStatusValue
   task?: ExperimentTaskStatusValue
@@ -97,10 +98,24 @@ type InFlightSpec = {
   statusBefore?: ProjectStatusValue
 }
 const INFLIGHT_SPECS: InFlightSpec[] = [
-  // 草稿（未编号）+ 待到样批次 → 项目「需关注」+ 收样队列
-  { no: null, status: ProjectStatus.draft, service: ServiceLevel.standard, batch: "waiting" },
-  // 待收样 → 收样队列
-  { no: "BP-G260601001", status: ProjectStatus.waiting_sample, service: ServiceLevel.qc, batch: "waiting" },
+  // 草稿（未编号）→ 项目「需关注」；未确认前不放进收样演示队列
+  { no: null, status: ProjectStatus.draft, service: ServiceLevel.standard, batch: "none" },
+  // 待收样（已预填批次信息）→ 收样队列：打开「登记接收」应直接核对
+  {
+    no: "BP-G260601001",
+    status: ProjectStatus.waiting_sample,
+    service: ServiceLevel.qc,
+    batch: "waiting",
+    batchInfo: "prefilled",
+  },
+  // 待收样（批次信息缺失）→ 收样队列：打开「登记接收」需要补录
+  {
+    no: "BP-G260601007",
+    status: ProjectStatus.waiting_sample,
+    service: ServiceLevel.standard,
+    batch: "waiting",
+    batchInfo: "blank",
+  },
   // 实验进行中 → 实验队列
   {
     no: "BP-G260601002",
@@ -322,6 +337,7 @@ async function createInFlight(
   const tissue = str(b?.["样本组织类型"]) ?? "组织"
   const expType = str(b?.["实验类型"]) ?? "组织解离"
   const runMethod = str(b?.["上机方式"]) ?? expType
+  const blankBatchInfo = spec.batchInfo === "blank" && spec.batch === "waiting"
 
   const project = await prisma.project.create({
     data: {
@@ -351,11 +367,11 @@ async function createInFlight(
       projectId: project.id,
       batchNo: received ? `YP2026060${Math.floor(1000 + Math.abs(hashNo(spec.no)) % 9000)}` : null,
       seq: 1,
-      sampleCount: spec.leaves ?? intNum(b?.["样本数量"]) ?? 1,
-      species,
-      tissueType: tissue,
-      experimentType: expType,
-      transportCondition: str(b?.["运输条件"]),
+      sampleCount: blankBatchInfo ? null : (spec.leaves ?? intNum(b?.["样本数量"]) ?? 1),
+      species: blankBatchInfo ? null : species,
+      tissueType: blankBatchInfo ? null : tissue,
+      experimentType: blankBatchInfo ? null : expType,
+      transportCondition: blankBatchInfo ? null : (str(b?.["运输条件"]) ?? "4度"),
       expectedArrivalDate: daysFromNow(received ? -5 : 3),
       receivedAt: received ? daysFromNow(-3) : null,
       status: received ? SampleBatchStatus.received : SampleBatchStatus.waiting_arrival,
@@ -430,6 +446,11 @@ async function cleanupDemo(projectNos: string[]) {
   ])
   await prisma.qcRecord.deleteMany({ where: { sampleId: { in: samples.map((s) => s.id) } } })
   await prisma.bioinfoTask.deleteMany({ where: { projectId: { in: ids } } })
+  await prisma.experimentRecordImage.deleteMany({
+    where: {
+      OR: [{ projectId: { in: ids } }, { taskId: { in: tasks.map((t) => t.id) } }],
+    },
+  })
   await prisma.operationLog.deleteMany({
     where: {
       entityId: {

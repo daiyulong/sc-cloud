@@ -199,6 +199,10 @@ export default async function ProjectDetailPage({
                     projectId={project.id}
                     projectNo={project.projectNo ?? undefined}
                     expectedArrival={formatDate(sample.expectedArrivalDate)}
+                    species={sample.species}
+                    tissueType={sample.tissueType}
+                    experimentType={sample.experimentType}
+                    transportCondition={sample.transportCondition}
                     sampleCount={sample.sampleCount}
                     compact
                   />

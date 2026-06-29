@@ -70,6 +70,13 @@ export default async function SampleDetailPage({ params }: SampleDetailPageProps
             sampleNo={sample.batchNo ?? "未编号批次"}
             status={status}
             role={session.user.role}
+            projectId={sample.project.id}
+            projectNo={sample.project.projectNo ?? undefined}
+            species={sample.species}
+            tissueType={sample.tissueType}
+            experimentType={sample.experimentType}
+            transportCondition={sample.transportCondition}
+            sampleCount={sample.sampleCount}
           />
           <Button asChild variant="outline">
             <Link href={`/samples/${sample.id}/edit`}>

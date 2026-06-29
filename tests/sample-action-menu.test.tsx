@@ -61,11 +61,12 @@ describe("SampleActionMenu", () => {
     // 正常接收时无异常类型字段
     expect(within(dialog).queryByRole("button", { name: "温度异常" })).not.toBeInTheDocument()
 
-    // 补全样本信息（建项目时只有编号+数量）
+    // 补全样本信息（建项目时未填）
     fireEvent.change(within(dialog).getByLabelText("物种"), { target: { value: "人" } })
     fireEvent.change(within(dialog).getByLabelText("组织类型"), { target: { value: "肺" } })
     fireEvent.change(within(dialog).getByLabelText("实验类型"), { target: { value: "scRNA" } })
     fireEvent.change(within(dialog).getByLabelText("运输条件"), { target: { value: "干冰" } })
+    fireEvent.change(within(dialog).getByLabelText("样本数量"), { target: { value: "2" } })
 
     // 切到异常接收 → 需选类型或填说明
     await user.click(within(dialog).getByRole("combobox"))
@@ -87,9 +88,48 @@ describe("SampleActionMenu", () => {
     const body = JSON.parse(String(init.body))
     expect(body.species).toBe("人")
     expect(body.experimentType).toBe("scRNA")
+    expect(body.sampleCount).toBe("2")
     expect(body.receiveStatus).toBe("abnormal")
     expect(body.abnormalNote).toBe("温度异常 · 运输超温")
     expect(body.receivedAt).toBeTruthy()
+  })
+
+  it("登记接收 Dialog：已有批次信息时预填，仅核对即可提交", async () => {
+    const user = userEvent.setup()
+    render(
+      <SampleActionMenu
+        {...baseProps}
+        species="小鼠"
+        tissueType="肝脏组织"
+        experimentType="组织解离"
+        transportCondition="冰袋"
+        sampleCount={2}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: "登记接收" }))
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByText("YP-001 · 核对样本信息并登记实际到样")).toBeInTheDocument()
+    expect(within(dialog).getByLabelText("物种")).toHaveValue("小鼠")
+    expect(within(dialog).getByLabelText("组织类型")).toHaveValue("肝脏组织")
+    expect(within(dialog).getByLabelText("实验类型")).toHaveValue("组织解离")
+    expect(within(dialog).getByLabelText("运输条件")).toHaveValue("冰袋")
+    expect(within(dialog).getByLabelText("样本数量")).toHaveValue(2)
+
+    await user.click(within(dialog).getByRole("button", { name: "登记接收" }))
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body).toMatchObject({
+      species: "小鼠",
+      tissueType: "肝脏组织",
+      experimentType: "组织解离",
+      transportCondition: "冰袋",
+      sampleCount: "2",
+      receiveStatus: "normal",
+      abnormalNote: null,
+    })
   })
 
   it("溢出菜单「登记样本异常」：原因必填，提交调用 mark-abnormal API", async () => {

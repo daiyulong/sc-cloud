@@ -38,6 +38,10 @@ type SampleActionMenuProps = {
   projectId?: string
   projectNo?: string
   expectedArrival?: string
+  species?: string | null
+  tissueType?: string | null
+  experimentType?: string | null
+  transportCondition?: string | null
   sampleCount?: number | null
 }
 
@@ -53,6 +57,10 @@ export function SampleActionMenu({
   projectId,
   projectNo,
   expectedArrival,
+  species,
+  tissueType,
+  experimentType,
+  transportCondition,
   sampleCount,
 }: SampleActionMenuProps) {
   const { primary, overflow } = partitionSampleActions(status, role)
@@ -131,6 +139,10 @@ export function SampleActionMenu({
         projectId={projectId}
         projectNo={projectNo}
         expectedArrival={expectedArrival}
+        species={species}
+        tissueType={tissueType}
+        experimentType={experimentType}
+        transportCondition={transportCondition}
         sampleCount={sampleCount}
         onConfirm={(body: ReceiveSampleBody) => active && execute(active, body)}
       />

@@ -118,11 +118,15 @@ export function ProjectForm({
       priority,
       expectedDeliveryDate: formString(formData, "expectedDeliveryDate"),
       remark: formString(formData, "remark"),
-      // 建项目即生成 1 个空样本批次：可选填 样本编号(YP) + 数量，均可空、收样时补
+      // 建项目即生成 1 个空样本批次：样本信息可先填，收样时带出核对；缺失项再补录。
       ...(mode === "create"
         ? {
             batchNo: formString(formData, "batchNo"),
+            species: formString(formData, "species"),
+            tissueType: formString(formData, "tissueType"),
             sampleCount: formString(formData, "sampleCount"),
+            experimentType: formString(formData, "experimentType"),
+            transportCondition: formString(formData, "transportCondition"),
           }
         : {}),
     }
@@ -279,6 +283,30 @@ export function ProjectForm({
               <Field>
                 <FieldLabel htmlFor="batchNo">样本编号 (YP)</FieldLabel>
                 <Input id="batchNo" name="batchNo" placeholder="上游给定，可空、收样时补" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="species">样本物种</FieldLabel>
+                <Input id="species" name="species" placeholder="人 / 小鼠…可空，收样时补" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="tissueType">组织类型</FieldLabel>
+                <Input id="tissueType" name="tissueType" placeholder="肺组织 / 肝脏…可空，收样时补" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="experimentType">实验类型</FieldLabel>
+                <Input
+                  id="experimentType"
+                  name="experimentType"
+                  placeholder="组织解离 / scRNA…可空，收样时补"
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="transportCondition">运输条件</FieldLabel>
+                <Input
+                  id="transportCondition"
+                  name="transportCondition"
+                  placeholder="干冰 / 冰袋…可空，收样时补"
+                />
               </Field>
               <Field>
                 <FieldLabel htmlFor="sampleCount">样本数量</FieldLabel>

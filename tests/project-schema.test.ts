@@ -13,11 +13,20 @@ describe("project schemas", () => {
       serviceLevel: ServiceLevel.standard,
       priority: "普通",
       expectedDeliveryDate: "2026-06-10",
-      sampleNo: "YP20260504587",
+      batchNo: "YP20260504587",
+      species: "人",
+      tissueType: "肺组织",
+      experimentType: "组织解离",
+      transportCondition: "干冰",
       sampleCount: "3",
     })
 
     expect(parsed.expectedDeliveryDate).toBeInstanceOf(Date)
+    expect(parsed.batchNo).toBe("YP20260504587")
+    expect(parsed.species).toBe("人")
+    expect(parsed.tissueType).toBe("肺组织")
+    expect(parsed.experimentType).toBe("组织解离")
+    expect(parsed.transportCondition).toBe("干冰")
     expect(parsed.sampleCount).toBe(3)
   })
 

@@ -274,7 +274,8 @@ export async function createProject(operator: ProjectOperator, input: CreateProj
   const projectManagerId =
     input.projectManagerId || (operator.role === UserRole.project_manager ? operator.id : null)
 
-  // 进度式收集：建项目即生成 1 个空样本批次（0 叶子），样本编号(YP)/数量收样时补（重构 §5）。
+  // 进度式收集：建项目即生成 1 个空样本批次（0 叶子）。样本信息可提前填，
+  // 收样时带出核对；缺失项再由收样员补录。
   // WHY：收样工位的接缝队列需要一行可显示的待接收批次，对称于 projectNo-null 草稿。
   const batchNo = input.batchNo?.trim() || null
   if (batchNo) {
@@ -312,13 +313,17 @@ export async function createProject(operator: ProjectOperator, input: CreateProj
       after: project,
     })
 
-    // 批次信息（物种/组织/实验类型/运输条件）收样时补；样本叶子收样时按数量生成
+    // 样本叶子收样时按数量生成；批次级信息可先随项目录入，收样时核对/补齐。
     const batch = await tx.sampleBatch.create({
       data: {
         projectId: project.id,
         batchNo,
         seq: 1,
+        species: input.species ?? null,
+        tissueType: input.tissueType ?? null,
         sampleCount: input.sampleCount ?? null,
+        experimentType: input.experimentType ?? null,
+        transportCondition: input.transportCondition ?? null,
       },
     })
     await recordOperation({
