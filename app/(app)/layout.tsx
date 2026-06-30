@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { getWorkstationBadges } from "@/lib/workstation/badges"
 import type { UserRole as UserRoleValue } from "@/lib/enums"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -16,9 +16,9 @@ export default async function AppLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const session = await auth()
+  const session = await getVerifiedSession()
 
-  if (!session?.user?.id) {
+  if (!session) {
     redirect("/login")
   }
 

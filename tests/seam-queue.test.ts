@@ -5,7 +5,6 @@ import {
   buildExperimentTaskScope,
   buildProjectScope,
   buildSampleBatchScope,
-  buildSampleScope,
 } from "@/lib/auth/role-scope"
 import { sampleListQuerySchema } from "@/lib/schemas/sample"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
@@ -25,7 +24,6 @@ describe("行级可见范围：全员开放", () => {
   it("所有在册角色（含只读 viewer）scope 全开放：空 where，看到全部", () => {
     for (const role of allRoles) {
       expect(buildProjectScope(role)).toEqual({})
-      expect(buildSampleScope(role)).toEqual({})
       expect(buildSampleBatchScope(role)).toEqual({})
       expect(buildExperimentTaskScope(role)).toEqual({})
       expect(buildBioinfoTaskScope(role)).toEqual({})
@@ -35,7 +33,7 @@ describe("行级可见范围：全员开放", () => {
   it("未知/缺失角色 fail-closed：什么都看不到", () => {
     expect(buildProjectScope(undefined)).toEqual({ id: "__none__" })
     expect(buildProjectScope("bogus" as unknown as UserRole)).toEqual({ id: "__none__" })
-    expect(buildSampleScope(undefined)).toEqual({ id: "__none__" })
+    expect(buildSampleBatchScope(undefined)).toEqual({ id: "__none__" })
     expect(buildBioinfoTaskScope(undefined)).toEqual({ id: "__none__" })
   })
 })

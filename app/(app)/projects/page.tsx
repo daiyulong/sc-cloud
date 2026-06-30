@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { AlertCircle, FolderKanban, Plus, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
   PROJECT_STATUS_LABELS,
@@ -147,8 +147,8 @@ function ProjectTableHead() {
 }
 
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
   const role = session.user.role as UserRoleValue
   const operator = { id: session.user.id, role }
 

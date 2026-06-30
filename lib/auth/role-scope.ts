@@ -45,10 +45,6 @@ export function buildProjectScope(role: UserRole | undefined): Prisma.ProjectWhe
   return visibleScope<Prisma.ProjectWhereInput>(role)
 }
 
-export function buildSampleScope(role: UserRole | undefined): Prisma.SampleWhereInput {
-  return visibleScope<Prisma.SampleWhereInput>(role)
-}
-
 export function buildSampleBatchScope(role: UserRole | undefined): Prisma.SampleBatchWhereInput {
   return visibleScope<Prisma.SampleBatchWhereInput>(role)
 }

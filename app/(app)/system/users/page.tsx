@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { SearchX } from "lucide-react"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
   USER_ROLE_LABELS,
@@ -41,8 +41,8 @@ const USER_ACTIVE_DOT = {
 } as const
 
 export default async function UsersPage({ searchParams }: UsersPageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
   if (session.user.role !== UserRole.admin) redirect(landingPathForRole(session.user.role))
 
   const raw = (await searchParams) ?? {}

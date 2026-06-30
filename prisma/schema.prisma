@@ -135,7 +135,6 @@ enum OperationAction {
   update
   status_change
   assign
-  import
   delete
 }
 
@@ -161,7 +160,7 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  // 业务反向关系（行级 scope §3.3 与时间线依赖）
+  // 业务反向关系（列表展示与时间线依赖）
   salesProjects   Project[]               @relation("SalesOwner")
   managedProjects Project[]               @relation("ProjectManager")
   receivedBatches SampleBatch[] // 收样接收人（接收记录迁到批次）
@@ -172,7 +171,6 @@ model User {
   confirmedImages ExperimentRecordImage[] @relation("ImageConfirmer")
   deliveries      SequencingDelivery[]    @relation("DeliveryCreator")
   operationLogs   OperationLog[]
-  projectGrants   ProjectGrant[]
 
   @@index([isActive, role])
   @@map("users")
@@ -255,7 +253,6 @@ model Project {
   experimentTasks ExperimentTask[]
   bioinfoTasks    BioinfoTask[]
   recordImages    ExperimentRecordImage[]
-  projectGrants   ProjectGrant[]
   deliveries      SequencingDelivery[]
 
   @@index([contractNo])
@@ -327,7 +324,7 @@ model SampleBatch {
 model Sample {
   id               String          @id @default(cuid())
   batchId          String          @map("batch_id")
-  projectId        String          @map("project_id") // 冗余自 batch.projectId（同事务复制、批次不可改挂项目），简化行级 scope/统计
+  projectId        String          @map("project_id") // 冗余自 batch.projectId（同事务复制、批次不可改挂项目），简化统计/列表查询
   sampleName       String?         @map("sample_name") // 样本名：任务单回填 / 手工 / 多模态补
   species          String? // 逐样本属性，默认继承批次
   tissueType       String?         @map("tissue_type")
@@ -481,23 +478,8 @@ model ExperimentRecordImage {
   @@map("experiment_record_images")
 }
 
-// 只读用户(viewer)显式项目授权（§3.3）
-model ProjectGrant {
-  userId    String   @map("user_id")
-  projectId String   @map("project_id")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@id([userId, projectId])
-  @@index([userId])
-  @@index([projectId])
-  @@map("project_grants")
-}
-
 // ============================================================
-// 审计与导入（追加写，仅 createdAt）
+// 审计（追加写，仅 createdAt）
 // ============================================================
 
 model OperationLog {

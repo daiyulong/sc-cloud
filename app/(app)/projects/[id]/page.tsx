@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { ArrowUpRight, FileDown, Plus } from "lucide-react"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import {
   BIOINFO_TASK_STATUS_LABELS,
@@ -76,8 +76,8 @@ export default async function ProjectDetailPage({
   params,
   searchParams,
 }: ProjectDetailPageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
 
   const { id } = await params
   const raw = (await searchParams) ?? {}

@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { Edit } from "lucide-react"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import {
   PROJECT_STATUS_LABELS,
@@ -32,8 +32,8 @@ type SampleDetailPageProps = {
 }
 
 export default async function SampleDetailPage({ params }: SampleDetailPageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
 
   const { id } = await params
   const detail = await getSampleDetail(

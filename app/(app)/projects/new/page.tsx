@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import { UserRole, type UserRole as UserRoleValue } from "@/lib/enums"
 import { getProjectUserOptions } from "@/lib/projects/options"
@@ -19,8 +19,8 @@ function canCreateProject(role?: UserRoleValue) {
 }
 
 export default async function NewProjectPage() {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
   if (!canCreateProject(session.user.role as UserRoleValue)) redirect("/projects")
 
   const { salesUsers, managerUsers } = await getProjectUserOptions()

@@ -2,7 +2,7 @@ import Link from "next/link"
 import { Dna, FlaskConical, Plus, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
 import { cn, firstParam, formatDate } from "@/lib/utils"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
   BIOINFO_TASK_STATUS_LABELS,
@@ -86,8 +86,8 @@ function TabLink({
 }
 
 export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
   const role = session.user.role as UserRoleValue
   const operator = { id: session.user.id, role }
 

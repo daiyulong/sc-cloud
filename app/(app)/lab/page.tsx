@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { FlaskConical, Plus, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
   EXPERIMENT_TASK_STATUS_LABELS,
@@ -54,8 +54,8 @@ const DEFAULT_TASK_STATUS_SELECTION: ExperimentTaskStatusValue[] = (
 ).filter((status) => !TERMINAL_TASK_STATUSES.includes(status))
 
 export default async function LabPage({ searchParams }: LabPageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
   const role = session.user.role as UserRoleValue
   const operator = { id: session.user.id, role }
 

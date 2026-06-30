@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import { type UserRole as UserRoleValue } from "@/lib/enums"
 import { getProjectDetail } from "@/lib/projects/service"
@@ -20,8 +20,8 @@ type EditProjectPageProps = {
 }
 
 export default async function EditProjectPage({ params }: EditProjectPageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
 
   const { id } = await params
   const [{ project }, { salesUsers, managerUsers }] = await Promise.all([

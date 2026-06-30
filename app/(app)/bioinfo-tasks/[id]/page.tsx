@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { Edit } from "lucide-react"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import {
   BIOINFO_TASK_STATUS_LABELS,
@@ -38,8 +38,8 @@ type BioinfoTaskDetailPageProps = {
 }
 
 export default async function BioinfoTaskDetailPage({ params }: BioinfoTaskDetailPageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
 
   const { id } = await params
   const operator = { id: session.user.id, role: session.user.role as UserRoleValue }

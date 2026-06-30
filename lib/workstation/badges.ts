@@ -18,7 +18,7 @@ import {
 /** 侧栏队列深度角标：按导航项 key 映射计数（只渲染 > 0 的）。 */
 export type WorkstationBadges = Partial<Record<"projects" | "intake" | "lab" | "bioinfo", number>>
 
-// 各工位「待办」队列口径（行级 scope AND 状态条件）。
+// 各工位「待办」队列口径（可见范围 AND 状态条件）。
 const LAB_OPEN_STATUSES = [
   ExperimentTaskStatus.waiting_schedule,
   ExperimentTaskStatus.scheduled,

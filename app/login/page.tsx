@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { landingPathForRole } from "@/lib/auth/landing"
 import { LoginForm } from "./login-form"
 import {
@@ -13,8 +13,8 @@ import {
 export const dynamic = "force-dynamic"
 
 export default async function LoginPage() {
-  const session = await auth()
-  if (session?.user?.id) {
+  const session = await getVerifiedSession()
+  if (session) {
     redirect(landingPathForRole(session.user.role))
   }
 

@@ -7,7 +7,7 @@ import {
   type SuspensionType as SuspensionTypeValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import {
   getAnalytics,
   hasSimilarFilters,
@@ -57,8 +57,8 @@ function Stat({ label, stat, suffix = "" }: { label: string; stat: SimilarStat; 
 }
 
 export default async function ExperiencesPage({ searchParams }: ExperiencesPageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
   const operator = { id: session.user.id, role: session.user.role as UserRoleValue }
 
   const raw = (await searchParams) ?? {}

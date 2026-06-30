@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Microscope, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
   SAMPLE_BATCH_STATUS_LABELS,
@@ -49,8 +49,8 @@ const DEFAULT_BATCH_STATUS_SELECTION: SampleBatchStatusValue[] = (
 ).filter((status) => !TERMINAL_BATCH_STATUSES.includes(status))
 
 export default async function IntakePage({ searchParams }: IntakePageProps) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/login")
+  const session = await getVerifiedSession()
+  if (!session) redirect("/login")
 
   const raw = (await searchParams) ?? {}
   const viewId = firstParam(raw.view)
@@ -84,7 +84,7 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
       effectiveQuery,
       { skip, limit }
     ),
-    // 上下文 chip 的项目号：不从结果集取（结果为空时会退化成裸 ID）；叠加行级 scope，越权时回退显示裸 ID
+    // 上下文 chip 的项目号：不从结果集取（结果为空时会退化成裸 ID）；未知/缺失角色 fail-closed 时回退显示裸 ID
     query.projectId
       ? prisma.project.findFirst({
           where: {

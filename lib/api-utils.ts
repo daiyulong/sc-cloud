@@ -1,21 +1,12 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
 import type { UserRole } from "@/lib/enums"
+import { getVerifiedSession } from "@/lib/auth/verified-session"
 
 // 通用路由参数类型，消除各 route.ts 的重复定义
 export type RouteContext<T = { id: string }> = {
   params: Promise<T>
-}
-
-/** 校验 JWT 中的用户是否存在且激活（防数据库重置后的幽灵会话），并回传最新 role */
-async function verifyUser(userId: string) {
-  const { prisma } = await import("@/lib/prisma")
-  return prisma.user.findUnique({
-    where: { id: userId, isActive: true },
-    select: { id: true, role: true },
-  })
 }
 
 /**
@@ -25,19 +16,10 @@ async function verifyUser(userId: string) {
  *   if (err) return err
  */
 export async function requireAuth() {
-  const session = await auth()
-  if (!session?.user?.id) {
+  const session = await getVerifiedSession()
+  if (!session) {
     return [null, NextResponse.json({ error: "未授权" }, { status: 401 })] as const
   }
-  const dbUser = await verifyUser(session.user.id)
-  if (!dbUser) {
-    return [
-      null,
-      NextResponse.json({ error: "用户不存在或已停用，请重新登录" }, { status: 401 }),
-    ] as const
-  }
-  // 用 DB 最新 role 覆盖可能过期的 JWT role
-  session.user.role = dbUser.role
   return [session, null] as const
 }
 

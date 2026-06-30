@@ -1,6 +1,5 @@
 import type { NextAuthConfig } from "next-auth"
 import type { UserRole } from "@/lib/enums"
-import { landingPathForRole } from "@/lib/auth/landing"
 import "next-auth/jwt"
 
 // 该配置用于 proxy.ts（Edge Runtime），不能引用 Prisma
@@ -23,10 +22,7 @@ export const authConfig: NextAuthConfig = {
       )
 
       if (isPublicPath) {
-        // 已登录访问登录页 → 跳本角色工位
-        if (isLoggedIn && nextUrl.pathname === "/login") {
-          return Response.redirect(new URL(landingPathForRole(auth?.user?.role), nextUrl))
-        }
+        // 登录页由 Server Component 做数据库态校验后跳转，避免停用账号的过期 JWT 形成重定向循环。
         return true
       }
 
@@ -35,13 +31,6 @@ export const authConfig: NextAuthConfig = {
         const loginUrl = new URL("/login", nextUrl)
         loginUrl.searchParams.set("callbackUrl", nextUrl.pathname)
         return Response.redirect(loginUrl)
-      }
-
-      // 非管理员访问系统管理区 → 跳首页（细粒度行级权限在各 API 内做）
-      const isAdminPath =
-        nextUrl.pathname.startsWith("/system") || nextUrl.pathname.startsWith("/api/admin")
-      if (isAdminPath && auth?.user?.role !== "admin") {
-        return Response.redirect(new URL(landingPathForRole(auth?.user?.role), nextUrl))
       }
 
       return true
