@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 import { ProjectStatus, SampleBatchStatus, UserRole } from "@/lib/enums"
 import {
   SampleDomainError,
-  ensureProjectCanCreateSample,
   ensureProjectCanReceiveSample,
   ensureSampleRole,
   ensureSampleStatus,
@@ -73,13 +72,5 @@ describe("sample batch rules", () => {
     expect(() => ensureProjectCanReceiveSample(ProjectStatus.draft)).toThrow(SampleDomainError)
     expect(() => ensureProjectCanReceiveSample(ProjectStatus.abnormal)).toThrow(SampleDomainError)
     expect(() => ensureProjectCanReceiveSample(ProjectStatus.completed)).toThrow(SampleDomainError)
-  })
-
-  it("blocks batch creation on terminal or abnormal projects", () => {
-    expect(() => ensureProjectCanCreateSample(ProjectStatus.draft)).not.toThrow()
-    expect(() => ensureProjectCanCreateSample(ProjectStatus.waiting_sample)).not.toThrow()
-    expect(() => ensureProjectCanCreateSample(ProjectStatus.completed)).toThrow(SampleDomainError)
-    expect(() => ensureProjectCanCreateSample(ProjectStatus.terminated)).toThrow(SampleDomainError)
-    expect(() => ensureProjectCanCreateSample(ProjectStatus.abnormal)).toThrow(SampleDomainError)
   })
 })

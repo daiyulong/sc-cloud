@@ -34,13 +34,6 @@ export const sampleReceivableProjectStatuses: readonly ProjectStatusValue[] = [
   ProjectStatus.lab_in_progress,
 ]
 
-/** 项目终态/异常不允许再新增样本 */
-export const sampleCreatableProjectBlockedStatuses: readonly ProjectStatusValue[] = [
-  ProjectStatus.completed,
-  ProjectStatus.terminated,
-  ProjectStatus.abnormal,
-]
-
 export function ensureSampleRole(
   role: string | undefined,
   allowed: readonly string[],
@@ -70,12 +63,6 @@ export function ensureProjectCanReceiveSample(projectStatus: ProjectStatusValue)
       `项目当前状态（${projectStatus}）不允许登记样本接收，请先由项目经理推进项目至待到样`,
       409
     )
-  }
-}
-
-export function ensureProjectCanCreateSample(projectStatus: ProjectStatusValue) {
-  if (sampleCreatableProjectBlockedStatuses.includes(projectStatus)) {
-    throw new SampleDomainError(`项目当前状态（${projectStatus}）不允许新增样本`, 409)
   }
 }
 

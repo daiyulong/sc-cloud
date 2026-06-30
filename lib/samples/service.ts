@@ -14,7 +14,6 @@ import {
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import type {
-  CreateSampleInput,
   MarkSampleAbnormalInput,
   ReceiveSampleInput,
   SampleListQuery,
@@ -23,7 +22,6 @@ import type {
 import {
   SampleDomainError,
   abnormalMarkableSampleStatuses,
-  ensureProjectCanCreateSample,
   ensureProjectCanReceiveSample,
   ensureSampleRole,
   ensureSampleStatus,
@@ -150,59 +148,6 @@ export async function getSampleDetail(operator: SampleOperator, id: string) {
 
   if (!batch) throw new SampleDomainError("样本批次不存在或无权访问", 404)
   return { sample: batch, operationLogs }
-}
-
-export async function createSample(operator: SampleOperator, input: CreateSampleInput) {
-  ensureSampleRole(operator.role, staffRoles, "新增样本批次")
-
-  const project = await prisma.project.findUnique({
-    where: { id: input.projectId },
-    select: sampleProjectSelect,
-  })
-  if (!project) throw new SampleDomainError("所属项目不存在", 404)
-
-  // 开放协作：不再限"只能在自己负责的项目下登记"，全员在岗可登记。
-  ensureProjectCanCreateSample(project.status)
-
-  const batchNo = input.batchNo?.trim() || null
-  if (batchNo) {
-    const clash = await prisma.sampleBatch.findUnique({ where: { batchNo }, select: { id: true } })
-    if (clash) throw new SampleDomainError(`样本编号 ${batchNo} 已存在`, 409)
-  }
-
-  return prisma.$transaction(async (tx) => {
-    const seqMax = await tx.sampleBatch.aggregate({
-      where: { projectId: input.projectId },
-      _max: { seq: true },
-    })
-    const batch = await tx.sampleBatch.create({
-      data: {
-        projectId: input.projectId,
-        batchNo,
-        seq: (seqMax._max.seq ?? 0) + 1,
-        species: input.species ?? null,
-        tissueType: input.tissueType ?? null,
-        sampleCount: input.sampleCount ?? null,
-        experimentType: input.experimentType ?? null,
-        transportCondition: input.transportCondition ?? null,
-        samplingDate: input.samplingDate ?? null,
-        expectedArrivalDate: input.expectedArrivalDate ?? null,
-        remark: input.remark ?? null,
-      },
-      include: batchInclude,
-    })
-
-    await recordOperation({
-      tx,
-      entityType: "sample_batch",
-      entityId: batch.id,
-      action: OperationAction.create,
-      operatorId: operator.id,
-      after: batch,
-    })
-
-    return batch
-  })
 }
 
 export async function updateSample(

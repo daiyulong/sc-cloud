@@ -1,65 +1,18 @@
 import { describe, expect, it } from "vitest"
 import {
-  createSampleSchema,
   markSampleAbnormalSchema,
   receiveSampleSchema,
   updateSampleSchema,
 } from "@/lib/schemas/sample"
 
 // 2026-06 重构：「样本」schema 操作的是样本批次（SampleBatch）；批次字段进度式收集、多为可空。
-const validCreateInput = {
-  projectId: "p1",
+const validUpdateInput = {
   batchNo: "YP-001",
   species: "人",
   tissueType: "肺组织",
   experimentType: "组织解离",
   transportCondition: "干冰",
 }
-
-describe("createSampleSchema (batch)", () => {
-  it("parses a minimal valid batch (only projectId required)", () => {
-    const result = createSampleSchema.parse({ projectId: "p1" })
-    expect(result.projectId).toBe("p1")
-    expect(result.sampleCount).toBeUndefined()
-  })
-
-  it("keeps batchNo when provided", () => {
-    expect(createSampleSchema.parse(validCreateInput).batchNo).toBe("YP-001")
-  })
-
-  it("requires projectId", () => {
-    expect(() => createSampleSchema.parse({ ...validCreateInput, projectId: "" })).toThrow()
-  })
-
-  it("coerces sampleCount and rejects negatives (§8.3)", () => {
-    expect(createSampleSchema.parse({ ...validCreateInput, sampleCount: "3" }).sampleCount).toBe(3)
-    expect(
-      createSampleSchema.parse({ ...validCreateInput, sampleCount: "" }).sampleCount
-    ).toBeNull()
-    expect(() => createSampleSchema.parse({ ...validCreateInput, sampleCount: "-1" })).toThrow()
-    expect(() => createSampleSchema.parse({ ...validCreateInput, sampleCount: "1.5" })).toThrow()
-  })
-
-  it("rejects expected arrival earlier than sampling date, same day passes (§8.6)", () => {
-    expect(() =>
-      createSampleSchema.parse({
-        ...validCreateInput,
-        samplingDate: "2026-06-05",
-        expectedArrivalDate: "2026-06-04",
-      })
-    ).toThrow()
-    expect(() =>
-      createSampleSchema.parse({
-        ...validCreateInput,
-        samplingDate: "2026-06-05",
-        expectedArrivalDate: "2026-06-05",
-      })
-    ).not.toThrow()
-    expect(() =>
-      createSampleSchema.parse({ ...validCreateInput, expectedArrivalDate: "2026-06-05" })
-    ).not.toThrow()
-  })
-})
 
 describe("updateSampleSchema (batch)", () => {
   it("requires at least one field", () => {
@@ -70,6 +23,33 @@ describe("updateSampleSchema (batch)", () => {
   it("does not accept projectId or status fields", () => {
     const result = updateSampleSchema.parse({ species: "小鼠", projectId: "p2", status: "received" })
     expect(result).toEqual({ species: "小鼠" })
+  })
+
+  it("coerces sampleCount and rejects negatives (§8.3)", () => {
+    expect(updateSampleSchema.parse({ ...validUpdateInput, sampleCount: "3" }).sampleCount).toBe(3)
+    expect(updateSampleSchema.parse({ ...validUpdateInput, sampleCount: "" }).sampleCount).toBeNull()
+    expect(() => updateSampleSchema.parse({ ...validUpdateInput, sampleCount: "-1" })).toThrow()
+    expect(() => updateSampleSchema.parse({ ...validUpdateInput, sampleCount: "1.5" })).toThrow()
+  })
+
+  it("rejects expected arrival earlier than sampling date, same day passes (§8.6)", () => {
+    expect(() =>
+      updateSampleSchema.parse({
+        ...validUpdateInput,
+        samplingDate: "2026-06-05",
+        expectedArrivalDate: "2026-06-04",
+      })
+    ).toThrow()
+    expect(() =>
+      updateSampleSchema.parse({
+        ...validUpdateInput,
+        samplingDate: "2026-06-05",
+        expectedArrivalDate: "2026-06-05",
+      })
+    ).not.toThrow()
+    expect(() =>
+      updateSampleSchema.parse({ ...validUpdateInput, expectedArrivalDate: "2026-06-05" })
+    ).not.toThrow()
   })
 })
 

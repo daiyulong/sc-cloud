@@ -61,14 +61,6 @@ function checkArrivalNotBeforeSampling(
   }
 }
 
-export const createSampleSchema = z
-  .object({
-    projectId: z.string().trim().min(1, "请选择所属项目"),
-    ...batchBaseFields,
-  })
-  .superRefine(checkArrivalNotBeforeSampling)
-export type CreateSampleInput = z.infer<typeof createSampleSchema>
-
 // 更新不含 projectId（批次不支持跨项目移动）、不含接收/状态字段（只能走 receive 动作）
 export const updateSampleSchema = z
   .object(batchBaseFields)
