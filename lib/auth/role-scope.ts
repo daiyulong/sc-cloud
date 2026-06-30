@@ -3,27 +3,13 @@ import {
   BIOINFO_SERVICE_LEVELS,
   ExperimentTaskStatus,
   ProjectStatus,
-  SampleStatus,
   UserRole,
 } from "@/lib/enums"
 
-/**
- * 「待建实验任务」队列条件：已接收、所属项目在可建任务态、且尚无实验任务。
- * 供列表 `awaiting=task` 筛选、工位徽章计数共用（聚焦信号，非可见性墙）。
- */
-export const samplesAwaitingTaskWhere: Prisma.SampleWhereInput = {
-  status: {
-    in: [
-      SampleStatus.received,
-      SampleStatus.received_abnormal,
-      SampleStatus.waiting_task,
-      SampleStatus.lab_in_progress,
-    ],
-  },
-  // 叶子是否已进某次上机：经 TaskSample 关联（旧 Sample→ExperimentTask 直连已退役）
-  taskSamples: { none: {} },
-  project: { status: { in: [ProjectStatus.sample_received, ProjectStatus.lab_in_progress] } },
-}
+// 注：M1 时曾有 `samplesAwaitingTaskWhere`（叶子级「待建实验任务」where 片段）。
+// M2 已迁移：「待建实验任务」语义以 ExperimentTask 列表 + waiting_schedule 状态承接，
+// 不再挂样本列表 awaiting=task 筛选（见 tests/seam-queue.test.ts:45）。
+// 此处不再导出死代码，tasksAwaitingBioinfoWhere 仍按原口径保留。
 
 /**
  * 「待建生信任务」队列条件：实验已完成、所属项目含生信且在可建生信态、且尚无生信任务。

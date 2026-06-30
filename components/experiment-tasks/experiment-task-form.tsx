@@ -1,29 +1,29 @@
 "use client"
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Save } from "lucide-react"
+import { Check, ChevronDown, Save } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 import { toDateString } from "@/lib/utils"
 import type { OperatorOption } from "@/components/experiment-tasks/schedule-dialog"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
 export type TaskSampleOption = {
   id: string
   sampleName: string | null
   species: string | null
   tissueType: string | null
-  batch: { batchNo: string | null; experimentType: string | null } | null
+  batch: { id: string; batchNo: string | null; experimentType: string | null; seq: number } | null
   project: { id: string; projectNo: string | null; customerOrg: string }
 }
 
@@ -43,7 +43,8 @@ type ExperimentTaskFormProps = {
   task?: TaskFormValue
   sampleOptions?: TaskSampleOption[]
   operatorOptions: OperatorOption[]
-  initialSampleId?: string
+  /** create 模式预填：来自 URL ?sampleIds= 或 ?sampleBatchId=；edit 模式忽略 */
+  initialSampleIds?: string[]
   /** modal = 在当前上下文 ?new 居中模态内创建（成功后关模态）；page = 全页表单（成功跳详情） */
   surface?: "page" | "modal"
 }
@@ -54,37 +55,91 @@ function dateInputValue(value: Date | string | null | undefined) {
   return value ? toDateString(value) : ""
 }
 
+/** 按 YP 批次折叠分组：同一 batch.id 的样本聚合，picker 内显示一个分组标题 + 全选按钮。 */
+function groupSamplesByBatch(options: TaskSampleOption[]) {
+  const map = new Map<string, { batchId: string; batchNo: string; items: TaskSampleOption[] }>()
+  for (const s of options) {
+    const key = s.batch?.id ?? "_unassigned"
+    const label = s.batch?.batchNo ?? "未分配批次"
+    if (!map.has(key)) map.set(key, { batchId: key, batchNo: label, items: [] })
+    map.get(key)!.items.push(s)
+  }
+  return Array.from(map.values())
+}
+
 export function ExperimentTaskForm({
   mode,
   task,
   sampleOptions = [],
   operatorOptions,
-  initialSampleId,
+  initialSampleIds = [],
   surface = "page",
 }: ExperimentTaskFormProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = React.useTransition()
-  const [sampleId, setSampleId] = React.useState(
-    task?.taskSamples?.[0]?.sample?.id || initialSampleId || ""
-  )
+  // create 模式：多选 sampleIds；edit 模式：仅展示 disabled Input（不动）
+  const [sampleIds, setSampleIds] = React.useState<Set<string>>(() => {
+    if (mode === "edit") return new Set(task?.taskSamples?.map((ts) => ts.sample.id) ?? [])
+    if (initialSampleIds.length > 0) return new Set(initialSampleIds)
+    return new Set()
+  })
   const [operatorId, setOperatorId] = React.useState(task?.operatorId || UNASSIGNED)
   const [experimentType, setExperimentType] = React.useState(task?.experimentType ?? "")
+  const userTouchedExperimentType = React.useRef(false)
 
-  function onSampleChange(next: string) {
-    setSampleId(next)
-    // 选中样本后，实验类型为空则用样本的实验类型预填（可改）
-    if (!experimentType.trim()) {
-      const picked = sampleOptions.find((option) => option.id === next)
-      if (picked?.batch?.experimentType) setExperimentType(picked.batch.experimentType)
-    }
+  const grouped = React.useMemo(() => groupSamplesByBatch(sampleOptions), [sampleOptions])
+
+  // experimentType 自动预填：仅当 user 没手填过、且所有选中样本共享同一 batch.experimentType
+  // 命令式：在 toggleOne / toggleGroup 的 setSampleIds updater 里同步调用（避免 setState in useEffect）。
+  // 闭包里的 experimentType 是上次 render 快照，但 userTouchedRef 是同步 ref，已能精准守护：
+  //  - 用户从没动过 → userTouchedRef.current === false → 走 autoFill
+  //  - 用户已动过 → userTouchedRef.current === true → 直接 return，与 experimentType 是否 stale 无关
+  function autoFillExperimentType(ids: Set<string>) {
+    if (userTouchedExperimentType.current) return
+    if (ids.size === 0) return
+    const picked = sampleOptions.filter((s) => ids.has(s.id))
+    const types = Array.from(
+      new Set(picked.map((p) => p.batch?.experimentType ?? "").filter(Boolean))
+    )
+    if (types.length === 1) setExperimentType(types[0])
+  }
+
+  function toggleOne(id: string) {
+    setSampleIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      autoFillExperimentType(next)
+      return next
+    })
+  }
+
+  function toggleGroup(items: TaskSampleOption[], force?: boolean) {
+    setSampleIds((prev) => {
+      const next = new Set(prev)
+      const allSelected = items.every((it) => next.has(it.id))
+      const shouldSelect = force ?? !allSelected
+      for (const it of items) {
+        if (shouldSelect) next.add(it.id)
+        else next.delete(it.id)
+      }
+      autoFillExperimentType(next)
+      return next
+    })
+  }
+
+  function clearAll() {
+    setSampleIds(new Set())
   }
 
   function closeModal() {
     const sp = new URLSearchParams(searchParams)
     sp.delete("new")
     sp.delete("sampleId")
+    sp.delete("sampleIds")
+    sp.delete("sampleBatchId")
     router.push(sp.toString() ? `${pathname}?${sp.toString()}` : pathname, { scroll: false })
   }
 
@@ -98,6 +153,11 @@ export function ExperimentTaskForm({
       return
     }
 
+    if (mode === "create" && sampleIds.size === 0) {
+      toast.error("请选择至少一个样本")
+      return
+    }
+
     const payload: Record<string, unknown> = {
       experimentType: experimentType.trim(),
       runMethod: text("runMethod"),
@@ -106,21 +166,19 @@ export function ExperimentTaskForm({
       operatorId: operatorId === UNASSIGNED ? null : operatorId,
     }
 
-    if (mode === "create" && !sampleId) {
-      toast.error("请选择关联样本")
-      return
-    }
-
     const url =
       mode === "create"
-        ? `/api/samples/${sampleId}/experiment-tasks`
+        ? `/api/experiment-tasks`
         : `/api/experiment-tasks/${task?.id}`
+
+    const body: Record<string, unknown> =
+      mode === "create" ? { ...payload, sampleIds: Array.from(sampleIds) } : payload
 
     startTransition(async () => {
       const response = await fetch(url, {
         method: mode === "create" ? "POST" : "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       })
       const result = await response.json().catch(() => null)
       if (!response.ok) {
@@ -139,6 +197,11 @@ export function ExperimentTaskForm({
     })
   }
 
+  const triggerLabel =
+    sampleIds.size === 0
+      ? "选择样本（可多选）"
+      : `已选 ${sampleIds.size} / ${sampleOptions.length}`
+
   return (
     <form onSubmit={onSubmit}>
       <FieldGroup>
@@ -146,22 +209,91 @@ export function ExperimentTaskForm({
           {mode === "create" ? (
             <Field>
               <FieldLabel>关联样本</FieldLabel>
-              <Select value={sampleId} onValueChange={onSampleChange}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择已接收样本" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {sampleOptions.map((sample) => (
-                      <SelectItem key={sample.id} value={sample.id}>
-                        {sample.sampleName || sample.batch?.batchNo || "未命名样本"} ·{" "}
-                        {sample.species}/{sample.tissueType} · {sample.project.projectNo}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <FieldDescription>仅可选择已接收、项目处于已到样/实验中的样本。</FieldDescription>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-between font-normal"
+                  >
+                    <span className="truncate">{triggerLabel}</span>
+                    <ChevronDown aria-hidden="true" className="h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[min(92vw,440px)] max-h-[60vh] overflow-y-auto p-1"
+                >
+                  {grouped.length === 0 && (
+                    <p className="px-2 py-3 text-sm text-muted-foreground">
+                      当前项目下没有可建任务的样本（请先完成收样）。
+                    </p>
+                  )}
+                  {grouped.map((group, idx) => {
+                    const allSelected = group.items.every((it) => sampleIds.has(it.id))
+                    const noneSelected = group.items.every((it) => !sampleIds.has(it.id))
+                    return (
+                      <div key={group.batchId}>
+                        {idx > 0 && <DropdownMenuSeparator />}
+                        <DropdownMenuLabel className="flex items-center justify-between gap-2">
+                          <span className="truncate">
+                            {group.batchNo} · {group.items.length} 个样本
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            disabled={allSelected}
+                            onClick={() => toggleGroup(group.items, true)}
+                          >
+                            <Check aria-hidden="true" className="mr-1 h-3 w-3" />
+                            全选
+                          </Button>
+                        </DropdownMenuLabel>
+                        {group.items.map((it) => {
+                          const checked = sampleIds.has(it.id)
+                          return (
+                            <DropdownMenuCheckboxItem
+                              key={it.id}
+                              checked={checked}
+                              onCheckedChange={() => toggleOne(it.id)}
+                              onSelect={(event) => event.preventDefault()}
+                            >
+                              <span className="truncate">
+                                {it.sampleName || "未命名"} · {it.species || "-"}/{it.tissueType || "-"}
+                              </span>
+                            </DropdownMenuCheckboxItem>
+                          )
+                        })}
+                        {noneSelected && !allSelected && null}
+                      </div>
+                    )
+                  })}
+                  {sampleIds.size > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <div className="flex items-center justify-between px-2 py-1.5">
+                        <span className="text-xs text-muted-foreground">
+                          已选 {sampleIds.size} 个样本
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={clearAll}
+                        >
+                          清空
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <FieldDescription>
+                按 YP 批次折叠，可单选/多选/全选/清空；跨批次勾选可合并上机。
+              </FieldDescription>
             </Field>
           ) : (
             <Field>
@@ -177,7 +309,10 @@ export function ExperimentTaskForm({
             <Input
               id="experimentType"
               value={experimentType}
-              onChange={(event) => setExperimentType(event.target.value)}
+              onChange={(event) => {
+                userTouchedExperimentType.current = true
+                setExperimentType(event.target.value)
+              }}
               placeholder="组织解离 / 建库 / 上机 / 质控…"
               required
             />
@@ -212,22 +347,42 @@ export function ExperimentTaskForm({
           </Field>
           <Field>
             <FieldLabel>实验负责人</FieldLabel>
-            <Select value={operatorId} onValueChange={setOperatorId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="未指派" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value={UNASSIGNED}>未指派</SelectItem>
-                  {operatorOptions.map((operator) => (
-                    <SelectItem key={operator.id} value={operator.id}>
-                      {operator.name}
-                      {operator.department ? ` · ${operator.department}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between font-normal"
+                >
+                  <span className="truncate">
+                    {operatorId === UNASSIGNED
+                      ? "未指派"
+                      : operatorOptions.find((o) => o.id === operatorId)?.name ?? "未指派"}
+                  </span>
+                  <ChevronDown aria-hidden="true" className="h-4 w-4 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[min(92vw,320px)] p-1">
+                <DropdownMenuCheckboxItem
+                  checked={operatorId === UNASSIGNED}
+                  onCheckedChange={() => setOperatorId(UNASSIGNED)}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  未指派
+                </DropdownMenuCheckboxItem>
+                {operatorOptions.map((operator) => (
+                  <DropdownMenuCheckboxItem
+                    key={operator.id}
+                    checked={operatorId === operator.id}
+                    onCheckedChange={() => setOperatorId(operator.id)}
+                    onSelect={(event) => event.preventDefault()}
+                  >
+                    {operator.name}
+                    {operator.department ? ` · ${operator.department}` : ""}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </Field>
         </div>
         <div className="flex justify-end gap-2">

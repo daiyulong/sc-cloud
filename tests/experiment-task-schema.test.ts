@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   createExperimentTaskSchema,
+  createExperimentTaskWithSamplesSchema,
   experimentTaskListQuerySchema,
   recordQcSchema,
   scheduleTaskSchema,
@@ -98,5 +99,64 @@ describe("experimentTaskListQuerySchema", () => {
 
   it("空查询通过", () => {
     expect(experimentTaskListQuerySchema.parse({})).toEqual({})
+  })
+})
+
+describe("createExperimentTaskWithSamplesSchema", () => {
+  it("合法 sampleIds[3] 通过", () => {
+    const parsed = createExperimentTaskWithSamplesSchema.parse({
+      experimentType: "建库",
+      sampleIds: ["s1", "s2", "s3"],
+    })
+    expect(parsed.sampleIds).toEqual(["s1", "s2", "s3"])
+    expect(parsed.experimentType).toBe("建库")
+  })
+
+  it("空数组拒绝（min 1）", () => {
+    expect(() =>
+      createExperimentTaskWithSamplesSchema.parse({
+        experimentType: "建库",
+        sampleIds: [],
+      })
+    ).toThrow()
+  })
+
+  it("> 20 拒绝（防误选整个项目）", () => {
+    expect(() =>
+      createExperimentTaskWithSamplesSchema.parse({
+        experimentType: "建库",
+        sampleIds: Array.from({ length: 21 }, (_, i) => `id${i}`),
+      })
+    ).toThrow()
+  })
+
+  it("缺 experimentType 拒绝", () => {
+    expect(() =>
+      createExperimentTaskWithSamplesSchema.parse({ sampleIds: ["a"] })
+    ).toThrow()
+  })
+
+  it("sampleIds 含空串拒绝", () => {
+    expect(() =>
+      createExperimentTaskWithSamplesSchema.parse({
+        experimentType: "建库",
+        sampleIds: ["a", ""],
+      })
+    ).toThrow()
+  })
+
+  it("边界：1 个 + 20 个都通过", () => {
+    expect(() =>
+      createExperimentTaskWithSamplesSchema.parse({
+        experimentType: "建库",
+        sampleIds: ["only"],
+      })
+    ).not.toThrow()
+    expect(() =>
+      createExperimentTaskWithSamplesSchema.parse({
+        experimentType: "建库",
+        sampleIds: Array.from({ length: 20 }, (_, i) => `id${i}`),
+      })
+    ).not.toThrow()
   })
 })

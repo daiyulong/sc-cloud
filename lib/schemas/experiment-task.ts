@@ -57,6 +57,21 @@ export const createExperimentTaskSchema = z.object({
 })
 export type CreateExperimentTaskInput = z.infer<typeof createExperimentTaskSchema>
 
+/**
+ * 多对多入口：POST /api/experiment-tasks，body 含 sampleIds[]。
+ * 一次上机多样本是 M3 落地现实（TaskSample 多对多表已建），schema 与 service 同步扩展。
+ * 上限 20 是一次上机多通道的富余（典型 1-8 通道），防误选整个项目。
+ */
+export const createExperimentTaskWithSamplesSchema = createExperimentTaskSchema.extend({
+  sampleIds: z
+    .array(z.string().min(1))
+    .min(1, "请至少选择一个样本")
+    .max(20, "单次最多 20 个样本"),
+})
+export type CreateExperimentTaskWithSamplesInput = z.infer<
+  typeof createExperimentTaskWithSamplesSchema
+>
+
 /** 整体更新（PUT）：不含状态/结果字段（走对应动作），至少一个字段 */
 export const updateExperimentTaskSchema = z
   .object({

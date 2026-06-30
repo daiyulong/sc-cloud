@@ -10,7 +10,7 @@ import { UserRole, type UserRole as UserRoleValue } from "@/lib/enums"
 /** 创建实验任务时可选的样本：当前用户可见、已接收、且所属项目处于已到样/实验中 */
 export async function getTaskSampleOptions(
   operator: { id: string; role?: UserRoleValue },
-  filters: { projectId?: string | null } = {}
+  filters: { projectId?: string | null; sampleBatchId?: string | null } = {}
 ) {
   const clauses: Prisma.SampleWhereInput[] = [
     { project: buildProjectScope(operator.role) },
@@ -18,6 +18,7 @@ export async function getTaskSampleOptions(
     { project: { status: { in: [...taskCreatableProjectStatuses] } } },
   ]
   if (filters.projectId) clauses.push({ projectId: filters.projectId })
+  if (filters.sampleBatchId) clauses.push({ batchId: filters.sampleBatchId })
 
   return prisma.sample.findMany({
     where: { AND: clauses },
@@ -26,10 +27,11 @@ export async function getTaskSampleOptions(
       sampleName: true,
       species: true,
       tissueType: true,
-      batch: { select: { batchNo: true, experimentType: true } },
+      batch: { select: { id: true, batchNo: true, experimentType: true, seq: true } },
       project: { select: { id: true, projectNo: true, customerOrg: true } },
     },
-    orderBy: { updatedAt: "desc" },
+    // 按 YP 分组稳定排序：先按批次 seq，再按样本名（picker 内折叠后顺序稳定）
+    orderBy: [{ batch: { seq: "asc" } }, { sampleName: "asc" }],
     take: 100,
   })
 }

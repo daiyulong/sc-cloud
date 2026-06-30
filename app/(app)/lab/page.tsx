@@ -119,7 +119,15 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     : null
   // ?new=1 模态：在队列里建任务（成功后关模态回列表、不跳全页）
   const isNew = firstParam(raw.new) === "1"
-  const initialSampleId = firstParam(raw.sampleId)
+  // 多对多入口预填：支持 ?sampleIds=id1,id2,id3（新建 task 覆盖 N 个样本）；?sampleBatchId= 自动全选该批次
+  const initialSampleIds = (() => {
+    const rawIds = firstParam(raw.sampleIds)
+    if (rawIds) return rawIds.split(",").filter(Boolean)
+    // 向后兼容：旧 URL ?sampleId= 单数也认作「预填 1 个」
+    const legacy = firstParam(raw.sampleId)
+    return legacy ? [legacy] : []
+  })()
+  const initialSampleBatchId = firstParam(raw.sampleBatchId)
   const newHref = (() => {
     const params = new URLSearchParams(baseParams)
     if (page > 1) params.set("page", String(page))
@@ -128,7 +136,19 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   })()
   const canCreate = canActAsStaff(role)
   const sampleOptions =
-    isNew && canCreate ? await getTaskSampleOptions(operator, { projectId: query.projectId }) : []
+    isNew && canCreate
+      ? await getTaskSampleOptions(operator, {
+          projectId: query.projectId,
+          sampleBatchId: initialSampleBatchId,
+        })
+      : []
+  // ?sampleBatchId= 命中时，自动默认选中该批次所有未上机样本（picker 默认「YP 全选」）
+  const prefilledSampleIds =
+    initialSampleIds.length > 0
+      ? initialSampleIds
+      : initialSampleBatchId
+        ? sampleOptions.map((s) => s.id)
+        : []
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
   const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.date)
   const clearFiltersHref = query.projectId
@@ -299,13 +319,20 @@ export default async function LabPage({ searchParams }: LabPageProps) {
       )}
 
       {isNew && canCreate && (
-        <FormDialog param="new" title="新建实验任务">
+        <FormDialog
+          param="new"
+          title={
+            prefilledSampleIds.length > 0
+              ? `新建实验任务 · 已预选 ${prefilledSampleIds.length} 个样本`
+              : "新建实验任务"
+          }
+        >
           <ExperimentTaskForm
             mode="create"
             surface="modal"
             sampleOptions={sampleOptions}
             operatorOptions={operatorOptions}
-            initialSampleId={initialSampleId}
+            initialSampleIds={prefilledSampleIds}
           />
         </FormDialog>
       )}

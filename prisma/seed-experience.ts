@@ -262,13 +262,20 @@ export async function seedDemoData() {
       },
     })
 
-    let ei = 0
+    // 多对多落地：每行一捕获 = 每叶子 1 条样本 + 1 条 qc，但实验任务按批次共享 1 个（一次上机多样品）。
+    // 原写法是「每叶子 1 task」，与现实业务粒度不符；改为：先批量建 leaves + 收集 sampleIds，再 createMany TaskSample 一次性挂到 1 个 task。
+    const bookingLeaves: {
+      sampleId: string
+      viability: number | null
+      qcResult: QCResult
+      riskLevel: RiskLevel
+      concentration: number | null
+      aggregationRate: number | null
+    }[] = []
     for (const r of grp) {
-      ei++
       leafTotal++
       const viability = num(r["活率%"])
       const { qcResult, riskLevel } = qcOf(viability)
-      const rowType = str(r["项目类型"]) ?? expType
       const sample = await prisma.sample.create({
         data: {
           batchId: batch.id,
@@ -283,31 +290,47 @@ export async function seedDemoData() {
           medianGenes: intNum(r["基因中位数"]),
         },
       })
+      bookingLeaves.push({
+        sampleId: sample.id,
+        viability,
+        qcResult,
+        riskLevel,
+        concentration: num(r["悬液浓度(个/ul)"]),
+        aggregationRate: num(r["结团率%"]),
+      })
+    }
+
+    if (bookingLeaves.length > 0) {
       const task = await prisma.experimentTask.create({
         data: {
-          taskNo: `${orderNo}-E${String(ei).padStart(2, "0")}`,
+          taskNo: `${orderNo}-E01`,
           projectId: project.id,
-          experimentType: rowType,
-          runMethod: rowType,
+          experimentType: expType,
+          runMethod: expType,
           status: ExperimentTaskStatus.completed,
           actualDate: labDate,
           operatorId: lab.id,
-          taskSamples: { create: { sampleId: sample.id } },
+          // 多对多：createMany 把整批次叶子一次性挂到同一次上机（TaskSample 表）
+          taskSamples: {
+            create: bookingLeaves.map((leaf) => ({ sampleId: leaf.sampleId })),
+          },
         },
       })
-      await prisma.qcRecord.create({
-        data: {
-          sampleId: sample.id,
-          taskId: task.id,
-          source: "manual",
-          concentration: num(r["悬液浓度(个/ul)"]),
-          viability,
-          aggregationRate: num(r["结团率%"]),
-          qcResult,
-          riskLevel,
-          createdBy: lab.id,
-        },
-      })
+      for (const leaf of bookingLeaves) {
+        await prisma.qcRecord.create({
+          data: {
+            sampleId: leaf.sampleId,
+            taskId: task.id,
+            source: "manual",
+            concentration: leaf.concentration,
+            viability: leaf.viability,
+            aggregationRate: leaf.aggregationRate,
+            qcResult: leaf.qcResult,
+            riskLevel: leaf.riskLevel,
+            createdBy: lab.id,
+          },
+        })
+      }
     }
   }
 

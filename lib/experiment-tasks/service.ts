@@ -17,12 +17,14 @@ import {
   ProjectStatus,
   SampleStatus,
   UserRole,
+  type ProjectStatus as ProjectStatusValue,
   type SampleStatus as SampleStatusValue,
   type ServiceLevel as ServiceLevelValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import type {
   CreateExperimentTaskInput,
+  CreateExperimentTaskWithSamplesInput,
   ExperimentTaskListQuery,
   FinishTaskInput,
   RecordQcInput,
@@ -41,6 +43,7 @@ import {
   feedbackSubmittableTaskStatuses,
   metricsRecordableTaskStatuses,
   qcRecordableTaskStatuses,
+  taskCreatableSampleStatuses,
 } from "@/lib/experiment-tasks/rules"
 
 export type ExperimentTaskOperator = {
@@ -229,32 +232,65 @@ export async function listTaskQcRecords(operator: ExperimentTaskOperator, taskId
 }
 
 /**
- * 从样本叶子创建实验任务（§5.1：已到样 → 任务待排期），经 TaskSample 关联。
- * M1：单样本入口（路由 /samples/[id] 为样本叶子 id）；多样本上机为 M2 增强。
+ * 多对多入口：从 N 个样本叶子创建一次实验任务（§5.1：已到样 → 任务待排期）。
+ * 一次上机多样本是 M3 落地现实（TaskSample 多对多表已建），本函数是 schema/service 的多对多实现。
+ *
+ * 同事务内校验 + 写入：所有 sample 同 project、status ∈ taskCreatableSampleStatuses、
+ * taskSamples.none（未上机）；一次性 SELECT + 内存判后 createMany TaskSample。
+ *
+ * 失败语义：
+ *  - 部分 ID 找不到 / 已上机 → 404（语义：调用方传入了无效或重复利用的样本）
+ *  - 跨项目 → 400
+ *  - sample / project 状态不符 → 409
  */
-export async function createExperimentTaskFromSample(
+export async function createExperimentTaskFromSamples(
   operator: ExperimentTaskOperator,
-  sampleId: string,
-  input: CreateExperimentTaskInput
+  input: CreateExperimentTaskWithSamplesInput
 ) {
   ensureExperimentTaskRole(operator.role, undefined, "创建实验任务")
 
-  const sample = await prisma.sample.findFirst({
-    where: { AND: [{ id: sampleId }, { project: buildProjectScope(operator.role) }] },
+  // 去重（防御性：调用方可能误传重复 ID）
+  const uniqueIds = Array.from(new Set(input.sampleIds))
+
+  const samples = await prisma.sample.findMany({
+    where: {
+      AND: [
+        { id: { in: uniqueIds } },
+        { project: buildProjectScope(operator.role) },
+        { status: { in: [...taskCreatableSampleStatuses] } },
+        // 未上机：TaskSample 无任何关联
+        { taskSamples: { none: {} } },
+      ],
+    },
     include: { project: { select: taskProjectSelect } },
   })
-  if (!sample) throw new ExperimentTaskDomainError("样本不存在或无权访问", 404)
-  ensureProjectCanCreateTask(sample.project.status)
-  ensureSampleCanCreateTask(sample.status)
+
+  if (samples.length !== uniqueIds.length) {
+    throw new ExperimentTaskDomainError(
+      "部分样本不存在、已上机或无权访问，请刷新后重试",
+      404
+    )
+  }
+
+  const projectIds = new Set(samples.map((s) => s.projectId))
+  if (projectIds.size !== 1) {
+    throw new ExperimentTaskDomainError("所有样本必须属于同一项目", 400)
+  }
+
+  const project = samples[0].project
+  ensureProjectCanCreateTask(project.status as ProjectStatusValue)
+  for (const s of samples) {
+    ensureSampleCanCreateTask(s.status as SampleStatusValue)
+  }
 
   return prisma.$transaction(async (tx) => {
-    const taskCount = await tx.experimentTask.count({ where: { projectId: sample.projectId } })
-    const taskNo = `${sample.project.projectNo ?? sample.project.id}-E${String(taskCount + 1).padStart(2, "0")}`
+    const taskCount = await tx.experimentTask.count({ where: { projectId: project.id } })
+    const taskNo = `${project.projectNo ?? project.id}-E${String(taskCount + 1).padStart(2, "0")}`
 
     const task = await tx.experimentTask.create({
       data: {
         taskNo,
-        projectId: sample.projectId,
+        projectId: project.id,
         experimentType: input.experimentType,
         runMethod: input.runMethod ?? null,
         department: input.department ?? null,
@@ -263,7 +299,9 @@ export async function createExperimentTaskFromSample(
         status: input.plannedDate
           ? ExperimentTaskStatus.scheduled
           : ExperimentTaskStatus.waiting_schedule,
-        taskSamples: { create: { sampleId: sample.id } },
+        taskSamples: {
+          createMany: { data: uniqueIds.map((sampleId) => ({ sampleId })) },
+        },
       },
       include: taskInclude,
     })
@@ -279,6 +317,18 @@ export async function createExperimentTaskFromSample(
 
     return task
   })
+}
+
+/**
+ * 单样本向后兼容快捷：内部委托到多对多入口 sampleIds=[id]。
+ * 路由 /api/samples/[id]/experiment-tasks 仍可用，便于历史链接与外部脚本。
+ */
+export async function createExperimentTaskFromSample(
+  operator: ExperimentTaskOperator,
+  sampleId: string,
+  input: CreateExperimentTaskInput
+) {
+  return createExperimentTaskFromSamples(operator, { ...input, sampleIds: [sampleId] })
 }
 
 export async function updateExperimentTask(

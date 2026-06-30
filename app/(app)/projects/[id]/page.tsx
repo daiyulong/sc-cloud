@@ -91,6 +91,14 @@ export default async function ProjectDetailPage({
   const canCreateBioinfo = canActAsStaff(operator.role)
   const isNewExperimentTask = rawNew === "experiment-task"
   const isNewBioinfoTask = rawNew === "bioinfo-task"
+  // 多对多入口预填：?sampleIds=id1,id2,id3 / ?sampleBatchId= 自动全选该批次（YP 默认）
+  const initialSampleIds = (() => {
+    const rawIds = firstParam(raw.sampleIds)
+    if (rawIds) return rawIds.split(",").filter(Boolean)
+    const legacy = firstParam(raw.sampleId)
+    return legacy ? [legacy] : []
+  })()
+  const initialSampleBatchId = firstParam(raw.sampleBatchId)
   const detail = await getProjectDetail(operator, id).catch(() => null)
   if (!detail) notFound()
 
@@ -109,9 +117,9 @@ export default async function ProjectDetailPage({
     listExperimentTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
     listBioinfoTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
     getOperatorOptions(),
-    listProjectDeliveries(operator, id),
+    listProjectDeliveries(operator, id).catch(() => []),
     isNewExperimentTask && canCreateTask
-      ? getTaskSampleOptions(operator, { projectId: id })
+      ? getTaskSampleOptions(operator, { projectId: id, sampleBatchId: initialSampleBatchId })
       : Promise.resolve([]),
     isNewBioinfoTask && canCreateBioinfo
       ? getBioinfoExperimentTaskOptions(operator, { projectId: id })
@@ -126,6 +134,13 @@ export default async function ProjectDetailPage({
     createdAtLabel: formatDateTime(d.createdAt),
     createdByName: d.createdBy?.name ?? null,
   }))
+  // ?sampleBatchId= 命中时，默认选中该批次所有未上机样本（picker 「YP 全选」）
+  const prefilledSampleIds =
+    initialSampleIds.length > 0
+      ? initialSampleIds
+      : initialSampleBatchId
+        ? taskSampleOptions.map((s) => s.id)
+        : []
   const overviewContent = (
     <Card>
       <CardHeader>
@@ -489,12 +504,20 @@ export default async function ProjectDetailPage({
       />
 
       {isNewExperimentTask && canCreateTask && (
-        <FormDialog param="new" title="新建实验任务">
+        <FormDialog
+          param="new"
+          title={
+            prefilledSampleIds.length > 0
+              ? `新建实验任务 · 已预选 ${prefilledSampleIds.length} 个样本`
+              : "新建实验任务"
+          }
+        >
           <ExperimentTaskForm
             mode="create"
             surface="modal"
             sampleOptions={taskSampleOptions}
             operatorOptions={operatorOptions}
+            initialSampleIds={prefilledSampleIds}
           />
         </FormDialog>
       )}
