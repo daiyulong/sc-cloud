@@ -4,13 +4,16 @@ import { Edit } from "lucide-react"
 import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import {
+  BIOINFO_SERVICE_LEVELS,
   EXPERIMENT_TASK_STATUS_LABELS,
   ExperimentTaskStatus,
   PROJECT_STATUS_LABELS,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
+  type ServiceLevel as ServiceLevelValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
+import { getAnalystOptions } from "@/lib/bioinfo-tasks/options"
 import { getOperatorOptions } from "@/lib/experiment-tasks/options"
 import { getExperimentTaskDetail } from "@/lib/experiment-tasks/service"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
@@ -42,12 +45,13 @@ export default async function ExperimentTaskDetailPage({ params }: ExperimentTas
   if (!session) redirect("/login")
 
   const { id } = await params
-  const [detail, operatorOptions] = await Promise.all([
+  const [detail, operatorOptions, analystOptions] = await Promise.all([
     getExperimentTaskDetail(
       { id: session.user.id, role: session.user.role as UserRoleValue },
       id
     ).catch(() => null),
     getOperatorOptions(),
+    getAnalystOptions(),
   ])
   if (!detail) notFound()
 
@@ -80,6 +84,10 @@ export default async function ExperimentTaskDetailPage({ params }: ExperimentTas
             status={status}
             role={session.user.role}
             operatorOptions={operatorOptions}
+            bioinfoEnabled={BIOINFO_SERVICE_LEVELS.includes(
+              task.project.serviceLevel as ServiceLevelValue
+            )}
+            analystOptions={analystOptions}
           />
           <Button asChild variant="outline">
             <Link href={`/experiment-tasks/${task.id}/edit`}>

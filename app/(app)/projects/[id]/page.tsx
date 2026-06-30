@@ -4,6 +4,7 @@ import { ArrowUpRight, FileDown, Plus } from "lucide-react"
 import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import {
+  BIOINFO_SERVICE_LEVELS,
   BIOINFO_TASK_STATUS_LABELS,
   EXPERIMENT_TASK_STATUS_LABELS,
   PROJECT_STATUS_LABELS,
@@ -21,7 +22,7 @@ import { listSamples } from "@/lib/samples/service"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getOperatorOptions, getTaskSampleOptions } from "@/lib/experiment-tasks/options"
 import { listExperimentTasks } from "@/lib/experiment-tasks/service"
-import { getAnalystOptions, getBioinfoExperimentTaskOptions } from "@/lib/bioinfo-tasks/options"
+import { getAnalystOptions } from "@/lib/bioinfo-tasks/options"
 import { listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { canRegisterDelivery, listProjectDeliveries } from "@/lib/sequencing-deliveries/service"
 import { DeliverySection } from "@/components/sequencing-deliveries/delivery-section"
@@ -34,7 +35,6 @@ import { ProjectFields } from "@/components/projects/project-fields"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { ExperimentTaskForm } from "@/components/experiment-tasks/experiment-task-form"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
-import { BioinfoTaskForm } from "@/components/bioinfo-tasks/bioinfo-task-form"
 import { SampleActionMenu } from "@/components/samples/sample-action-menu"
 import {
   BIOINFO_TASK_STATUS_DOT,
@@ -88,9 +88,7 @@ export default async function ProjectDetailPage({
     : "overview"
   const operator = { id: session.user.id, role: session.user.role as UserRoleValue }
   const canCreateTask = canActAsStaff(operator.role)
-  const canCreateBioinfo = canActAsStaff(operator.role)
   const isNewExperimentTask = rawNew === "experiment-task"
-  const isNewBioinfoTask = rawNew === "bioinfo-task"
   // 多对多入口预填：?sampleIds=id1,id2,id3 / ?sampleBatchId= 自动全选该批次（YP 默认）
   const initialSampleIds = (() => {
     const rawIds = firstParam(raw.sampleIds)
@@ -110,7 +108,6 @@ export default async function ProjectDetailPage({
     operatorOptions,
     deliveries,
     taskSampleOptions,
-    bioinfoExperimentTaskOptions,
     analystOptions,
   ] = await Promise.all([
     listSamples(operator, { projectId: id }, { skip: 0, limit: 20 }),
@@ -121,10 +118,7 @@ export default async function ProjectDetailPage({
     isNewExperimentTask && canCreateTask
       ? getTaskSampleOptions(operator, { projectId: id, sampleBatchId: initialSampleBatchId })
       : Promise.resolve([]),
-    isNewBioinfoTask && canCreateBioinfo
-      ? getBioinfoExperimentTaskOptions(operator, { projectId: id })
-      : Promise.resolve([]),
-    isNewBioinfoTask && canCreateBioinfo ? getAnalystOptions() : Promise.resolve([]),
+    getAnalystOptions(),
   ])
   const deliveryItems = deliveries.map((d) => ({
     id: d.id,
@@ -306,6 +300,10 @@ export default async function ProjectDetailPage({
                     status={task.status as ExperimentTaskStatusValue}
                     role={session.user.role}
                     operatorOptions={operatorOptions}
+                    bioinfoEnabled={BIOINFO_SERVICE_LEVELS.includes(
+                      task.project.serviceLevel as ServiceLevelValue
+                    )}
+                    analystOptions={analystOptions}
                     compact
                   />
                 </TableCell>
@@ -345,14 +343,6 @@ export default async function ProjectDetailPage({
                 <ArrowUpRight aria-hidden="true" />
               </Link>
             </Button>
-            {canCreateBioinfo && (
-              <Button asChild size="sm">
-                <Link href={`/projects/${project.id}?tab=bioinfo&new=bioinfo-task`} scroll={false}>
-                  <Plus data-icon="inline-start" aria-hidden="true" />
-                  新建任务
-                </Link>
-              </Button>
-            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -522,16 +512,6 @@ export default async function ProjectDetailPage({
         </FormDialog>
       )}
 
-      {isNewBioinfoTask && canCreateBioinfo && (
-        <FormDialog param="new" title="新建生信任务">
-          <BioinfoTaskForm
-            mode="create"
-            surface="modal"
-            experimentTaskOptions={bioinfoExperimentTaskOptions}
-            analystOptions={analystOptions}
-          />
-        </FormDialog>
-      )}
     </div>
   )
 }

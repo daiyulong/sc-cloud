@@ -24,7 +24,10 @@ export type FeedbackTaskBody = {
   resultStatus: ResultStatusValue
   resultFeedback: string
   loadedSampleCount: string | null
+  bioinfoAnalystId: string | null
 }
+
+export type FeedbackAnalystOption = { id: string; name: string; department: string | null }
 
 type FeedbackDialogProps = {
   open: boolean
@@ -33,7 +36,11 @@ type FeedbackDialogProps = {
   isPending: boolean
   onConfirm: (body: FeedbackTaskBody) => void
   surface?: ActionSurface
+  bioinfoEnabled?: boolean
+  analystOptions?: FeedbackAnalystOption[]
 }
+
+const UNASSIGNED = "__unassigned__"
 
 /** 提交实验反馈表单 Dialog：结果状态 + 结果反馈（必填）+ 上机样本个数 */
 export function FeedbackDialog({
@@ -43,10 +50,13 @@ export function FeedbackDialog({
   isPending,
   onConfirm,
   surface,
+  bioinfoEnabled = false,
+  analystOptions = [],
 }: FeedbackDialogProps) {
   const [resultStatus, setResultStatus] = React.useState<ResultStatusValue>(ResultStatus.normal_run)
   const [resultFeedback, setResultFeedback] = React.useState("")
   const [loadedSampleCount, setLoadedSampleCount] = React.useState("")
+  const [bioinfoAnalystId, setBioinfoAnalystId] = React.useState(UNASSIGNED)
   const [showError, setShowError] = React.useState(false)
   const [prevOpen, setPrevOpen] = React.useState(open)
 
@@ -56,6 +66,7 @@ export function FeedbackDialog({
       setResultStatus(ResultStatus.normal_run)
       setResultFeedback("")
       setLoadedSampleCount("")
+      setBioinfoAnalystId(UNASSIGNED)
       setShowError(false)
     }
   }
@@ -71,6 +82,8 @@ export function FeedbackDialog({
       resultStatus,
       resultFeedback: resultFeedback.trim(),
       loadedSampleCount: loadedSampleCount.trim() || null,
+      bioinfoAnalystId:
+        bioinfoEnabled && bioinfoAnalystId !== UNASSIGNED ? bioinfoAnalystId : null,
     })
   }
 
@@ -125,6 +138,28 @@ export function FeedbackDialog({
               placeholder="实际上机数量"
             />
           </Field>
+          {bioinfoEnabled && (
+            <Field>
+              <FieldLabel>生信分析员</FieldLabel>
+              <Select value={bioinfoAnalystId} onValueChange={setBioinfoAnalystId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="暂不指定" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value={UNASSIGNED}>暂不指定</SelectItem>
+                    {analystOptions.map((analyst) => (
+                      <SelectItem key={analyst.id} value={analyst.id}>
+                        {analyst.name}
+                        {analyst.department ? ` · ${analyst.department}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <FieldDescription>不指定时，生信任务进入待分配队列。</FieldDescription>
+            </Field>
+          )}
           <Field data-invalid={invalid || undefined}>
             <FieldLabel htmlFor="task-result-feedback">结果反馈</FieldLabel>
             <Textarea

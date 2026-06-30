@@ -119,6 +119,11 @@ function buildBioinfoListWhere(
     })
   }
   if (query.status?.length) filters.push({ status: { in: query.status } })
+  if (query.range === "mine") {
+    filters.push({ analystId: operator.id })
+  } else if (query.range === "unassigned") {
+    filters.push({ analystId: null, status: BioinfoTaskStatus.pending })
+  }
   if (query.projectId) filters.push({ projectId: query.projectId })
   if (query.analystId) filters.push({ analystId: query.analystId })
   if (query.open === "1") filters.push({ status: { in: openBioinfoStatuses } })

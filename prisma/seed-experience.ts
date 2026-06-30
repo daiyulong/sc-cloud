@@ -6,6 +6,7 @@ import {
   ProjectStatus,
   QCResult,
   RiskLevel,
+  ResultStatus,
   SampleBatchStatus,
   SampleStatus,
   ServiceLevel,
@@ -24,8 +25,8 @@ import {
  *   + 样本批次；再把 data/单细胞项目经验.xlsx 的产出（一行一捕获）按「委托单号 + 样本名」
  *   挂到对应样本叶子（产出指标 + QC + 已完成上机任务）→ 喂经验库（相似检索 + 图表）。
  *   不再造独立 DEMO- 壳：项目即业务项目、用真实委托单号。
- * - **在途集**：再补一小批跨流程阶段的演示项目（草稿 / 待收样 / 实验中 / 待建生信 /
- *   生信中 / 待交付 / 异常），让工位队列与侧栏角标非空，可视化 M2 工位制。
+ * - **在途集**：再补一小批跨流程阶段的演示项目（草稿 / 待收样 / 待预约实验 / 实验中 /
+ *   待分配生信 / 生信中 / 待交付 / 异常），让工位队列与侧栏角标非空，可视化工位制。
  * 幂等：每次先清掉本 seed 造的项目（按已知委托单号 + 在途编号 + remark 哨兵）再重建。
  * SEED_DEMO=0 可跳过（正式部署不灌 demo）。
  */
@@ -95,6 +96,7 @@ type InFlightSpec = {
   leafStatus?: SampleStatusValue
   task?: ExperimentTaskStatusValue
   bioinfo?: BioinfoTaskStatusValue
+  bioinfoAssignee?: "assigned" | "unassigned"
   statusBefore?: ProjectStatusValue
 }
 const INFLIGHT_SPECS: InFlightSpec[] = [
@@ -116,6 +118,15 @@ const INFLIGHT_SPECS: InFlightSpec[] = [
     batch: "waiting",
     batchInfo: "blank",
   },
+  // 待预约实验：样本已接收、尚未创建实验任务 → 实验工位主列表显示「预约实验」
+  {
+    no: "BP-G260601008",
+    status: ProjectStatus.sample_received,
+    service: ServiceLevel.standard,
+    batch: "received",
+    leaves: 2,
+    leafStatus: SampleStatus.received,
+  },
   // 实验进行中 → 实验队列
   {
     no: "BP-G260601002",
@@ -126,7 +137,7 @@ const INFLIGHT_SPECS: InFlightSpec[] = [
     leafStatus: SampleStatus.lab_in_progress,
     task: ExperimentTaskStatus.in_progress,
   },
-  // 待建生信（实验完成、含生信服务、尚无生信任务）→ 生信「待建」
+  // 待分配生信：实验反馈完成后已自动生成生信任务，但实验人员未指定分析员
   {
     no: "BP-G260601003",
     status: ProjectStatus.waiting_bioinfo,
@@ -135,8 +146,10 @@ const INFLIGHT_SPECS: InFlightSpec[] = [
     leaves: 2,
     leafStatus: SampleStatus.feedback_submitted,
     task: ExperimentTaskStatus.completed,
+    bioinfo: BioinfoTaskStatus.pending,
+    bioinfoAssignee: "unassigned",
   },
-  // 生信进行中 → 生信「进行中」
+  // 生信进行中 → 生信工位「我的 / 全部」
   {
     no: "BP-G260601004",
     status: ProjectStatus.bioinfo_in_progress,
@@ -146,12 +159,13 @@ const INFLIGHT_SPECS: InFlightSpec[] = [
     leafStatus: SampleStatus.feedback_submitted,
     task: ExperimentTaskStatus.completed,
     bioinfo: BioinfoTaskStatus.in_progress,
+    bioinfoAssignee: "assigned",
   },
-  // 待交付 → 项目「需关注」
+  // 非生信服务：实验完成后直接待交付 → 项目「需关注」
   {
     no: "BP-G260601005",
     status: ProjectStatus.waiting_delivery,
-    service: ServiceLevel.standard,
+    service: ServiceLevel.run,
     batch: "received",
     leaves: 2,
     leafStatus: SampleStatus.feedback_submitted,
@@ -309,6 +323,8 @@ export async function seedDemoData() {
           runMethod: expType,
           status: ExperimentTaskStatus.completed,
           actualDate: labDate,
+          resultStatus: ResultStatus.normal_run,
+          resultFeedback: "历史项目 seed：实验反馈已提交",
           operatorId: lab.id,
           // 多对多：createMany 把整批次叶子一次性挂到同一次上机（TaskSample 表）
           taskSamples: {
@@ -331,6 +347,20 @@ export async function seedDemoData() {
           },
         })
       }
+
+      await prisma.bioinfoTask.create({
+        data: {
+          taskNo: `${orderNo}-B01`,
+          projectId: project.id,
+          experimentTaskId: task.id,
+          analysisType: "标准分析",
+          dataReceivedAt: labDate,
+          analystId: bioinfo.id,
+          status: BioinfoTaskStatus.delivered,
+          deliveredAt: labDate,
+          deliverableNote: "历史项目 seed：报告与矩阵文件已交付",
+        },
+      })
     }
   }
 
@@ -429,6 +459,8 @@ async function createInFlight(
       status: spec.task,
       plannedDate: daysFromNow(-2),
       actualDate: spec.task === ExperimentTaskStatus.completed ? daysFromNow(-1) : null,
+      resultStatus: spec.task === ExperimentTaskStatus.completed ? ResultStatus.normal_run : null,
+      resultFeedback: spec.task === ExperimentTaskStatus.completed ? "seed 演示数据：实验反馈已提交" : null,
       operatorId: users.labId,
       taskSamples: { create: sampleIds.map((sampleId) => ({ sampleId })) },
     },
@@ -441,8 +473,9 @@ async function createInFlight(
       projectId: project.id,
       experimentTaskId: task.id,
       analysisType: "标准分析",
+      dataReceivedAt: daysFromNow(-1),
       status: spec.bioinfo,
-      analystId: users.bioinfoId,
+      analystId: spec.bioinfoAssignee === "unassigned" ? null : users.bioinfoId,
     },
   })
 }

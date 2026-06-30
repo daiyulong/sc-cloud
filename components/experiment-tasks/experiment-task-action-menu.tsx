@@ -16,6 +16,7 @@ import {
 } from "@/components/experiment-tasks/schedule-dialog"
 import {
   FeedbackDialog,
+  type FeedbackAnalystOption,
   type FeedbackTaskBody,
 } from "@/components/experiment-tasks/feedback-dialog"
 import { QcDialog, type QcRecordBody } from "@/components/experiment-tasks/qc-dialog"
@@ -34,6 +35,8 @@ type ExperimentTaskActionMenuProps = {
   status: ExperimentTaskStatusValue
   role?: string
   operatorOptions: OperatorOption[]
+  bioinfoEnabled?: boolean
+  analystOptions?: FeedbackAnalystOption[]
   /** 列表行紧凑模式：sm outline 主按钮 + icon 溢出 */
   compact?: boolean
   /** 无可用动作时显示提示文案（sheet/全页用），否则渲染 null */
@@ -49,6 +52,8 @@ export function ExperimentTaskActionMenu({
   status,
   role,
   operatorOptions,
+  bioinfoEnabled = false,
+  analystOptions = [],
   compact = false,
   showEmptyHint = false,
   surface,
@@ -134,6 +139,8 @@ export function ExperimentTaskActionMenu({
         taskNo={taskNo}
         isPending={isPending}
         surface={surface}
+        bioinfoEnabled={bioinfoEnabled}
+        analystOptions={analystOptions}
         onConfirm={(body: FeedbackTaskBody) => active && execute(active, body)}
       />
       <QcDialog

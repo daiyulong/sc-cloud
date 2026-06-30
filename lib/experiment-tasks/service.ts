@@ -16,6 +16,7 @@ import {
   OperationAction,
   ProjectStatus,
   SampleStatus,
+  SERVICE_LEVEL_LABELS,
   UserRole,
   type ProjectStatus as ProjectStatusValue,
   type SampleStatus as SampleStatusValue,
@@ -45,6 +46,7 @@ import {
   qcRecordableTaskStatuses,
   taskCreatableSampleStatuses,
 } from "@/lib/experiment-tasks/rules"
+import { notifyBioinfoTaskAssigned, type BioinfoTaskForNotify } from "@/lib/notify/task-reminder"
 
 export type ExperimentTaskOperator = {
   id: string
@@ -90,8 +92,14 @@ const taskInclude = {
   operator: { select: taskUserSelect },
 } satisfies Prisma.ExperimentTaskInclude
 
+const bioinfoNotifyInclude = {
+  project: { select: { projectNo: true, customerOrg: true } },
+  analyst: { select: { name: true, email: true } },
+} satisfies Prisma.BioinfoTaskInclude
+
 type TaskWithSamples = Prisma.ExperimentTaskGetPayload<{ include: typeof taskInclude }>
 type TaskLeaf = Prisma.SampleGetPayload<{ select: typeof taskLeafSelect }>
+type BioinfoNotifyTask = Prisma.BioinfoTaskGetPayload<{ include: typeof bioinfoNotifyInclude }>
 
 function taskLeaves(task: { taskSamples: { sample: TaskLeaf }[] }): TaskLeaf[] {
   return task.taskSamples.map((ts) => ts.sample)
@@ -506,7 +514,21 @@ export async function submitExperimentFeedback(
   ensureExperimentTaskStatus(before.status, feedbackSubmittableTaskStatuses, "提交实验反馈")
   ensureActualDateValid(input.actualDate, latestReceivedAt(before), operator.role)
 
-  return prisma.$transaction(async (tx) => {
+  const bioinfoAnalystId = input.bioinfoAnalystId ?? null
+  if (
+    bioinfoAnalystId &&
+    BIOINFO_SERVICE_LEVELS.includes(before.project.serviceLevel as ServiceLevelValue)
+  ) {
+    const analyst = await prisma.user.findFirst({
+      where: { id: bioinfoAnalystId, role: UserRole.bioinfo_analyst, isActive: true },
+      select: { id: true },
+    })
+    if (!analyst) {
+      throw new ExperimentTaskDomainError("生信分析员不存在或不可用", 404)
+    }
+  }
+
+  const { updated, createdBioinfoTasks } = await prisma.$transaction(async (tx) => {
     const updated = await tx.experimentTask.update({
       where: { id },
       data: {
@@ -546,6 +568,7 @@ export async function submitExperimentFeedback(
     }
 
     // 项目聚合：实验任务全部完成 → 按服务档次分流
+    const createdBioinfoTasks: BioinfoNotifyTask[] = []
     if (before.project.status === ProjectStatus.lab_in_progress) {
       const remaining = await tx.experimentTask.count({
         where: {
@@ -554,7 +577,10 @@ export async function submitExperimentFeedback(
         },
       })
       if (remaining === 0) {
-        const next = BIOINFO_SERVICE_LEVELS.includes(before.project.serviceLevel as ServiceLevelValue)
+        const hasBioinfoService = BIOINFO_SERVICE_LEVELS.includes(
+          before.project.serviceLevel as ServiceLevelValue
+        )
+        const next = hasBioinfoService
           ? ProjectStatus.waiting_bioinfo
           : ProjectStatus.waiting_delivery
         await advanceProjectStatus(
@@ -565,11 +591,65 @@ export async function submitExperimentFeedback(
           next,
           `experiment_task:${updated.taskNo}:feedback`
         )
+
+        if (hasBioinfoService) {
+          const completedWithoutBioinfo = await tx.experimentTask.findMany({
+            where: {
+              projectId: before.projectId,
+              status: ExperimentTaskStatus.completed,
+              bioinfoTasks: { none: {} },
+            },
+            select: { id: true },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          })
+          let bioinfoTaskCount = await tx.bioinfoTask.count({
+            where: { projectId: before.projectId },
+          })
+
+          for (const expTask of completedWithoutBioinfo) {
+            bioinfoTaskCount += 1
+            const taskNo = `${before.project.projectNo ?? before.project.id}-B${String(
+              bioinfoTaskCount
+            ).padStart(2, "0")}`
+            const created = await tx.bioinfoTask.create({
+              data: {
+                taskNo,
+                projectId: before.projectId,
+                experimentTaskId: expTask.id,
+                analysisType:
+                  SERVICE_LEVEL_LABELS[before.project.serviceLevel as ServiceLevelValue] ?? null,
+                analystId: bioinfoAnalystId,
+              },
+              include: bioinfoNotifyInclude,
+            })
+
+            await recordOperation({
+              tx,
+              entityType: "bioinfo_task",
+              entityId: created.id,
+              action: OperationAction.create,
+              operatorId: operator.id,
+              after: {
+                ...created,
+                trigger: `experiment_task:${updated.taskNo}:feedback`,
+              },
+            })
+            createdBioinfoTasks.push(created)
+          }
+        }
       }
     }
 
-    return updated
+    return { updated, createdBioinfoTasks }
   })
+
+  for (const task of createdBioinfoTasks) {
+    if (task.analystId) {
+      await notifyBioinfoTaskAssigned(task as BioinfoTaskForNotify, "created", operator.id)
+    }
+  }
+
+  return updated
 }
 
 /**

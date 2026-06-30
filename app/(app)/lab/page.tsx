@@ -1,19 +1,27 @@
 import Link from "next/link"
-import { FlaskConical, Plus, SearchX } from "lucide-react"
+import { CalendarPlus, FlaskConical, Plus, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
 import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
+  BIOINFO_SERVICE_LEVELS,
   EXPERIMENT_TASK_STATUS_LABELS,
   ExperimentTaskStatus,
+  SampleBatchStatus,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
+  type ServiceLevel as ServiceLevelValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
 import { canActAsStaff } from "@/lib/auth/action-roles"
+import { getAnalystOptions } from "@/lib/bioinfo-tasks/options"
 import { getOperatorOptions, getTaskSampleOptions } from "@/lib/experiment-tasks/options"
+import {
+  taskCreatableProjectStatuses,
+  taskCreatableSampleStatuses,
+} from "@/lib/experiment-tasks/rules"
 import { getExperimentTaskDetail, listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { firstParam, formatDate } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
@@ -27,6 +35,7 @@ import { ExperimentTaskForm } from "@/components/experiment-tasks/experiment-tas
 import { ExperimentTaskSheetBody } from "@/components/experiment-tasks/experiment-task-sheet-body"
 import { EXPERIMENT_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { UserCell } from "@/components/user-cell"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -84,7 +93,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
       : undefined
   const effectiveQuery = { ...query, status: selectedStatuses }
 
-  const [{ data: tasks, total }, contextProject, operatorOptions] = await Promise.all([
+  const [{ data: tasks, total }, contextProject, operatorOptions, analystOptions] = await Promise.all([
     listExperimentTasks(operator, effectiveQuery, { skip, limit }),
     query.projectId
       ? prisma.project.findFirst({
@@ -93,6 +102,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         })
       : null,
     getOperatorOptions(),
+    getAnalystOptions(),
   ])
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
@@ -135,6 +145,52 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     return `/lab?${params.toString()}`
   })()
   const canCreate = canActAsStaff(role)
+  const showAppointmentRows =
+    canCreate &&
+    page === 1 &&
+    !query.q &&
+    !query.date &&
+    !query.awaiting &&
+    !query.operatorId &&
+    !hasStatusFilter
+  const appointmentBatches = showAppointmentRows
+    ? await prisma.sampleBatch.findMany({
+        where: {
+          AND: [
+            { project: buildProjectScope(role) },
+            { status: { in: [SampleBatchStatus.received, SampleBatchStatus.received_abnormal] } },
+            { project: { status: { in: [...taskCreatableProjectStatuses] } } },
+            {
+              samples: {
+                some: {
+                  status: { in: [...taskCreatableSampleStatuses] },
+                  taskSamples: { none: {} },
+                },
+              },
+            },
+            ...(query.projectId ? [{ projectId: query.projectId }] : []),
+          ],
+        },
+        select: {
+          id: true,
+          batchNo: true,
+          experimentType: true,
+          receivedAt: true,
+          project: { select: { id: true, projectNo: true, customerOrg: true } },
+          samples: {
+            where: {
+              status: { in: [...taskCreatableSampleStatuses] },
+              taskSamples: { none: {} },
+            },
+            select: { id: true, sampleName: true },
+            orderBy: { sampleName: "asc" },
+            take: 20,
+          },
+        },
+        orderBy: [{ receivedAt: "desc" }, { updatedAt: "desc" }],
+        take: 10,
+      })
+    : []
   const sampleOptions =
     isNew && canCreate
       ? await getTaskSampleOptions(operator, {
@@ -154,6 +210,12 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   const clearFiltersHref = query.projectId
     ? `/lab?projectId=${query.projectId}`
     : "/lab"
+  const appointmentHref = (sampleBatchId: string) => {
+    const params = new URLSearchParams(baseParams)
+    params.set("new", "1")
+    params.set("sampleBatchId", sampleBatchId)
+    return `/lab?${params.toString()}`
+  }
 
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
@@ -186,16 +248,16 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         }
       >
         {canCreate && (
-          <Button asChild>
+          <Button variant="outline" asChild>
             <Link href={newHref}>
               <Plus data-icon="inline-start" aria-hidden="true" />
-              新建任务
+              手动创建
             </Link>
           </Button>
         )}
       </ListToolbar>
 
-      {total === 0 ? (
+      {total === 0 && appointmentBatches.length === 0 ? (
         hasActiveFilters ? (
           <ListEmpty
             icon={<SearchX />}
@@ -223,10 +285,10 @@ export default async function LabPage({ searchParams }: LabPageProps) {
             }
           >
             {canCreate && (
-              <Button asChild>
+              <Button variant="outline" asChild>
                 <Link href={newHref}>
                   <Plus data-icon="inline-start" aria-hidden="true" />
-                  新建任务
+                  手动创建
                 </Link>
               </Button>
             )}
@@ -249,6 +311,48 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {appointmentBatches.map((batch) => (
+                  <TableRow key={`appointment-${batch.id}`} className="bg-muted/25">
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline">待预约实验</Badge>
+                          <span className="font-medium">{batch.batchNo}</span>
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          到样日期 {formatDate(batch.receivedAt)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {batch.samples.map((sample) => sample.sampleName || "未命名").join("、") || "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Link href={`/projects/${batch.project.id}`} className="hover:underline">
+                        {batch.project.projectNo}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{batch.experimentType}</TableCell>
+                    <TableCell>
+                      <span className="flex items-center gap-2 whitespace-nowrap">
+                        <StatusDot className="bg-amber-400" />
+                        待预约
+                      </span>
+                    </TableCell>
+                    <TableCell>-</TableCell>
+                    <TableCell>
+                      <span className="text-muted-foreground">未指派</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" asChild>
+                        <Link href={appointmentHref(batch.id)}>
+                          <CalendarPlus data-icon="inline-start" aria-hidden="true" />
+                          预约实验
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
                 {tasks.map((task) => (
                   <ClickableRow key={task.id} href={viewHref(task.id)} scroll={false}>
                     <TableCell>
@@ -289,6 +393,10 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                           status={task.status as ExperimentTaskStatusValue}
                           role={session.user.role}
                           operatorOptions={operatorOptions}
+                          bioinfoEnabled={BIOINFO_SERVICE_LEVELS.includes(
+                            task.project.serviceLevel as ServiceLevelValue
+                          )}
+                          analystOptions={analystOptions}
                           compact
                           surface="sheet"
                         />
@@ -311,6 +419,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
               detail={viewDetail}
               role={session.user.role}
               operatorOptions={operatorOptions}
+              analystOptions={analystOptions}
             />
           ) : (
             <DetailSheetEmpty message="实验任务不存在或无权限查看。" />

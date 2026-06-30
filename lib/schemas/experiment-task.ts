@@ -120,6 +120,7 @@ export const submitFeedbackSchema = z.object({
   resultStatus: resultStatusSchema,
   resultFeedback: requiredString("请输入结果反馈").max(2000, "结果反馈最多 2000 字"),
   actualDate: nullableDate,
+  bioinfoAnalystId: nullableString,
 })
 export type SubmitFeedbackInput = z.infer<typeof submitFeedbackSchema>
 

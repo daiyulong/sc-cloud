@@ -76,6 +76,7 @@ describe("ExperimentTaskActionMenu", () => {
     const body = JSON.parse(String(init.body))
     expect(body.resultStatus).toBe("normal_run")
     expect(body.resultFeedback).toBe("正常上机，捕获良好")
+    expect(body.bioinfoAnalystId).toBeNull()
   })
 
   it("溢出「录入质控」：提交调用 qc API（结论默认通过）", async () => {

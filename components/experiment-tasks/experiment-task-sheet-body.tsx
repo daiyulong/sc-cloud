@@ -1,10 +1,12 @@
 import Link from "next/link"
 import { Edit, Maximize2 } from "lucide-react"
 import {
+  BIOINFO_SERVICE_LEVELS,
   EXPERIMENT_TASK_STATUS_LABELS,
   PROJECT_STATUS_LABELS,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
+  type ServiceLevel as ServiceLevelValue,
 } from "@/lib/enums"
 import type { getExperimentTaskDetail } from "@/lib/experiment-tasks/service"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
@@ -16,6 +18,7 @@ import { pickRunMetrics } from "@/components/experiment-tasks/run-metrics"
 import { UploadRecordButton } from "@/components/experiment-records/upload-record-button"
 import { canUploadRecord } from "@/lib/experiment-records/permissions"
 import type { OperatorOption } from "@/components/experiment-tasks/schedule-dialog"
+import type { FeedbackAnalystOption } from "@/components/experiment-tasks/feedback-dialog"
 import { EXPERIMENT_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -27,10 +30,12 @@ export function ExperimentTaskSheetBody({
   detail,
   role,
   operatorOptions,
+  analystOptions,
 }: {
   detail: ExperimentTaskDetail
   role?: string
   operatorOptions: OperatorOption[]
+  analystOptions: FeedbackAnalystOption[]
 }) {
   const { task, operationLogs } = detail
   const status = task.status as ExperimentTaskStatusValue
@@ -61,6 +66,10 @@ export function ExperimentTaskSheetBody({
           status={status}
           role={role}
           operatorOptions={operatorOptions}
+          bioinfoEnabled={BIOINFO_SERVICE_LEVELS.includes(
+            task.project.serviceLevel as ServiceLevelValue
+          )}
+          analystOptions={analystOptions}
           showEmptyHint
         />
         <div className="ml-auto flex items-center gap-1.5">

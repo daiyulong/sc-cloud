@@ -48,8 +48,10 @@ describe("submitFeedbackSchema", () => {
     const parsed = submitFeedbackSchema.parse({
       resultStatus: ResultStatus.normal_run,
       resultFeedback: "正常上机，捕获良好",
+      bioinfoAnalystId: "  ",
     })
     expect(parsed.resultStatus).toBe("normal_run")
+    expect(parsed.bioinfoAnalystId).toBeNull()
   })
 })
 

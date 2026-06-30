@@ -52,6 +52,7 @@ export type SubmitBioinfoTaskInput = z.infer<typeof submitBioinfoTaskSchema>
 
 export const bioinfoTaskListQuerySchema = z.object({
   q: optionalString,
+  range: z.enum(["mine", "unassigned", "all"]).optional(),
   status: statusListSchema(bioinfoTaskStatusValues),
   projectId: optionalString,
   analystId: optionalString,

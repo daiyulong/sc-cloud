@@ -1,10 +1,10 @@
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import {
   buildBioinfoTaskScope,
   buildExperimentTaskScope,
   buildProjectScope,
   buildSampleBatchScope,
-  tasksAwaitingBioinfoWhere,
 } from "@/lib/auth/role-scope"
 import { ATTENTION_STATUSES } from "@/lib/projects/service"
 import {
@@ -51,17 +51,20 @@ function countLab(role: UserRoleValue) {
   })
 }
 
-async function countBioinfo(role: UserRoleValue) {
-  // 待建（over ExperimentTask）+ 进行中（over BioinfoTask）= 生信工位两 tab 总待办
-  const [pending, active] = await Promise.all([
-    prisma.experimentTask.count({
-      where: { AND: [buildExperimentTaskScope(role), tasksAwaitingBioinfoWhere] },
-    }),
-    prisma.bioinfoTask.count({
-      where: { AND: [buildBioinfoTaskScope(role), { status: { in: BIOINFO_OPEN_STATUSES } }] },
-    }),
-  ])
-  return pending + active
+function countBioinfo(operator: { id: string; role: UserRoleValue }) {
+  const filters: Prisma.BioinfoTaskWhereInput[] = [
+    buildBioinfoTaskScope(operator.role),
+    { status: { in: BIOINFO_OPEN_STATUSES } },
+  ]
+  if (operator.role === UserRole.bioinfo_analyst) {
+    filters.push({
+      OR: [
+        { analystId: operator.id },
+        { analystId: null, status: BioinfoTaskStatus.pending },
+      ],
+    })
+  }
+  return prisma.bioinfoTask.count({ where: { AND: filters } })
 }
 
 /**
@@ -79,7 +82,7 @@ export async function getWorkstationBadges(
       countProjects(role),
       countIntake(role),
       countLab(role),
-      countBioinfo(role),
+      countBioinfo({ id: operator.id, role }),
     ])
     return { projects, intake, lab, bioinfo }
   }
@@ -93,7 +96,7 @@ export async function getWorkstationBadges(
     case UserRole.lab_operator:
       return { lab: await countLab(role) }
     case UserRole.bioinfo_analyst:
-      return { bioinfo: await countBioinfo(role) }
+      return { bioinfo: await countBioinfo({ id: operator.id, role }) }
     default:
       return {}
   }
