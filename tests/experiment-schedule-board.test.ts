@@ -47,6 +47,7 @@ const baseTask: ExperimentScheduleTask = {
   plannedDate: "2026-07-01",
   operatorName: "示例实验员",
   sampleNames: ["S1"],
+  sampleCount: 1,
 }
 
 const baseBatch: ExperimentScheduleAppointmentBatch = {

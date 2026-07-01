@@ -9,7 +9,10 @@ export type ExperimentScheduleTask = {
   status: string
   plannedDate: string
   operatorName: string | null
+  /** 关联样本全名（不包含"未命名"占位字符串），已过滤空值 */
   sampleNames: string[]
+  /** 关联样本总数（含未命名），与 sampleNames.length 可能不同 */
+  sampleCount: number
 }
 
 export type ExperimentScheduleAppointmentBatch = {

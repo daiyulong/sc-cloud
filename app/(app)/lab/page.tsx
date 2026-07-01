@@ -203,7 +203,10 @@ export default async function LabPage({ searchParams }: LabPageProps) {
       status: task.status,
       plannedDate: toDateString(task.plannedDate),
       operatorName: task.operator?.name ?? null,
-      sampleNames: task.taskSamples.map((ts) => ts.sample.sampleName || "未命名"),
+      sampleNames: task.taskSamples
+        .map((ts) => ts.sample.sampleName?.trim() ?? "")
+        .filter((name) => name.length > 0),
+      sampleCount: task.taskSamples.length,
     }))
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
