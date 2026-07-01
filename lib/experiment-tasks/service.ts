@@ -116,20 +116,17 @@ function latestReceivedAt(task: { taskSamples: { sample: TaskLeaf }[] }): Date |
   return times.length ? new Date(Math.max(...times)) : null
 }
 
-function todayRange() {
-  const start = new Date()
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(start)
-  end.setDate(end.getDate() + 1)
-  return { start, end }
-}
-
 function dateOnlyRange(value: Date | string) {
   const start = toDateOnly(value)
   if (!start) return null
   const end = new Date(start)
   end.setDate(end.getDate() + 1)
   return { start, end }
+}
+
+// new Date() 恒为合法日期，dateOnlyRange 必非 null。
+function todayRange() {
+  return dateOnlyRange(new Date())!
 }
 
 function buildTaskListWhere(

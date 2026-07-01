@@ -95,14 +95,13 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   // 状态多选：未显式勾选且非 awaiting 队列时默认隐藏终态。awaiting=bioinfo 队列自带 completed 语义，
   // 叠加"隐藏终态"会清空它，故此时不注入默认（让队列 where 决定状态集）。
   const hasStatusFilter = !isScheduleMode && Boolean(query.status?.length)
-  const useStatusDefault = !isScheduleMode && !hasStatusFilter && !query.awaiting
   const selectedStatuses = isScheduleMode
     ? undefined
     : hasStatusFilter
     ? (query.status as ExperimentTaskStatusValue[])
-    : useStatusDefault
-      ? DEFAULT_TASK_STATUS_SELECTION
-      : undefined
+    : query.awaiting
+      ? undefined
+      : DEFAULT_TASK_STATUS_SELECTION
   const effectiveQuery = { ...query, status: selectedStatuses }
   const scheduleQuery = {
     ...query,
@@ -175,9 +174,6 @@ export default async function LabPage({ searchParams }: LabPageProps) {
       status: task.status,
       plannedDate: toDateString(task.plannedDate),
       operatorName: task.operator?.name ?? null,
-      sampleNames: task.taskSamples
-        .map((ts) => ts.sample.sampleName?.trim() ?? "")
-        .filter((name) => name.length > 0),
       sampleCount: task.taskSamples.length,
     }))
 

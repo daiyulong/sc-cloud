@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
+import { FieldLine } from "@/components/detail/field-line"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -74,23 +74,22 @@ function getSpanClass(field: EditableSectionField) {
 function ReadField({ field }: { field: EditableSectionField }) {
   const displayValue = field.displayValue ?? valueToDraft(field.value)
   const hasValue = String(displayValue).trim().length > 0
-  const value = hasValue ? String(displayValue) : "-"
-  const containerClass = field.multiline
-    ? "flex h-24 min-w-0 flex-col gap-1 px-2 py-1.5"
-    : "flex h-14 min-w-0 flex-col gap-1 px-2 py-1.5"
-  const valueClass = field.multiline ? "line-clamp-3 break-words text-sm" : "truncate text-sm"
+  const content =
+    field.href && hasValue ? (
+      <Link href={field.href} className="hover:underline">
+        {String(displayValue)}
+      </Link>
+    ) : hasValue ? (
+      String(displayValue)
+    ) : null
 
   return (
-    <div className={cn(containerClass, getSpanClass(field))}>
-      <span className="text-xs text-muted-foreground">{field.label}</span>
-      {field.href && hasValue ? (
-        <Link href={field.href} className={cn(valueClass, "hover:underline")}>
-          {value}
-        </Link>
-      ) : (
-        <span className={valueClass}>{value}</span>
-      )}
-    </div>
+    <FieldLine
+      label={field.label}
+      value={content}
+      multiline={field.multiline}
+      className={getSpanClass(field)}
+    />
   )
 }
 

@@ -238,6 +238,13 @@ export function ExperimentScheduleBoard({
             <div className="flex flex-col gap-3">
               {activeTasks.map((task) => {
                 const status = task.status as ExperimentTaskStatusValue
+                const summary = [
+                  task.customerOrg,
+                  task.experimentType,
+                  task.sampleCount > 0 ? `${task.sampleCount} 个样本` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
                 return (
                   <button
                     key={task.id}
@@ -254,21 +261,9 @@ export function ExperimentScheduleBoard({
                     </div>
                     <p
                       className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground"
-                      title={[
-                        task.customerOrg,
-                        task.experimentType,
-                        task.sampleCount > 0 ? `${task.sampleCount} 个样本` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
+                      title={summary}
                     >
-                      {[
-                        task.customerOrg,
-                        task.experimentType,
-                        task.sampleCount > 0 ? `${task.sampleCount} 个样本` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
+                      {summary || "—"}
                     </p>
                     {task.operatorName && (
                       <p className="mt-1 truncate text-xs text-muted-foreground">

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import { TableRow } from "@/components/ui/table"
+import { isInteractiveOrSelectionClick } from "@/components/list/click-guard"
 
 type ClickableRowProps = {
   href: string
@@ -21,11 +22,7 @@ export function ClickableRow({ href, children, className, scroll = true }: Click
   const router = useRouter()
 
   function onClick(event: React.MouseEvent<HTMLTableRowElement>) {
-    const target = event.target as HTMLElement
-    if (target.closest("a,button,input,textarea,select,[role='menu'],[role='menuitem'],[role='dialog']")) {
-      return
-    }
-    if (window.getSelection()?.toString()) return
+    if (isInteractiveOrSelectionClick(event.target as HTMLElement)) return
     router.push(href, { scroll })
   }
 

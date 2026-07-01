@@ -1,7 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import * as React from "react"
 import Link from "next/link"
 import {
   EXPERIMENT_TASK_STATUS_LABELS,
@@ -10,6 +8,7 @@ import {
 import { formatDate } from "@/lib/utils"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { EXPERIMENT_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
+import { ClickableCard } from "@/components/list/clickable-card"
 
 type Props = {
   projectId: string
@@ -26,40 +25,14 @@ type Props = {
 
 /**
  * 项目页实验任务 Tab 在「本项目 1 个实验任务」时显示的紧凑卡片。
- * 整张卡可点击进入工作项面板（与 ClickableRow 同套跳过内部交互的规则）。
- * 行内 ActionMenu 渲染在右上角，由 closest 选择器过滤。
+ * 整张卡可点击进入工作项面板（ClickableCard 统一「跳过内部交互 + 键盘可达」）。
  */
 export function TaskSummaryCard({ projectId, task, role }: Props) {
-  const router = useRouter()
   const status = task.status as ExperimentTaskStatusValue
   const viewHref = `/projects/${projectId}?tab=tasks&view=task:${task.id}`
 
-  function onClick(event: React.MouseEvent<HTMLDivElement>) {
-    const target = event.target as HTMLElement
-    if (
-      target.closest(
-        "a,button,input,textarea,select,[role='menu'],[role='menuitem'],[role='dialog']",
-      )
-    ) {
-      return
-    }
-    if (window.getSelection()?.toString()) return
-    router.push(viewHref, { scroll: false })
-  }
-
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault()
-          router.push(viewHref, { scroll: false })
-        }
-      }}
-      className="flex cursor-pointer items-start justify-between gap-3 rounded-md border bg-background p-4 transition-colors hover:border-primary/40 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
+    <ClickableCard href={viewHref}>
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <Link
@@ -88,6 +61,6 @@ export function TaskSummaryCard({ projectId, task, role }: Props) {
         workItemHref={viewHref}
         compact
       />
-    </div>
+    </ClickableCard>
   )
 }

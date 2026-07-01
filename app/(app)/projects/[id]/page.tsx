@@ -124,6 +124,7 @@ export default async function ProjectDetailPage({
     analystOptions,
     deliveries,
     taskSampleOptions,
+    viewDetail,
   ] = await Promise.all([
     listSamples(operator, { projectId: id }, { skip: 0, limit: 20 }, { includeDraftProjects: true }),
     listExperimentTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
@@ -134,16 +135,14 @@ export default async function ProjectDetailPage({
     isNewExperimentTask && canCreateTask
       ? getTaskSampleOptions(operator, { projectId: id, sampleBatchId: initialSampleBatchId })
       : Promise.resolve([]),
+    viewId && viewKind === "sample"
+      ? getSampleDetail(operator, viewId).catch(() => null)
+      : viewId && viewKind === "task"
+        ? getExperimentTaskDetail(operator, viewId).catch(() => null)
+        : viewId && viewKind === "bioinfo"
+          ? getBioinfoTaskDetail(operator, viewId).catch(() => null)
+          : Promise.resolve(null),
   ])
-  const viewDetail = viewId
-    ? await (viewKind === "sample"
-        ? getSampleDetail(operator, viewId).catch(() => null)
-        : viewKind === "task"
-          ? getExperimentTaskDetail(operator, viewId).catch(() => null)
-          : viewKind === "bioinfo"
-            ? getBioinfoTaskDetail(operator, viewId).catch(() => null)
-            : Promise.resolve(null))
-    : null
   const deliveryItems = deliveries.map((d) => ({
     id: d.id,
     storageUrl: d.storageUrl,
@@ -344,65 +343,6 @@ export default async function ProjectDetailPage({
           </TableBody>
         </Table>
         )}
-      </CardContent>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>任务编号</TableHead>
-              <TableHead>实验类型</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>计划日期</TableHead>
-              <TableHead>负责人</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tasks.map((task) => (
-              <ClickableRow
-                key={task.id}
-                href={`/projects/${project.id}?tab=tasks&view=task:${task.id}`}
-              >
-                <TableCell>
-                  <Link
-                    href={`/projects/${project.id}?tab=tasks&view=task:${task.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {task.taskNo}
-                  </Link>
-                </TableCell>
-                <TableCell>{task.experimentType}</TableCell>
-                <TableCell>
-                  <span className="flex items-center gap-2 whitespace-nowrap">
-                    <StatusDot
-                      className={EXPERIMENT_TASK_STATUS_DOT[task.status as ExperimentTaskStatusValue]}
-                    />
-                    {EXPERIMENT_TASK_STATUS_LABELS[task.status as ExperimentTaskStatusValue]}
-                  </span>
-                </TableCell>
-                <TableCell>{formatDate(task.plannedDate)}</TableCell>
-                <TableCell>{task.operator?.name ?? "-"}</TableCell>
-                <TableCell className="text-right">
-                  <ExperimentTaskActionMenu
-                    taskId={task.id}
-                    taskNo={task.taskNo}
-                    status={task.status as ExperimentTaskStatusValue}
-                    role={session.user.role}
-                    workItemHref={`/projects/${project.id}?tab=tasks&view=task:${task.id}`}
-                    compact
-                  />
-                </TableCell>
-              </ClickableRow>
-            ))}
-            {tasks.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="h-20 text-center text-muted-foreground">
-                  暂无实验任务
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
       </CardContent>
     </Card>
   )

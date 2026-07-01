@@ -11,6 +11,7 @@ import {
 import { ExperimentTaskStatus } from "@/lib/enums"
 import { todayString } from "@/lib/utils"
 import { useEntityAction } from "@/components/detail/use-entity-action"
+import { ActionPanel } from "@/components/detail/action-panel"
 import type { FeedbackAnalystOption, OperatorOption } from "@/components/experiment-tasks/types"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -75,6 +76,20 @@ function panelDescription(status: ExperimentTaskStatusValue, bioinfoEnabled: boo
   }
 }
 
+function panelIcon(status: ExperimentTaskStatusValue) {
+  switch (status) {
+    case ExperimentTaskStatus.waiting_schedule:
+      return <CalendarClock aria-hidden="true" />
+    case ExperimentTaskStatus.scheduled:
+      return <PlayCircle aria-hidden="true" />
+    case ExperimentTaskStatus.in_progress:
+    case ExperimentTaskStatus.waiting_feedback:
+      return <Send aria-hidden="true" />
+    default:
+      return null
+  }
+}
+
 export function ExperimentTaskPrimaryAction({
   taskId,
   taskNo,
@@ -95,61 +110,44 @@ export function ExperimentTaskPrimaryAction({
   if (!title || !description) return null
 
   return (
-    <section className="rounded-md bg-muted/30 p-4">
-      <div className="flex flex-col gap-4">
-        <div>
-          <h3 className="flex items-center gap-2 text-sm font-medium">
-            {status === ExperimentTaskStatus.waiting_schedule && (
-              <CalendarClock aria-hidden="true" />
-            )}
-            {status === ExperimentTaskStatus.scheduled && <PlayCircle aria-hidden="true" />}
-            {(status === ExperimentTaskStatus.in_progress ||
-              status === ExperimentTaskStatus.waiting_feedback) && <Send aria-hidden="true" />}
-            {title}
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {taskNo} · {description}
-          </p>
-        </div>
+    <ActionPanel icon={panelIcon(status)} title={title} taskNo={taskNo} description={description}>
+      {status === ExperimentTaskStatus.waiting_schedule && (
+        <ScheduleInlineForm
+          plannedDate={plannedDate}
+          operatorId={operatorId}
+          runMethod={runMethod}
+          department={department}
+          operatorOptions={operatorOptions}
+          isPending={isPending}
+          onSubmit={(body) => run(`/api/experiment-tasks/${taskId}/schedule`, "设置排期", body)}
+        />
+      )}
 
-        {status === ExperimentTaskStatus.waiting_schedule && (
-          <ScheduleInlineForm
-            plannedDate={plannedDate}
-            operatorId={operatorId}
-            runMethod={runMethod}
-            department={department}
-            operatorOptions={operatorOptions}
-            isPending={isPending}
-            onSubmit={(body) => run(`/api/experiment-tasks/${taskId}/schedule`, "设置排期", body)}
-          />
-        )}
+      {status === ExperimentTaskStatus.scheduled && (
+        <StartInlineAction
+          actualDate={actualDate}
+          isPending={isPending}
+          onSubmit={(body) => run(`/api/experiment-tasks/${taskId}/start`, "开始实验", body)}
+        />
+      )}
 
-        {status === ExperimentTaskStatus.scheduled && (
-          <StartInlineAction
-            actualDate={actualDate}
-            isPending={isPending}
-            onSubmit={(body) => run(`/api/experiment-tasks/${taskId}/start`, "开始实验", body)}
-          />
-        )}
-
-        {(status === ExperimentTaskStatus.in_progress ||
-          status === ExperimentTaskStatus.waiting_feedback) && (
-          <FeedbackInlineForm
-            status={status}
-            actualDate={actualDate}
-            bioinfoEnabled={bioinfoEnabled}
-            analystOptions={analystOptions}
-            isPending={isPending}
-            onSubmit={(body) =>
-              run(`/api/experiment-tasks/${taskId}/feedback`, "提交实验反馈", body)
-            }
-            onFinishOnly={(body) =>
-              run(`/api/experiment-tasks/${taskId}/finish`, "完成实验", body)
-            }
-          />
-        )}
-      </div>
-    </section>
+      {(status === ExperimentTaskStatus.in_progress ||
+        status === ExperimentTaskStatus.waiting_feedback) && (
+        <FeedbackInlineForm
+          status={status}
+          actualDate={actualDate}
+          bioinfoEnabled={bioinfoEnabled}
+          analystOptions={analystOptions}
+          isPending={isPending}
+          onSubmit={(body) =>
+            run(`/api/experiment-tasks/${taskId}/feedback`, "提交实验反馈", body)
+          }
+          onFinishOnly={(body) =>
+            run(`/api/experiment-tasks/${taskId}/finish`, "完成实验", body)
+          }
+        />
+      )}
+    </ActionPanel>
   )
 }
 
