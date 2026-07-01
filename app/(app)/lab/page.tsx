@@ -26,6 +26,8 @@ import { cn, firstParam, formatDate, todayString, toDateString } from "@/lib/uti
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
+import { ListScopeToggle } from "@/components/list/list-scope-toggle"
+import { ListTabs } from "@/components/list/list-tabs"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { WorkItemPanel, WorkItemPanelEmpty } from "@/components/detail/work-item-panel"
 import { FormDialog } from "@/components/detail/form-dialog"
@@ -51,30 +53,48 @@ type LabPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-type LabRange = "mine" | "pending" | "all"
+type LabTab = "todo" | "doing" | "done"
+type LabScope = "mine" | "team"
 
-const RANGE_LABELS: Record<LabRange, string> = {
-  mine: "我的",
-  pending: "待排期",
-  all: "全部",
-}
-
-const RANGE_EMPTY: Record<LabRange, { title: string; description: string }> = {
-  mine: {
-    title: "暂无我的实验任务",
-    description: "已指派给你的实验任务会出现在这里。",
+const TAB_EMPTY: Record<LabTab, { title: string; description: string }> = {
+  todo: {
+    title: "暂无待办实验任务",
+    description: "waiting_schedule 队列将在新任务被创建或已排期任务退回排期时进入。",
   },
-  pending: {
-    title: "暂无待排期实验任务",
-    description: "待预约批次统一在排期视图处理，任务列表只展示已创建的实验任务。",
+  doing: {
+    title: "暂无进行中的实验任务",
+    description: "已排期 / 进行中 / 待反馈 的任务会出现这里,可点击进入处理。",
   },
-  all: {
-    title: "暂无实验任务",
-    description: "样本接收后，从排期视图按批次预约实验。",
+  done: {
+    title: "暂无已完成实验任务",
+    description: "已完成 / 已取消 / 已异常 的任务会出现这里。",
   },
 }
 
-// 任务终态：默认浏览队列时隐藏（多选状态默认勾选其余在途态）。搜索或显式勾选则照常显示。
+// 角色驱动默认 scope(ADR-0003):
+//   - 操作类(实验员/生信员/接收员) 默认 mine —— 聚焦个人待办
+//   - 管理类(PM/销售/超管/查看) 默认 team —— 团队视角
+function defaultScope(role: UserRoleValue): LabScope {
+  switch (role) {
+    case UserRole.lab_operator:
+    case UserRole.bioinfo_analyst:
+    case UserRole.sample_receiver:
+      return "mine"
+    default:
+      return "team"
+  }
+}
+
+function parseTab(value: string | undefined): LabTab | undefined {
+  return value === "todo" || value === "doing" || value === "done" ? value : undefined
+}
+
+function parseScope(value: string | undefined, role: UserRoleValue): LabScope {
+  if (value === "mine" || value === "team") return value
+  return defaultScope(role)
+}
+
+// 任务终态:默认浏览队列时隐藏(多选状态默认勾选其余在途态)。搜索或显式勾选则照常显示。
 const TERMINAL_TASK_STATUSES: ExperimentTaskStatusValue[] = [
   ExperimentTaskStatus.completed,
   ExperimentTaskStatus.cancelled,
@@ -83,13 +103,6 @@ const TERMINAL_TASK_STATUSES: ExperimentTaskStatusValue[] = [
 const DEFAULT_TASK_STATUS_SELECTION: ExperimentTaskStatusValue[] = (
   Object.values(ExperimentTaskStatus) as ExperimentTaskStatusValue[]
 ).filter((status) => !TERMINAL_TASK_STATUSES.includes(status))
-
-function parseRange(value: string | undefined, role: UserRoleValue): LabRange {
-  if (value === "mine" || value === "pending" || value === "all") return value
-  if (role === UserRole.lab_operator) return "mine"
-  if (role === UserRole.viewer) return "all"
-  return "pending"
-}
 
 export default async function LabPage({ searchParams }: LabPageProps) {
   const session = await getVerifiedSession()
@@ -100,27 +113,30 @@ export default async function LabPage({ searchParams }: LabPageProps) {
 
   const raw = (await searchParams) ?? {}
   const viewId = firstParam(raw.view)
-  const range = parseRange(firstParam(raw.range), role)
-  const isScheduleMode = range === "pending"
+  const tab = parseTab(firstParam(raw.tab)) ?? "doing"
+  const scope = parseScope(firstParam(raw.scope), role)
+  const isScheduleMode = firstParam(raw.mode) === "schedule"
   const query = experimentTaskListQuerySchema.parse({
     q: firstParam(raw.q),
-    range,
+    tab,
+    scope,
     status: firstParam(raw.status),
     projectId: firstParam(raw.projectId),
     operatorId: firstParam(raw.operatorId),
     date: firstParam(raw.date),
     plannedDate: firstParam(raw.plannedDate),
     awaiting: firstParam(raw.awaiting),
+    mode: firstParam(raw.mode),
     page: firstParam(raw.page),
     limit: firstParam(raw.limit),
   })
   const { page, limit, skip } = parsePagination({ page: firstParam(raw.page), limit: firstParam(raw.limit) })
 
-  // 状态多选：未显式勾选且非 awaiting 队列时默认隐藏终态。awaiting=bioinfo 队列自带 completed 语义，
-  // 叠加"隐藏终态"会清空它，故此时不注入默认（让队列 where 决定状态集）。
-  const hasStatusFilter = range !== "pending" && Boolean(query.status?.length)
-  const useStatusDefault = range !== "pending" && !hasStatusFilter && !query.awaiting
-  const selectedStatuses = range === "pending"
+  // 状态多选:未显式勾选且非 awaiting 队列时默认隐藏终态。awaiting=bioinfo 队列自带 completed 语义,
+  // 叠加"隐藏终态"会清空它,故此时不注入默认(让队列 where 决定状态集)。
+  const hasStatusFilter = !isScheduleMode && Boolean(query.status?.length)
+  const useStatusDefault = !isScheduleMode && !hasStatusFilter && !query.awaiting
+  const selectedStatuses = isScheduleMode
     ? undefined
     : hasStatusFilter
     ? (query.status as ExperimentTaskStatusValue[])
@@ -130,20 +146,22 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   const effectiveQuery = {
     ...query,
     status: selectedStatuses,
-    operatorId: range === "mine" || range === "pending" ? undefined : query.operatorId,
+    operatorId: scope === "team" ? query.operatorId : undefined,
   }
   const scheduleQuery = {
     ...query,
     q: undefined,
-    range: undefined,
+    tab: undefined,
+    scope: undefined,
     status: DEFAULT_TASK_STATUS_SELECTION,
     operatorId: undefined,
     date: undefined,
     plannedDate: undefined,
     awaiting: undefined,
+    mode: undefined,
   }
   const isNew = firstParam(raw.new) === "1"
-  // 多对多入口预填：支持 ?sampleIds=id1,id2,id3（新建 task 覆盖 N 个样本）；?sampleBatchId= 自动全选该批次
+  // 多对多入口预填:支持 ?sampleIds=id1,id2,id3(新建 task 覆盖 N 个样本);?sampleBatchId= 自动全选该批次
   const initialSampleIds = (() => {
     const rawIds = firstParam(raw.sampleIds)
     if (rawIds) return rawIds.split(",").filter(Boolean)
@@ -211,7 +229,9 @@ export default async function LabPage({ searchParams }: LabPageProps) {
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
-  baseParams.set("range", range)
+  // tab/scope 默认值不写(由 ListTabs/ListScopeToggle 默认逻辑处理),只在非默认时写
+  if (firstParam(raw.tab) && firstParam(raw.tab) !== "doing") baseParams.set("tab", firstParam(raw.tab)!)
+  if (scope !== defaultScope(role)) baseParams.set("scope", scope)
   for (const key of ["projectId", "date", "plannedDate", "awaiting"]) {
     const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
@@ -221,7 +241,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     if (hasStatusFilter && query.status?.length) {
       baseParams.set("status", query.status.join(","))
     }
-    if (range === "all" && query.operatorId) baseParams.set("operatorId", query.operatorId)
+    if (query.operatorId && scope === "team") baseParams.set("operatorId", query.operatorId)
   }
   const pageHref = (nextPage: number) => {
     const params = new URLSearchParams(baseParams)
@@ -236,13 +256,16 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     params.set("view", id)
     return `/lab?${params.toString()}`
   }
-  const rangeHref = (nextRange: LabRange) => {
-    const params = new URLSearchParams()
-    params.set("range", nextRange)
-    if (query.projectId) params.set("projectId", query.projectId)
-    if (nextRange === "pending" && query.plannedDate) {
-      params.set("plannedDate", query.plannedDate)
-    }
+  // 排期视图切换锚点:?mode=schedule + 保留当前 projectId 等上下文
+  const scheduleModeHref = () => {
+    const params = new URLSearchParams(baseParams)
+    params.set("mode", "schedule")
+    if (query.plannedDate) params.set("plannedDate", query.plannedDate)
+    return `/lab?${params.toString()}`
+  }
+  const listModeHref = () => {
+    const params = new URLSearchParams(baseParams)
+    params.delete("mode")
     return `/lab?${params.toString()}`
   }
   const scheduleAppointmentBatches: ExperimentScheduleAppointmentBatch[] = appointmentBatches.map(
@@ -267,7 +290,8 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
   const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.date || query.plannedDate)
   const clearParams = new URLSearchParams()
-  clearParams.set("range", range)
+  if (firstParam(raw.tab) && firstParam(raw.tab) !== "doing") clearParams.set("tab", firstParam(raw.tab)!)
+  if (scope !== defaultScope(role)) clearParams.set("scope", scope)
   if (query.projectId) clearParams.set("projectId", query.projectId)
   const clearFiltersHref = clearParams.size ? `/lab?${clearParams.toString()}` : "/lab"
   const selectedScheduleDate = query.plannedDate ?? (query.date === "today" ? todayString() : undefined)
@@ -276,22 +300,26 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
       <h1 className="sr-only">实验</h1>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-md border bg-background p-0.5">
-          {(Object.keys(RANGE_LABELS) as LabRange[]).map((value) => (
-            <Link
-              key={value}
-              href={rangeHref(value)}
-              aria-current={range === value ? "page" : undefined}
-              className={cn(
-                "inline-flex h-8 items-center rounded-sm px-3 text-sm font-medium transition-colors",
-                range === value
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {RANGE_LABELS[value]}
+        <ListTabs
+          basePath="/lab"
+          value={tab}
+          items={[
+            { value: "todo", label: "待办" },
+            { value: "doing", label: "进行中" },
+            { value: "done", label: "已完成" },
+          ]}
+          extraSearchParams={baseParams}
+        />
+        <div className="flex items-center gap-2">
+          <ListScopeToggle
+            basePath="/lab"
+            defaultValue={defaultScope(role)}
+          />
+          <Button asChild variant="outline" size="sm">
+            <Link href={isScheduleMode ? listModeHref() : scheduleModeHref()} prefetch={false}>
+              {isScheduleMode ? "返回列表" : "切换到排期视图"}
             </Link>
-          ))}
+          </Button>
         </div>
       </div>
 
@@ -346,11 +374,11 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         ) : (
           <ListEmpty
             icon={<FlaskConical />}
-            title={query.projectId ? "该项目暂无实验任务" : RANGE_EMPTY[range].title}
+            title={query.projectId ? "该项目暂无实验任务" : TAB_EMPTY[tab].title}
             description={
               query.projectId
                 ? "样本接收后，从排期视图按批次预约实验。"
-                : RANGE_EMPTY[range].description
+                : TAB_EMPTY[tab].description
             }
           />
         )

@@ -11,6 +11,10 @@ import { recordOperation } from "@/lib/operation-log"
 import { advanceProjectStatus } from "@/lib/projects/aggregation"
 import { compareDateOnly, toDateOnly } from "@/lib/utils"
 import {
+  EXPERIMENT_TASK_BUCKETS,
+  statusesInBucket,
+} from "@/lib/workstation-buckets"
+import {
   BIOINFO_SERVICE_LEVELS,
   ExperimentTaskStatus,
   OperationAction,
@@ -151,9 +155,16 @@ function buildTaskListWhere(
       ],
     })
   }
+  // 状态桶(ADR-0003):tab → status enum 集合;与显式 status 多选叠加 AND
+  // 桶映射集中于 lib/workstation-buckets.ts,避免散落多 page
+  if (query.tab) {
+    const statusesInTab = statusesInBucket(EXPERIMENT_TASK_BUCKETS, query.tab)
+    if (statusesInTab.length > 0) {
+      filters.push({ status: { in: statusesInTab } })
+    }
+  }
   if (query.status?.length) filters.push({ status: { in: query.status } })
-  if (query.range === "mine") filters.push({ operatorId: operator.id })
-  if (query.range === "pending") filters.push({ status: ExperimentTaskStatus.waiting_schedule })
+  if (query.scope === "mine") filters.push({ operatorId: operator.id })
   if (query.projectId) filters.push({ projectId: query.projectId })
   if (query.operatorId) filters.push({ operatorId: query.operatorId })
   if (query.date === "today") {

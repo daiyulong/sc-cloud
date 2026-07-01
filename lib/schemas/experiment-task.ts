@@ -167,16 +167,21 @@ export type RecordRunMetricsInput = z.infer<typeof recordRunMetricsSchema>
 
 export const experimentTaskListQuerySchema = z.object({
   q: optionalString,
-  range: z.enum(["mine", "pending", "all"]).optional(),
+  /** 状态桶：todo / doing / done(ADR-0003);默认值由 page 层角色驱动补 */
+  tab: z.enum(["todo", "doing", "done"]).optional(),
+  /** scope:mine 限定我的(operator.id = me);不写或 =team 即团队视角 */
+  scope: z.enum(["mine", "team"]).optional(),
   status: statusListSchema(experimentTaskStatusValues),
   projectId: optionalString,
   operatorId: optionalString,
-  /** today = 计划实验日期为今日（实验工位「今日实验」入口） */
+  /** today = 计划实验日期为今日(实验工位「今日实验」入口) */
   date: z.enum(["today"]).optional(),
-  /** 任意计划实验日期筛选（排期视图选中某天） */
+  /** 任意计划实验日期筛选(排期视图选中某天) */
   plannedDate: dateOnlyString,
-  /** awaiting=bioinfo：完成待建生信任务队列（§接缝 S3） */
+  /** awaiting=bioinfo:完成待建生信任务队列(§接缝 S3) */
   awaiting: z.enum(["bioinfo"]).optional(),
+  /** mode=schedule:排期视图(替换表格渲染 ExperimentScheduleBoard) */
+  mode: z.enum(["schedule"]).optional(),
   page: optionalString,
   limit: optionalString,
 })
