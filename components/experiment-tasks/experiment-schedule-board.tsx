@@ -126,17 +126,9 @@ export function ExperimentScheduleBoard({
   return (
     <section className="overflow-hidden rounded-lg border bg-card transition-opacity group-has-[[data-pending]]/list:opacity-60">
       <div className="border-b p-4">
-        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold">14 天排期负载</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              未来 14 天 · 待预约 {appointmentCount} 批 · 当前日已排 {activeCount} 项
-            </p>
-          </div>
-          <Badge variant="outline" className={cn("w-fit", loadBadgeClass[activeLevel])}>
-            {dateLabel(activeDate)} · {scheduleLoadLabel(activeCount)}
-          </Badge>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          未来 14 天 · 待预约 {appointmentCount} 批
+        </p>
 
         <div className="mt-4 overflow-x-auto">
           <div className="grid min-w-[980px] grid-cols-[repeat(14,minmax(0,1fr))] gap-2">
