@@ -38,8 +38,12 @@ export type ListToolbarFilter = {
   value?: string
   /** 多选下拉（勾选式），适用于"按状态全集筛选"等；缺省单选 */
   multiple?: boolean
-  /** 单选模式下 Trigger 前的图标（如日期用 Calendar），参考 Vercel "Last 7 Days" 触发器 */
-  icon?: React.ComponentType<{ className?: string }>
+  /**
+   * 单选模式下 Trigger 前的图标（如日期用 Calendar），参考 Vercel "Last 7 Days" 触发器。
+   * 传已渲染好的元素（如 `<CalendarClock className="size-4" />`），不要传组件引用——
+   * ListToolbar 是 Client Component，组件引用无法跨 Server/Client 边界序列化。
+   */
+  icon?: React.ReactNode
 }
 
 type ListToolbarProps = {
@@ -183,9 +187,7 @@ export function ListToolbar({
             onValueChange={(next) => navigate({ [filter.key]: next === ALL ? null : next })}
           >
             <SelectTrigger className="w-[160px]" aria-label={filter.label}>
-              {filter.icon && (
-                <filter.icon className="size-4 text-muted-foreground" aria-hidden="true" />
-              )}
+              {filter.icon}
               <SelectValue placeholder={filter.label} />
             </SelectTrigger>
             <SelectContent>

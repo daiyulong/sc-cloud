@@ -295,7 +295,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
               key: "date",
               label: "计划日期",
               allLabel: "全部日期",
-              icon: CalendarClock,
+              icon: <CalendarClock className="size-4 text-muted-foreground" aria-hidden="true" />,
               value: query.date,
               options: [
                 { value: "today", label: "今天" },
