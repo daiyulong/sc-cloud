@@ -76,7 +76,7 @@ export function ExperimentTaskWorkItemBody({
   const taskInfoFields = [
     {
       name: "sampleNames",
-      label: "关联样本名",
+      label: "样本名",
       displayValue: sampleNames,
       editable: false,
       multiline: true,
@@ -132,7 +132,7 @@ export function ExperimentTaskWorkItemBody({
     },
     {
       name: "sampleCount",
-      label: "关联样本数",
+      label: "样本数",
       displayValue: task.taskSamples.length,
       editable: false,
     },
