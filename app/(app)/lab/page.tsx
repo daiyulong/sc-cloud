@@ -5,18 +5,21 @@ import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
   EXPERIMENT_TASK_STATUS_LABELS,
+  ExperimentTaskStatus,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { buildProjectScope } from "@/lib/auth/role-scope"
-import { EXPERIMENT_TASK_BUCKETS, statusesInBucket } from "@/lib/workstation-buckets"
 import { prisma } from "@/lib/prisma"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getAnalystOptions } from "@/lib/bioinfo-tasks/options"
 import { getOperatorOptions, getTaskSampleOptions } from "@/lib/experiment-tasks/options"
-import { getExperimentTaskDetail, listExperimentTasks } from "@/lib/experiment-tasks/service"
-import { listExperimentAppointmentBatches } from "@/lib/experiment-tasks/service"
+import {
+  getExperimentTaskDetail,
+  listExperimentAppointmentBatches,
+  listExperimentTasks,
+} from "@/lib/experiment-tasks/service"
 import type {
   ExperimentScheduleAppointmentBatch,
   ExperimentScheduleTask,
@@ -25,7 +28,6 @@ import { firstParam, formatDate, todayString, toDateString } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
-import { ListTabs } from "@/components/list/list-tabs"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { WorkItemPanel, WorkItemPanelEmpty } from "@/components/detail/work-item-panel"
 import { FormDialog } from "@/components/detail/form-dialog"
@@ -51,33 +53,18 @@ type LabPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-type LabTab = "todo" | "doing" | "done"
-
-const TAB_EMPTY: Record<LabTab, { title: string; description: string }> = {
-  todo: {
-    title: "暂无待办实验任务",
-    description: "还没有日期的实验任务会出现这里；按批次预约实验请点上方「排期」标签。",
-  },
-  doing: {
-    title: "暂无进行中的实验任务",
-    description: "已排期 / 进行中 / 待反馈 的任务会出现这里,可点击进入处理。",
-  },
-  done: {
-    title: "暂无已完成实验任务",
-    description: "已完成 / 已取消 / 已异常 的任务会出现这里。",
-  },
-}
-
-function parseTab(value: string | undefined): LabTab | undefined {
-  return value === "todo" || value === "doing" || value === "done" ? value : undefined
-}
-
-// 排期模式日历需要"未结束"的任务(待办+进行中两桶)做负载/日程展示，
-// 不属于任何一个状态 Tab，直接从桶映射派生，避免维护第二份终态清单。
-const NON_TERMINAL_TASK_STATUSES: ExperimentTaskStatusValue[] = [
-  ...statusesInBucket(EXPERIMENT_TASK_BUCKETS, "todo"),
-  ...statusesInBucket(EXPERIMENT_TASK_BUCKETS, "doing"),
+// 任务终态：默认浏览队列时隐藏（多选状态默认勾选其余在途态）。搜索或显式勾选则照常显示。
+// 与 /projects /bioinfo-tasks /intake 用同一套约定（ListToolbar 多选状态过滤），
+// 见 ADR-0003 "彻底revert：状态 Tab/桶系统撤销" —— 这套多选过滤从未坏过，
+// 不该被替换。
+const TERMINAL_TASK_STATUSES: ExperimentTaskStatusValue[] = [
+  ExperimentTaskStatus.completed,
+  ExperimentTaskStatus.cancelled,
+  ExperimentTaskStatus.abnormal,
 ]
+const DEFAULT_TASK_STATUS_SELECTION: ExperimentTaskStatusValue[] = (
+  Object.values(ExperimentTaskStatus) as ExperimentTaskStatusValue[]
+).filter((status) => !TERMINAL_TASK_STATUSES.includes(status))
 
 export default async function LabPage({ searchParams }: LabPageProps) {
   const session = await getVerifiedSession()
@@ -88,11 +75,11 @@ export default async function LabPage({ searchParams }: LabPageProps) {
 
   const raw = (await searchParams) ?? {}
   const viewId = firstParam(raw.view)
-  const tab = parseTab(firstParam(raw.tab)) ?? "doing"
+  // 「排期」是与状态过滤正交的独立工具（日历规划 + 按批次预约新任务），
+  // 用 ?mode=schedule 单独标志位触发，不与状态多选混在一起（见 ADR-0003）。
   const isScheduleMode = firstParam(raw.mode) === "schedule"
   const query = experimentTaskListQuerySchema.parse({
     q: firstParam(raw.q),
-    tab,
     status: firstParam(raw.status),
     projectId: firstParam(raw.projectId),
     operatorId: firstParam(raw.operatorId),
@@ -105,19 +92,22 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   })
   const { page, limit, skip } = parsePagination({ page: firstParam(raw.page), limit: firstParam(raw.limit) })
 
-  // 状态由 tab 桶决定(lib/workstation-buckets.ts,service 层应用)，
-  // 这里不再叠加任何默认状态注入 —— 之前的"默认隐藏终态"清单与桶重复且会打架
-  // (如 tab=done 时桶=[completed,cancelled,abnormal]，再注入"非终态默认"会
-  // 与桶取交集得空集，导致"已完成"Tab 恒为空)。?status= / ?operatorId= 仍保留
-  // 为可选的深链接叠加过滤，不在 UI 暴露(见 ADR-0003 "我的/团队" 移除记录:
-  // 这是内部全员可见的小团队工具，个人/团队视角切换的实际价值低于其带来的
-  // 界面复杂度，真出现"按负责人查"的需求再加，不预先猜)。
-  const effectiveQuery = query
+  // 状态多选：未显式勾选且非 awaiting 队列时默认隐藏终态。awaiting=bioinfo 队列自带 completed 语义，
+  // 叠加"隐藏终态"会清空它，故此时不注入默认（让队列 where 决定状态集）。
+  const hasStatusFilter = !isScheduleMode && Boolean(query.status?.length)
+  const useStatusDefault = !isScheduleMode && !hasStatusFilter && !query.awaiting
+  const selectedStatuses = isScheduleMode
+    ? undefined
+    : hasStatusFilter
+    ? (query.status as ExperimentTaskStatusValue[])
+    : useStatusDefault
+      ? DEFAULT_TASK_STATUS_SELECTION
+      : undefined
+  const effectiveQuery = { ...query, status: selectedStatuses }
   const scheduleQuery = {
     ...query,
     q: undefined,
-    tab: undefined,
-    status: NON_TERMINAL_TASK_STATUSES,
+    status: DEFAULT_TASK_STATUS_SELECTION,
     operatorId: undefined,
     date: undefined,
     plannedDate: undefined,
@@ -125,7 +115,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     mode: undefined,
   }
   const isNew = firstParam(raw.new) === "1"
-  // 多对多入口预填:支持 ?sampleIds=id1,id2,id3(新建 task 覆盖 N 个样本);?sampleBatchId= 自动全选该批次
+  // 多对多入口预填：支持 ?sampleIds=id1,id2,id3（新建 task 覆盖 N 个样本）；?sampleBatchId= 自动全选该批次
   const initialSampleIds = (() => {
     const rawIds = firstParam(raw.sampleIds)
     if (rawIds) return rawIds.split(",").filter(Boolean)
@@ -193,15 +183,15 @@ export default async function LabPage({ searchParams }: LabPageProps) {
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
-  // tab 默认值不写(由 ListTabs 默认逻辑处理),只在非默认时写
-  if (firstParam(raw.tab) && firstParam(raw.tab) !== "doing") baseParams.set("tab", firstParam(raw.tab)!)
   for (const key of ["projectId", "date", "plannedDate", "awaiting"]) {
     const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
   }
   if (!isScheduleMode) {
     if (query.q) baseParams.set("q", query.q)
-    if (query.status?.length) baseParams.set("status", query.status.join(","))
+    if (hasStatusFilter && query.status?.length) {
+      baseParams.set("status", query.status.join(","))
+    }
     if (query.operatorId) baseParams.set("operatorId", query.operatorId)
   }
   const pageHref = (nextPage: number) => {
@@ -217,20 +207,22 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     params.set("view", id)
     return `/lab?${params.toString()}`
   }
-  // 「排期」是独立工具(ADR-0003)，显式 href 带 mode=schedule + 当前 plannedDate(日历选中日跟着走)。
+  // 「排期」入口：保留当前 projectId 等上下文 + 当前 plannedDate（日历选中日跟着走）。
   const scheduleModeHref = () => {
     const params = new URLSearchParams(baseParams)
     params.set("mode", "schedule")
     if (query.plannedDate) params.set("plannedDate", query.plannedDate)
     return `/lab?${params.toString()}`
   }
-  // Tab 切换时清掉 plannedDate ——它是排期模式带出的隐藏筛选，其余视图里没有
-  // 任何可见 chip 提示这个筛选存在，留着会让用户看到一个"莫名被日期过滤"的
-  // 列表却找不到原因。两级 ListTabs 都用这份 params：一级"任务"项(默认值，
-  // 不写 mode 参数)与二级状态 Tab 都借此正确回到无 mode/plannedDate 的任务列表。
-  // pageHref / viewHref 不受影响，翻页/开面板不应该改变当前筛选状态。
-  const tabSwitchParams = new URLSearchParams(baseParams)
-  tabSwitchParams.delete("plannedDate")
+  // 从排期返回任务列表：去掉 mode，同时去掉 plannedDate（避免带着排期选中日
+  // 回到列表却没有任何可见提示，见 ADR-0003）。
+  const listModeHref = () => {
+    const params = new URLSearchParams(baseParams)
+    params.delete("mode")
+    params.delete("plannedDate")
+    const qs = params.toString()
+    return qs ? `/lab?${qs}` : "/lab"
+  }
   const scheduleAppointmentBatches: ExperimentScheduleAppointmentBatch[] = appointmentBatches.map(
     (batch) => ({
       id: batch.id,
@@ -251,9 +243,8 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         ? sampleOptions.map((s) => s.id)
         : []
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
-  const hasActiveFilters = Boolean(query.q || query.status?.length || query.date || query.plannedDate)
+  const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.date || query.plannedDate)
   const clearParams = new URLSearchParams()
-  if (firstParam(raw.tab) && firstParam(raw.tab) !== "doing") clearParams.set("tab", firstParam(raw.tab)!)
   if (query.projectId) clearParams.set("projectId", query.projectId)
   const clearFiltersHref = clearParams.size ? `/lab?${clearParams.toString()}` : "/lab"
   const selectedScheduleDate = query.plannedDate ?? (query.date === "today" ? todayString() : undefined)
@@ -262,56 +253,34 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
       <h1 className="sr-only">实验</h1>
 
-      {/*
-        两级 Tab（ADR-0003）：
-        第一级「任务/排期」是模式切换——两者都是"处理实验任务"的不同工作方式
-        (按状态浏览 vs 日历规划+批次预约)，用 variant="default" 的填充胶囊样式，
-        视觉上比第二级"重"一档。
-        第二级「待办/进行中/已完成」只在"任务"模式下出现，是任务列表的状态切面，
-        用 variant="line" 下划线样式——两级视觉层次不同，不会混成同一种控件。
-        不再有"我的/团队"scope 控件，见 ADR-0003 移除记录。
-      */}
-      <ListTabs
-        basePath="/lab"
-        searchKey="mode"
-        variant="default"
-        value={isScheduleMode ? "schedule" : "tasks"}
-        defaultValue="tasks"
-        items={[
-          { value: "tasks", label: "任务" },
-          {
-            value: "schedule",
-            label: (
-              <>
-                <CalendarClock data-icon="inline-start" aria-hidden="true" className="size-3.5" />
-                排期
-              </>
-            ),
-            href: scheduleModeHref(),
-          },
-        ]}
-        extraSearchParams={tabSwitchParams}
-      />
-
-      {!isScheduleMode && (
-        <ListTabs
-          basePath="/lab"
-          value={tab}
-          defaultValue="doing"
-          items={[
-            { value: "todo", label: "待办" },
-            { value: "doing", label: "进行中" },
-            { value: "done", label: "已完成" },
-          ]}
-          extraSearchParams={tabSwitchParams}
-        />
-      )}
-
-      {!isScheduleMode && (
+      {isScheduleMode ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">按批次预约实验、查看近期负载</p>
+          <Button asChild variant="outline" size="sm">
+            <Link href={listModeHref()} prefetch={false}>
+              返回任务列表
+            </Link>
+          </Button>
+        </div>
+      ) : (
         <ListToolbar
           basePath="/lab"
           searchPlaceholder="搜索任务编号 / 实验类型 / 上机方式 / 样本 / 项目…"
           searchDefault={query.q}
+          filters={[
+            {
+              key: "status",
+              label: "任务状态",
+              allLabel: "全部状态",
+              multiple: true,
+              value: (selectedStatuses ?? []).join(","),
+              options: Object.values(ExperimentTaskStatus).map((value) => ({
+                value,
+                label: EXPERIMENT_TASK_STATUS_LABELS[value],
+                dot: EXPERIMENT_TASK_STATUS_DOT[value],
+              })),
+            },
+          ]}
           context={
             query.projectId
               ? {
@@ -320,7 +289,14 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                 }
               : undefined
           }
-        />
+        >
+          <Button asChild variant="outline" size="sm">
+            <Link href={scheduleModeHref()} prefetch={false}>
+              <CalendarClock data-icon="inline-start" aria-hidden="true" />
+              排期看板
+            </Link>
+          </Button>
+        </ListToolbar>
       )}
 
       {isScheduleMode ? (
@@ -344,11 +320,11 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         ) : (
           <ListEmpty
             icon={<FlaskConical />}
-            title={query.projectId ? "该项目暂无实验任务" : TAB_EMPTY[tab].title}
+            title={query.projectId ? "该项目暂无实验任务" : "暂无实验任务"}
             description={
               query.projectId
-                ? "样本接收后，点上方「排期」标签按批次预约实验。"
-                : TAB_EMPTY[tab].description
+                ? "样本接收后，点击「排期看板」按批次预约实验。"
+                : "样本接收后，点击「排期看板」按批次预约实验。"
             }
           />
         )

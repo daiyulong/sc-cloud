@@ -11,10 +11,6 @@ import { recordOperation } from "@/lib/operation-log"
 import { advanceProjectStatus } from "@/lib/projects/aggregation"
 import { compareDateOnly, toDateOnly } from "@/lib/utils"
 import {
-  EXPERIMENT_TASK_BUCKETS,
-  statusesInBucket,
-} from "@/lib/workstation-buckets"
-import {
   BIOINFO_SERVICE_LEVELS,
   ExperimentTaskStatus,
   OperationAction,
@@ -154,16 +150,6 @@ function buildTaskListWhere(
         { project: { projectNo: { contains: query.q, mode: "insensitive" } } },
       ],
     })
-  }
-  // 状态桶(ADR-0003):tab → status enum 集合;与显式 status 多选叠加 AND。
-  // awaiting 队列自带专属状态语义(如 completed),与 tab 桶大概率不交叉,
-  // 此时以 awaiting 的 where 为准，不叠加桶过滤(否则交集通常为空)。
-  // 桶映射集中于 lib/workstation-buckets.ts,避免散落多 page
-  if (query.tab && !query.awaiting) {
-    const statusesInTab = statusesInBucket(EXPERIMENT_TASK_BUCKETS, query.tab)
-    if (statusesInTab.length > 0) {
-      filters.push({ status: { in: statusesInTab } })
-    }
   }
   if (query.status?.length) filters.push({ status: { in: query.status } })
   if (query.projectId) filters.push({ projectId: query.projectId })

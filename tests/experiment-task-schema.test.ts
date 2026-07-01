@@ -107,13 +107,6 @@ describe("experimentTaskListQuerySchema", () => {
     expect(() => experimentTaskListQuerySchema.parse({ plannedDate: "2026-02-30" })).toThrow()
   })
 
-  it("tab 仅接受 todo / doing / done", () => {
-    expect(experimentTaskListQuerySchema.parse({ tab: "todo" }).tab).toBe("todo")
-    expect(experimentTaskListQuerySchema.parse({ tab: "doing" }).tab).toBe("doing")
-    expect(experimentTaskListQuerySchema.parse({ tab: "done" }).tab).toBe("done")
-    expect(() => experimentTaskListQuerySchema.parse({ tab: "other" })).toThrow()
-  })
-
   it("mode=schedule 标志位", () => {
     expect(experimentTaskListQuerySchema.parse({ mode: "schedule" }).mode).toBe("schedule")
     expect(() => experimentTaskListQuerySchema.parse({ mode: "list" })).toThrow()

@@ -29,66 +29,48 @@ function statusClauses() {
   return andClauses().filter((clause) => "status" in clause)
 }
 
-describe("listExperimentTasks 的 tab 桶过滤(回归 2026-07-01: 已完成 Tab 恒为空)", () => {
+// 2026-07-01 revert: 状态 Tab/桶系统整体撤销(见 ADR-0003 "彻底revert"记录)。
+// /lab 恢复与 /projects /bioinfo-tasks /intake 一致的多选状态过滤(page 层
+// 计算默认值，service 层只管按 query.status 过滤，无任何 tab/桶概念)。
+describe("listExperimentTasks 的 where 拼装(无 tab/桶概念)", () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it("tab=done 只按 [completed,cancelled,abnormal] 过滤，不再叠加冲突的默认状态注入", async () => {
-    await listExperimentTasks(OPERATOR, { tab: "done" }, { skip: 0, limit: 20 })
-
-    const filters = statusClauses()
-    // 只应有 1 个 status 过滤子句(来自 tab 桶)，不应再叠加第二个冲突的 status 过滤
-    expect(filters).toHaveLength(1)
-    const clause = filters[0] as { status: { in: string[] } }
-    expect(clause.status.in.sort()).toEqual(["completed", "cancelled", "abnormal"].sort())
+  it("不给 status 时不叠加任何 status 过滤(由 page 层决定是否注入默认)", async () => {
+    await listExperimentTasks(OPERATOR, {}, { skip: 0, limit: 20 })
+    expect(statusClauses()).toHaveLength(0)
   })
 
-  it("tab=todo 只返回 waiting_schedule", async () => {
-    await listExperimentTasks(OPERATOR, { tab: "todo" }, { skip: 0, limit: 20 })
-    const clause = statusClauses()[0] as { status: { in: string[] } }
-    expect(clause.status.in).toEqual(["waiting_schedule"])
-  })
-
-  it("tab=doing 返回 scheduled/in_progress/waiting_feedback 三态", async () => {
-    await listExperimentTasks(OPERATOR, { tab: "doing" }, { skip: 0, limit: 20 })
-    const clause = statusClauses()[0] as { status: { in: string[] } }
-    expect(clause.status.in.sort()).toEqual(
-      ["scheduled", "in_progress", "waiting_feedback"].sort(),
-    )
-  })
-
-  it("awaiting=bioinfo 与 tab 组合时不叠加桶过滤，避免与 completed 语义冲突产生空交集", async () => {
-    // 模拟"用户当前在进行中 Tab，但深链接带 awaiting=bioinfo"的场景——
-    // 不应该出现 status IN [doing 三态] AND status=completed 的空交集。
+  it("显式 ?status= 按给定集合过滤", async () => {
     await listExperimentTasks(
       OPERATOR,
-      { tab: "doing", awaiting: "bioinfo" },
+      { status: ["in_progress", "waiting_feedback"] },
       { skip: 0, limit: 20 },
     )
     const filters = statusClauses()
-    // tab 桶过滤应被跳过(awaiting 存在时)，只剩 awaiting 自带的整块 where(含 status=completed)
     expect(filters).toHaveLength(1)
-    expect(filters[0]).toEqual(tasksAwaitingBioinfoWhere)
+    const clause = filters[0] as { status: { in: string[] } }
+    expect(clause.status.in.sort()).toEqual(["in_progress", "waiting_feedback"].sort())
+  })
+
+  it("awaiting=bioinfo 使用专属 where(不受 status 影响)", async () => {
+    await listExperimentTasks(OPERATOR, { awaiting: "bioinfo" }, { skip: 0, limit: 20 })
+    const awaitingClause = andClauses().find(
+      (clause) => JSON.stringify(clause) === JSON.stringify(tasksAwaitingBioinfoWhere),
+    )
+    expect(awaitingClause).toEqual(tasksAwaitingBioinfoWhere)
   })
 
   it("显式 ?operatorId= 仍作为深链接/API 过滤能力(不在 UI 暴露,见 ADR-0003 我的/团队移除记录)", async () => {
-    await listExperimentTasks(
-      OPERATOR,
-      { tab: "doing", operatorId: "other-user-id" },
-      { skip: 0, limit: 20 },
-    )
+    await listExperimentTasks(OPERATOR, { operatorId: "other-user-id" }, { skip: 0, limit: 20 })
     const operatorFilter = andClauses().find((clause) => "operatorId" in clause)
     expect(operatorFilter).toEqual({ operatorId: "other-user-id" })
   })
 
-  it("显式 ?status= 仍作为深链接叠加过滤(交集)", async () => {
-    await listExperimentTasks(
-      OPERATOR,
-      { tab: "doing", status: ["in_progress"] },
-      { skip: 0, limit: 20 },
-    )
-    // 两个 status 子句都在(桶 + 显式)，AND 交集 = ["in_progress"]，不应该是空
-    expect(statusClauses().length).toBeGreaterThanOrEqual(1)
+  it("projectId 过滤照常生效", async () => {
+    await listExperimentTasks(OPERATOR, { projectId: "proj-1" }, { skip: 0, limit: 20 })
+    const projectFilter = andClauses().find((clause) => "projectId" in clause)
+    expect(projectFilter).toEqual({ projectId: "proj-1" })
   })
 })
