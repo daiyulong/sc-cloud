@@ -149,7 +149,7 @@ const INFLIGHT_SPECS: InFlightSpec[] = [
     bioinfo: BioinfoTaskStatus.pending,
     bioinfoAssignee: "unassigned",
   },
-  // 生信进行中 → 生信工位「我的 / 全部」
+  // 生信进行中（已分配示例生信）→ 生信工位「分析负责人」菜单可命中
   {
     no: "BP-G260601004",
     status: ProjectStatus.bioinfo_in_progress,
@@ -475,7 +475,11 @@ async function createInFlight(
       analysisType: "标准分析",
       dataReceivedAt: daysFromNow(-1),
       status: spec.bioinfo,
-      analystId: spec.bioinfoAssignee === "unassigned" ? null : users.bioinfoId,
+      // 不变量（ADR-0004）：仅 pending 可未分配；其余状态一律给负责人，避免演示数据造出「分析中+未分配」
+      analystId:
+        spec.bioinfo === BioinfoTaskStatus.pending && spec.bioinfoAssignee === "unassigned"
+          ? null
+          : users.bioinfoId,
     },
   })
 }
