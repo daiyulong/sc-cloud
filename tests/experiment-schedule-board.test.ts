@@ -72,7 +72,7 @@ beforeEach(() => {
     refresh: vi.fn(),
   } as never)
   vi.mocked(usePathname).mockReturnValue("/lab")
-  vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("range=pending") as never)
+  vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("mode=schedule") as never)
 })
 
 describe("实验排期负载面板辅助逻辑", () => {
@@ -147,9 +147,9 @@ describe("ExperimentScheduleBoard 组件层", () => {
     expect(screen.getByText("YP-001")).toBeInTheDocument()
   })
 
-  it("点击日格 → URL 写入 plannedDate 并清掉无关 query", async () => {
+  it("回归 2026-07-01: 点击日格 → URL 保留 mode=schedule(不能把用户踢出排期模式)，并清掉无关 query", async () => {
     vi.mocked(useSearchParams).mockReturnValue(
-      new URLSearchParams("mode=today&status=open&view=abc&page=2&q=x") as never,
+      new URLSearchParams("mode=schedule&status=open&view=abc&page=2&q=x") as never,
     )
     const user = userEvent.setup()
     render(
@@ -166,17 +166,16 @@ describe("ExperimentScheduleBoard 组件层", () => {
     const [href] = replace.mock.calls[0]
     const url = new URL(href as string, "http://x")
     expect(url.searchParams.get("plannedDate")).toBe("2026-07-14")
-    expect(url.searchParams.get("range")).toBe("pending")
-    expect(url.searchParams.has("mode")).toBe(false)
+    expect(url.searchParams.get("mode")).toBe("schedule")
     expect(url.searchParams.has("status")).toBe(false)
     expect(url.searchParams.has("view")).toBe(false)
     expect(url.searchParams.has("page")).toBe(false)
     expect(url.searchParams.has("q")).toBe(false)
   })
 
-  it("点击预约按钮 → URL 同时写入 plannedDate / new=1 / sampleBatchId，且清掉 view", async () => {
+  it("回归 2026-07-01: 点击预约按钮 → URL 保留 mode=schedule，同时写入 plannedDate / new=1 / sampleBatchId，且清掉 view", async () => {
     vi.mocked(useSearchParams).mockReturnValue(
-      new URLSearchParams("range=pending&view=oldtask") as never,
+      new URLSearchParams("mode=schedule&view=oldtask") as never,
     )
     const user = userEvent.setup()
     render(
@@ -194,7 +193,7 @@ describe("ExperimentScheduleBoard 组件层", () => {
     expect(url.searchParams.get("new")).toBe("1")
     expect(url.searchParams.get("sampleBatchId")).toBe("batch-1")
     expect(url.searchParams.has("view")).toBe(false)
-    expect(url.searchParams.has("mode")).toBe(false)
+    expect(url.searchParams.get("mode")).toBe("schedule")
     expect(url.searchParams.has("q")).toBe(false)
   })
 

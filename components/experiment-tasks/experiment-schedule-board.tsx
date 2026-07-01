@@ -65,8 +65,7 @@ function loadWidth(count: number) {
 }
 
 function normalizeScheduleParams(params: URLSearchParams) {
-  params.set("range", "pending")
-  params.delete("mode")
+  params.set("mode", "schedule")
   params.delete("page")
   params.delete("q")
   params.delete("status")
