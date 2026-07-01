@@ -19,7 +19,6 @@ afterEach(() => {
 
 const baseProps = {
   taskId: "t1",
-  taskNo: "BP-G26001-E01",
   operatorOptions: [{ id: "u1", name: "实验员一", department: "单细胞部" }],
   bioinfoEnabled: true,
   analystOptions: [{ id: "b1", name: "生信一", department: "生信部" }],
@@ -83,14 +82,14 @@ describe("ExperimentTaskPrimaryAction", () => {
       />
     )
 
-    await user.click(screen.getByRole("button", { name: "提交反馈" }))
+    await user.click(screen.getByRole("button", { name: "提交结果" }))
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(screen.getByText("结果反馈必填。")).toHaveClass("text-destructive")
+    expect(screen.getByText("结果说明必填。")).toHaveClass("text-destructive")
 
-    fireEvent.change(screen.getByLabelText("结果反馈"), {
+    fireEvent.change(screen.getByLabelText("结果说明"), {
       target: { value: "正常上机，捕获良好" },
     })
-    await user.click(screen.getByRole("button", { name: "提交反馈" }))
+    await user.click(screen.getByRole("button", { name: "提交结果" }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]

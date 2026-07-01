@@ -56,7 +56,6 @@ export function BioinfoTaskPrimaryAction({
       <ActionPanel
         icon={<PlayCircle aria-hidden="true" />}
         title="开始分析"
-        taskNo={taskNo}
         description={
           canStartDirectly
             ? "进入分析后可提交报告，提交审核为可选中间步。"
@@ -97,7 +96,6 @@ export function BioinfoTaskPrimaryAction({
       <ActionPanel
         icon={<Send aria-hidden="true" />}
         title={label}
-        taskNo={taskNo}
         description="提交后进入待交付，由项目经理确认交付。"
       >
         <div className="flex justify-end">

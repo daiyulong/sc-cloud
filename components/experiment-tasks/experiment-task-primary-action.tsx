@@ -30,7 +30,6 @@ const UNASSIGNED = "__unassigned__"
 
 type ExperimentTaskPrimaryActionProps = {
   taskId: string
-  taskNo: string
   status: ExperimentTaskStatusValue
   plannedDate?: string | null
   actualDate?: string | null
@@ -49,9 +48,9 @@ function panelTitle(status: ExperimentTaskStatusValue) {
     case ExperimentTaskStatus.scheduled:
       return "开始实验"
     case ExperimentTaskStatus.in_progress:
-      return "提交实验反馈"
+      return "提交实验结果"
     case ExperimentTaskStatus.waiting_feedback:
-      return "补交实验反馈"
+      return "补交实验结果"
     default:
       return null
   }
@@ -92,7 +91,6 @@ function panelIcon(status: ExperimentTaskStatusValue) {
 
 export function ExperimentTaskPrimaryAction({
   taskId,
-  taskNo,
   status,
   plannedDate,
   actualDate,
@@ -110,7 +108,7 @@ export function ExperimentTaskPrimaryAction({
   if (!title || !description) return null
 
   return (
-    <ActionPanel icon={panelIcon(status)} title={title} taskNo={taskNo} description={description}>
+    <ActionPanel icon={panelIcon(status)} title={title} description={description}>
       {status === ExperimentTaskStatus.waiting_schedule && (
         <ScheduleInlineForm
           plannedDate={plannedDate}
@@ -140,7 +138,7 @@ export function ExperimentTaskPrimaryAction({
           analystOptions={analystOptions}
           isPending={isPending}
           onSubmit={(body) =>
-            run(`/api/experiment-tasks/${taskId}/feedback`, "提交实验反馈", body)
+            run(`/api/experiment-tasks/${taskId}/feedback`, "提交实验结果", body)
           }
           onFinishOnly={(body) =>
             run(`/api/experiment-tasks/${taskId}/finish`, "完成实验", body)
@@ -401,7 +399,7 @@ function FeedbackInlineForm({
             </Field>
           )}
           <Field data-invalid={invalid || undefined} className="sm:col-span-2">
-            <FieldLabel htmlFor="task-primary-feedback">结果反馈</FieldLabel>
+            <FieldLabel htmlFor="task-primary-feedback">结果说明</FieldLabel>
             <Textarea
               id="task-primary-feedback"
               value={feedback}
@@ -410,7 +408,7 @@ function FeedbackInlineForm({
               aria-invalid={invalid || undefined}
             />
             <FieldDescription className={invalid ? "text-destructive" : undefined}>
-              结果反馈必填。
+              结果说明必填。
             </FieldDescription>
           </Field>
         </div>
@@ -428,7 +426,7 @@ function FeedbackInlineForm({
           )}
           <Button type="submit" disabled={isPending}>
             <Send data-icon="inline-start" aria-hidden="true" />
-            提交反馈
+            提交结果
           </Button>
         </div>
       </FieldGroup>

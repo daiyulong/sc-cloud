@@ -14,7 +14,7 @@ export function FieldLine({
   className?: string
 }) {
   const containerClass = multiline
-    ? "flex h-24 min-w-0 flex-col gap-1 px-2 py-1.5"
+    ? "flex min-h-[3.5rem] min-w-0 flex-col gap-1 px-2 py-1.5"
     : "flex h-14 min-w-0 flex-col gap-1 px-2 py-1.5"
   const valueClass = multiline ? "line-clamp-3 break-words text-sm" : "truncate text-sm"
 

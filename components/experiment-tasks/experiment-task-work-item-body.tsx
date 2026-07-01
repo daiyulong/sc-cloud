@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   BIOINFO_SERVICE_LEVELS,
   EXPERIMENT_TASK_STATUS_LABELS,
@@ -9,33 +8,33 @@ import {
   type ProjectStatus as ProjectStatusValue,
   type ResultStatus as ResultStatusValue,
   type ServiceLevel as ServiceLevelValue,
-} from "@/lib/enums";
-import type { getExperimentTaskDetail } from "@/lib/experiment-tasks/service";
-import { canActAsStaff } from "@/lib/auth/action-roles";
-import { formatDate, formatDateTime, toDateString } from "@/lib/utils";
-import { EditableSection } from "@/components/detail/editable-section";
-import { WorkItemHeader } from "@/components/detail/work-item-header";
-import { ExperimentTaskPrimaryAction } from "@/components/experiment-tasks/experiment-task-primary-action";
-import { QcSection } from "@/components/experiment-tasks/qc-section";
-import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section";
-import { pickRunMetrics } from "@/components/experiment-tasks/run-metrics";
+} from "@/lib/enums"
+import type { getExperimentTaskDetail } from "@/lib/experiment-tasks/service"
+import { canActAsStaff } from "@/lib/auth/action-roles"
+import { formatDate, formatDateTime, toDateString } from "@/lib/utils"
+import { EditableSection } from "@/components/detail/editable-section"
+import { WorkItemHeader } from "@/components/detail/work-item-header"
+import { ExperimentTaskPrimaryAction } from "@/components/experiment-tasks/experiment-task-primary-action"
+import { QcSection } from "@/components/experiment-tasks/qc-section"
+import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
+import { pickRunMetrics } from "@/components/experiment-tasks/run-metrics"
 import type {
   FeedbackAnalystOption,
   OperatorOption,
-} from "@/components/experiment-tasks/types";
-import { UploadRecordButton } from "@/components/experiment-records/upload-record-button";
-import { canUploadRecord } from "@/lib/experiment-records/permissions";
-import { EXPERIMENT_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot";
-import { Separator } from "@/components/ui/separator";
+} from "@/components/experiment-tasks/types"
+import { UploadRecordButton } from "@/components/experiment-records/upload-record-button"
+import { canUploadRecord } from "@/lib/experiment-records/permissions"
+import { EXPERIMENT_TASK_STATUS_DOT } from "@/components/status-dot"
+import { Separator } from "@/components/ui/separator"
 
-type ExperimentTaskDetail = Awaited<ReturnType<typeof getExperimentTaskDetail>>;
+type ExperimentTaskDetail = Awaited<ReturnType<typeof getExperimentTaskDetail>>
 
 /** 终局状态：无需主动作，开放修正入口 */
 const EXPERIMENT_TERMINAL_STATUSES = new Set<ExperimentTaskStatusValue>([
   ExperimentTaskStatus.completed,
   ExperimentTaskStatus.cancelled,
   ExperimentTaskStatus.abnormal,
-]);
+])
 
 export function ExperimentTaskWorkItemBody({
   detail,
@@ -43,36 +42,36 @@ export function ExperimentTaskWorkItemBody({
   operatorOptions,
   analystOptions,
 }: {
-  detail: ExperimentTaskDetail;
-  role?: string;
-  operatorOptions: OperatorOption[];
-  analystOptions: FeedbackAnalystOption[];
+  detail: ExperimentTaskDetail
+  role?: string
+  operatorOptions: OperatorOption[]
+  analystOptions: FeedbackAnalystOption[]
 }) {
-  const { task } = detail;
-  const status = task.status as ExperimentTaskStatusValue;
-  const project = task.project;
-  const projectStatus = project.status as ProjectStatusValue;
-  const editable = canActAsStaff(role);
-  const isTerminal = EXPERIMENT_TERMINAL_STATUSES.has(status);
+  const { task } = detail
+  const status = task.status as ExperimentTaskStatusValue
+  const project = task.project
+  const projectStatus = project.status as ProjectStatusValue
+  const editable = canActAsStaff(role)
+  const isTerminal = EXPERIMENT_TERMINAL_STATUSES.has(status)
   const showPrimaryAction =
     editable &&
     (status === ExperimentTaskStatus.waiting_schedule ||
       status === ExperimentTaskStatus.scheduled ||
       status === ExperimentTaskStatus.in_progress ||
-      status === ExperimentTaskStatus.waiting_feedback);
-  const endpoint = `/api/experiment-tasks/${task.id}`;
-  const plannedDateValue = toDateString(task.plannedDate);
-  const actualDateValue = toDateString(task.actualDate);
-  const leaves = task.taskSamples.map((ts) => ts.sample);
-  const first = leaves[0];
+      status === ExperimentTaskStatus.waiting_feedback)
+  const endpoint = `/api/experiment-tasks/${task.id}`
+  const plannedDateValue = toDateString(task.plannedDate)
+  const actualDateValue = toDateString(task.actualDate)
+  const leaves = task.taskSamples.map((ts) => ts.sample)
+  const first = leaves[0]
   const sampleNames =
-    leaves.map((s) => s.sampleName || "未命名").join("、") || "-";
+    leaves.map((s) => s.sampleName || "未命名").join("、") || "-"
   const operatorOptionsForSelect = operatorOptions.map((operator) => ({
     value: operator.id,
     label: operator.department
       ? `${operator.name} · ${operator.department}`
       : operator.name,
-  }));
+  }))
   const taskInfoFields = [
     {
       name: "sampleNames",
@@ -152,13 +151,21 @@ export function ExperimentTaskWorkItemBody({
     },
     {
       name: "resultFeedback",
-      label: "结果反馈",
+      label: "结果说明",
       displayValue: task.resultFeedback,
       editable: false,
       multiline: true,
       span: "full" as const,
     },
-  ];
+  ]
+
+  // 结果产出字段（结果状态 / 结果说明）：提交实验结果后才有值。非终态由上方「提交实验结果」
+  // 面板承载录入，此处再列只是空占位且与面板重复，故仅终态（修正信息，有值可修正）显示，
+  // 避免拉低信息密度。
+  const OUTCOME_FIELD_NAMES = new Set(["resultStatus", "resultFeedback"])
+  const visibleTaskInfoFields = isTerminal
+    ? taskInfoFields
+    : taskInfoFields.filter((field) => !OUTCOME_FIELD_NAMES.has(field.name))
 
   return (
     <>
@@ -180,7 +187,6 @@ export function ExperimentTaskWorkItemBody({
             <>
               <ExperimentTaskPrimaryAction
                 taskId={task.id}
-                taskNo={task.taskNo}
                 status={status}
                 plannedDate={plannedDateValue}
                 actualDate={actualDateValue}
@@ -200,7 +206,7 @@ export function ExperimentTaskWorkItemBody({
           <EditableSection
             title={isTerminal ? "修正信息" : "任务信息"}
             endpoint={endpoint}
-            fields={taskInfoFields}
+            fields={visibleTaskInfoFields}
             editable={isTerminal && editable}
             editLabel="修正"
             successMessage="任务信息已保存"
@@ -239,5 +245,5 @@ export function ExperimentTaskWorkItemBody({
         </div>
       </main>
     </>
-  );
+  )
 }
