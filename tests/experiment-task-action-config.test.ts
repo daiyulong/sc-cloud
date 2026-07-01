@@ -3,23 +3,23 @@ import { partitionExperimentTaskActions } from "@/components/experiment-tasks/ex
 import { ExperimentTaskStatus, UserRole } from "@/lib/enums"
 
 describe("partitionExperimentTaskActions", () => {
-  it("待排期：主动作 schedule（排期 Dialog），无溢出", () => {
+  it("待排期：主动作 schedule（进入工作项面板），无溢出", () => {
     const { primary, overflow } = partitionExperimentTaskActions(
       ExperimentTaskStatus.waiting_schedule,
       UserRole.lab_operator
     )
     expect(primary?.action).toBe("schedule")
-    expect(primary?.kind).toBe("scheduleDialog")
+    expect(primary?.kind).toBe("workItem")
     expect(overflow).toEqual([])
   })
 
-  it("已排期：主动作 start（direct）", () => {
+  it("已排期：主动作 start（进入工作项面板）", () => {
     const { primary, overflow } = partitionExperimentTaskActions(
       ExperimentTaskStatus.scheduled,
       UserRole.lab_operator
     )
     expect(primary?.action).toBe("start")
-    expect(primary?.kind).toBe("direct")
+    expect(primary?.kind).toBe("workItem")
     expect(overflow).toEqual([])
   })
 
@@ -29,7 +29,7 @@ describe("partitionExperimentTaskActions", () => {
       UserRole.lab_operator
     )
     expect(primary?.action).toBe("feedback")
-    expect(primary?.kind).toBe("feedbackDialog")
+    expect(primary?.kind).toBe("workItem")
     expect(overflow.map((d) => d.action)).toEqual(["finish", "qc"])
   })
 

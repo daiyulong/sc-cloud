@@ -30,11 +30,11 @@ type ProjectActionMenuProps = {
   role?: string
   /** 列表行紧凑模式：sm outline 主按钮 + icon 溢出 */
   compact?: boolean
-  /** 无可用动作时显示提示文案（sheet/全页用），否则渲染 null */
+  /** 无可用动作时显示提示文案（工作项面板 / 全页用），否则渲染 null */
   showEmptyHint?: boolean
 }
 
-/** 项目动作菜单：主动作按钮 + 溢出菜单 + Dialog，列表行 / 侧滑 / 全页三处共用 */
+/** 项目动作菜单：主动作按钮 + 溢出菜单 + Dialog，列表行 / 工作项面板 / 全页三处共用 */
 export function ProjectActionMenu({
   projectId,
   projectNo,

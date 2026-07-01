@@ -6,6 +6,7 @@ import { parsePagination } from "@/lib/api-utils"
 import {
   SAMPLE_BATCH_STATUS_LABELS,
   SampleBatchStatus,
+  type ProjectStatus as ProjectStatusValue,
   type SampleBatchStatus as SampleBatchStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
@@ -18,9 +19,9 @@ import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
-import { DetailSheet, DetailSheetEmpty } from "@/components/detail/detail-sheet"
+import { WorkItemPanel, WorkItemPanelEmpty } from "@/components/detail/work-item-panel"
 import { SampleActionMenu } from "@/components/samples/sample-action-menu"
-import { SampleSheetBody } from "@/components/samples/sample-sheet-body"
+import { SampleWorkItemBody } from "@/components/samples/sample-work-item-body"
 import { SAMPLE_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { UserCell } from "@/components/user-cell"
 import { Button } from "@/components/ui/button"
@@ -109,7 +110,7 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
     params.set("limit", String(limit))
     return `/intake?${params.toString()}`
   }
-  // ?view=<id> 抽屉：保留当前筛选/页，叠加 view 参数
+  // ?view=<id> 工作区：保留当前筛选/页，叠加 view 参数
   const viewHref = (id: string) => {
     const params = new URLSearchParams(baseParams)
     if (page > 1) params.set("page", String(page))
@@ -127,7 +128,6 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
   const clearFiltersHref = query.projectId
     ? `/intake?projectId=${query.projectId}`
     : "/intake"
-
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
       <h1 className="sr-only">收样</h1>
@@ -247,17 +247,10 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
                           sampleId={sample.id}
                           sampleNo={sample.batchNo ?? "未编号"}
                           status={sample.status as SampleBatchStatusValue}
+                          projectStatus={sample.project.status as ProjectStatusValue}
                           role={session.user.role}
-                          projectId={sample.project.id}
-                          projectNo={sample.project.projectNo ?? undefined}
-                          expectedArrival={formatDate(sample.expectedArrivalDate)}
-                          species={sample.species}
-                          tissueType={sample.tissueType}
-                          experimentType={sample.experimentType}
-                          transportCondition={sample.transportCondition}
-                          sampleCount={sample.sampleCount}
                           compact
-                          surface="sheet"
+                          workItemHref={viewHref(sample.id)}
                         />
                       </div>
                     </TableCell>
@@ -272,13 +265,15 @@ export default async function IntakePage({ searchParams }: IntakePageProps) {
       )}
 
       {viewId && (
-        <DetailSheet title={viewDetail ? `样本 ${viewDetail.sample.batchNo ?? "未编号"}` : "样本详情"}>
+        <WorkItemPanel
+          title={viewDetail ? `样本 ${viewDetail.sample.batchNo ?? "未编号"}` : "样本详情"}
+        >
           {viewDetail ? (
-            <SampleSheetBody detail={viewDetail} role={session.user.role} />
+            <SampleWorkItemBody detail={viewDetail} role={session.user.role} />
           ) : (
-            <DetailSheetEmpty message="样本不存在或无权限查看。" />
+            <WorkItemPanelEmpty message="样本不存在或无权限查看。" />
           )}
-        </DetailSheet>
+        </WorkItemPanel>
       )}
     </div>
   )

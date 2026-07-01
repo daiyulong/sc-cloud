@@ -99,6 +99,21 @@ describe("experimentTaskListQuerySchema", () => {
     expect(() => experimentTaskListQuerySchema.parse({ date: "tomorrow" })).toThrow()
   })
 
+  it("plannedDate 接受合法自然日并拒绝非法日期", () => {
+    expect(experimentTaskListQuerySchema.parse({ plannedDate: "2026-07-01" }).plannedDate).toBe(
+      "2026-07-01"
+    )
+    expect(() => experimentTaskListQuerySchema.parse({ plannedDate: "2026-7-1" })).toThrow()
+    expect(() => experimentTaskListQuerySchema.parse({ plannedDate: "2026-02-30" })).toThrow()
+  })
+
+  it("range 仅接受 mine / pending / all", () => {
+    expect(experimentTaskListQuerySchema.parse({ range: "mine" }).range).toBe("mine")
+    expect(experimentTaskListQuerySchema.parse({ range: "pending" }).range).toBe("pending")
+    expect(experimentTaskListQuerySchema.parse({ range: "all" }).range).toBe("all")
+    expect(() => experimentTaskListQuerySchema.parse({ range: "unassigned" })).toThrow()
+  })
+
   it("空查询通过", () => {
     expect(experimentTaskListQuerySchema.parse({})).toEqual({})
   })
@@ -123,11 +138,11 @@ describe("createExperimentTaskWithSamplesSchema", () => {
     ).toThrow()
   })
 
-  it("> 20 拒绝（防误选整个项目）", () => {
+  it("> 200 拒绝（批次级预约安全上限）", () => {
     expect(() =>
       createExperimentTaskWithSamplesSchema.parse({
         experimentType: "建库",
-        sampleIds: Array.from({ length: 21 }, (_, i) => `id${i}`),
+        sampleIds: Array.from({ length: 201 }, (_, i) => `id${i}`),
       })
     ).toThrow()
   })
@@ -147,7 +162,7 @@ describe("createExperimentTaskWithSamplesSchema", () => {
     ).toThrow()
   })
 
-  it("边界：1 个 + 20 个都通过", () => {
+  it("边界：1 个 + 200 个都通过", () => {
     expect(() =>
       createExperimentTaskWithSamplesSchema.parse({
         experimentType: "建库",
@@ -157,7 +172,7 @@ describe("createExperimentTaskWithSamplesSchema", () => {
     expect(() =>
       createExperimentTaskWithSamplesSchema.parse({
         experimentType: "建库",
-        sampleIds: Array.from({ length: 20 }, (_, i) => `id${i}`),
+        sampleIds: Array.from({ length: 200 }, (_, i) => `id${i}`),
       })
     ).not.toThrow()
   })

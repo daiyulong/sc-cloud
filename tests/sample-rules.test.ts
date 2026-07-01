@@ -73,4 +73,21 @@ describe("sample batch rules", () => {
     expect(() => ensureProjectCanReceiveSample(ProjectStatus.abnormal)).toThrow(SampleDomainError)
     expect(() => ensureProjectCanReceiveSample(ProjectStatus.completed)).toThrow(SampleDomainError)
   })
+
+  it("项目草稿时不暴露 receive 动作", () => {
+    expect(
+      getAvailableSampleActions(
+        SampleBatchStatus.waiting_arrival,
+        UserRole.sample_receiver,
+        ProjectStatus.draft
+      )
+    ).toEqual(["markAbnormal"])
+    expect(
+      getAvailableSampleActions(
+        SampleBatchStatus.waiting_arrival,
+        UserRole.sample_receiver,
+        ProjectStatus.waiting_sample
+      )
+    ).toContain("receive")
+  })
 })

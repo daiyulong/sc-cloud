@@ -14,14 +14,15 @@ import {
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
 import { bioinfoTaskListQuerySchema } from "@/lib/schemas/bioinfo-task"
+import { getAnalystOptions } from "@/lib/bioinfo-tasks/options"
 import { getBioinfoTaskDetail, listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
-import { DetailSheet, DetailSheetEmpty } from "@/components/detail/detail-sheet"
+import { WorkItemPanel, WorkItemPanelEmpty } from "@/components/detail/work-item-panel"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
-import { BioinfoTaskSheetBody } from "@/components/bioinfo-tasks/bioinfo-task-sheet-body"
+import { BioinfoTaskWorkItemBody } from "@/components/bioinfo-tasks/bioinfo-task-work-item-body"
 import { BIOINFO_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { UserCell } from "@/components/user-cell"
 import { Button } from "@/components/ui/button"
@@ -153,9 +154,10 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
   })()
   const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.open)
 
-  const viewDetail = viewId
-    ? await getBioinfoTaskDetail(operator, viewId).catch(() => null)
-    : null
+  const [viewDetail, analystOptions] = await Promise.all([
+    viewId ? getBioinfoTaskDetail(operator, viewId).catch(() => null) : Promise.resolve(null),
+    getAnalystOptions(),
+  ])
 
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
@@ -256,7 +258,7 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
                     </TableCell>
                     <TableCell>
                       <Link
-                        href={`/experiment-tasks/${task.experimentTask.id}`}
+                        href={`/lab?projectId=${task.project.id}&view=${task.experimentTask.id}`}
                         className="hover:underline"
                       >
                         {task.experimentTask.taskNo}
@@ -299,13 +301,19 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
       )}
 
       {viewId && (
-        <DetailSheet title={viewDetail ? `生信任务 ${viewDetail.task.taskNo}` : "生信任务详情"}>
+        <WorkItemPanel
+          title={viewDetail ? `生信任务 ${viewDetail.task.taskNo}` : "生信任务详情"}
+        >
           {viewDetail ? (
-            <BioinfoTaskSheetBody detail={viewDetail} role={session.user.role} />
+            <BioinfoTaskWorkItemBody
+              detail={viewDetail}
+              role={session.user.role}
+              analystOptions={analystOptions}
+            />
           ) : (
-            <DetailSheetEmpty message="生信任务不存在或无权限查看。" />
+            <WorkItemPanelEmpty message="生信任务不存在或无权限查看。" />
           )}
-        </DetailSheet>
+        </WorkItemPanel>
       )}
     </div>
   )

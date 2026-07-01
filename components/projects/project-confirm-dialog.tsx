@@ -23,7 +23,7 @@ type ProjectConfirmDialogProps = {
 }
 
 /**
- * 确认项目 Dialog：PM 录入项目编号（委托单号，上游给定）后推进到待到样。
+ * 确认项目 Dialog：PM 录入项目编号（委托单号，上游给定）后进入收样流程。
  * 项目编号在确认这一刻才有，故确认动作是表单而非直接按钮。
  */
 export function ProjectConfirmDialog({
@@ -60,7 +60,9 @@ export function ProjectConfirmDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>确认项目</DialogTitle>
-          <DialogDescription>录入项目编号（委托单号）后项目进入待到样。</DialogDescription>
+          <DialogDescription>
+            录入项目编号（委托单号）后项目进入收样流程；确认时如尚无样本批次，会同时创建 1 个待到样批次。
+          </DialogDescription>
         </DialogHeader>
         <Field data-invalid={invalid || undefined}>
           <FieldLabel htmlFor="confirm-project-no">项目编号（委托单号）</FieldLabel>

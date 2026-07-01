@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { render, screen, within, fireEvent } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { SampleActionMenu } from "@/components/samples/sample-action-menu"
-import { SampleStatus, UserRole } from "@/lib/enums"
+import { ProjectStatus, SampleStatus, UserRole } from "@/lib/enums"
 
 const fetchMock = vi.fn(
   async () => new Response(JSON.stringify({ ok: true }), { status: 200 })
@@ -22,12 +22,16 @@ const baseProps = {
   sampleNo: "YP-001",
   status: SampleStatus.waiting_arrival,
   role: UserRole.sample_receiver,
+  workItemHref: "/intake?view=s1",
 }
 
 describe("SampleActionMenu", () => {
-  it("waiting_arrival + 接收员：显示「登记接收」主按钮与溢出菜单", () => {
+  it("waiting_arrival + 接收员：显示「登记接收」工作项入口与溢出菜单", () => {
     render(<SampleActionMenu {...baseProps} compact />)
-    expect(screen.getByRole("button", { name: "登记接收" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "登记接收" })).toHaveAttribute(
+      "href",
+      "/intake?view=s1"
+    )
     expect(
       screen.getByRole("button", { name: "样本 YP-001 更多动作" })
     ).toBeInTheDocument()
@@ -51,85 +55,28 @@ describe("SampleActionMenu", () => {
     expect(screen.getByText("当前状态暂无可执行样本动作。")).toBeInTheDocument()
   })
 
-  it("登记接收 Dialog：补全信息 + 异常需选类型或说明，类型与说明组合写入 receive API", async () => {
-    const user = userEvent.setup()
+  it("登记接收主按钮：进入工作项面板，不在动作菜单内弹二级表单", () => {
     render(<SampleActionMenu {...baseProps} />)
 
-    await user.click(screen.getByRole("button", { name: "登记接收" }))
-    const dialog = screen.getByRole("dialog")
-    expect(within(dialog).getByText("YP-001 · 补全样本信息并登记实际到样")).toBeInTheDocument()
-    // 正常接收时无异常类型字段
-    expect(within(dialog).queryByRole("button", { name: "温度异常" })).not.toBeInTheDocument()
-
-    // 补全样本信息（建项目时未填）
-    fireEvent.change(within(dialog).getByLabelText("物种"), { target: { value: "人" } })
-    fireEvent.change(within(dialog).getByLabelText("组织类型"), { target: { value: "肺" } })
-    fireEvent.change(within(dialog).getByLabelText("实验类型"), { target: { value: "scRNA" } })
-    fireEvent.change(within(dialog).getByLabelText("运输条件"), { target: { value: "干冰" } })
-    fireEvent.change(within(dialog).getByLabelText("样本数量"), { target: { value: "2" } })
-
-    // 切到异常接收 → 需选类型或填说明
-    await user.click(within(dialog).getByRole("combobox"))
-    await user.click(screen.getByRole("option", { name: "异常" }))
-    await user.click(within(dialog).getByRole("button", { name: "登记接收" }))
+    const link = screen.getByRole("link", { name: "登记接收" })
+    expect(link).toHaveAttribute("href", "/intake?view=s1")
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(within(dialog).getByText("异常接收需选择类型或填写说明。")).toBeInTheDocument()
-
-    // 勾选异常类型 chip + 补充说明 → 组合写入 abnormalNote
-    await user.click(within(dialog).getByRole("button", { name: "温度异常" }))
-    fireEvent.change(within(dialog).getByPlaceholderText(/补充说明/), {
-      target: { value: "运输超温" },
-    })
-    await user.click(within(dialog).getByRole("button", { name: "登记接收" }))
-
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe("/api/samples/s1/receive")
-    const body = JSON.parse(String(init.body))
-    expect(body.species).toBe("人")
-    expect(body.experimentType).toBe("scRNA")
-    expect(body.sampleCount).toBe("2")
-    expect(body.receiveStatus).toBe("abnormal")
-    expect(body.abnormalNote).toBe("温度异常 · 运输超温")
-    expect(body.receivedAt).toBeTruthy()
   })
 
-  it("登记接收 Dialog：已有批次信息时预填，仅核对即可提交", async () => {
-    const user = userEvent.setup()
-    render(
-      <SampleActionMenu
-        {...baseProps}
-        species="小鼠"
-        tissueType="肝脏组织"
-        experimentType="组织解离"
-        transportCondition="冰袋"
-        sampleCount={2}
-      />
-    )
+  it("缺少 workItemHref 时：不渲染无法落地的登记接收按钮", () => {
+    const props = { ...baseProps, workItemHref: undefined }
+    render(<SampleActionMenu {...props} />)
 
-    await user.click(screen.getByRole("button", { name: "登记接收" }))
-    const dialog = screen.getByRole("dialog")
-    expect(within(dialog).getByText("YP-001 · 核对样本信息并登记实际到样")).toBeInTheDocument()
-    expect(within(dialog).getByLabelText("物种")).toHaveValue("小鼠")
-    expect(within(dialog).getByLabelText("组织类型")).toHaveValue("肝脏组织")
-    expect(within(dialog).getByLabelText("实验类型")).toHaveValue("组织解离")
-    expect(within(dialog).getByLabelText("运输条件")).toHaveValue("冰袋")
-    expect(within(dialog).getByLabelText("样本数量")).toHaveValue(2)
+    expect(screen.queryByRole("button", { name: "登记接收" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "登记接收" })).not.toBeInTheDocument()
+  })
 
-    await user.click(within(dialog).getByRole("button", { name: "登记接收" }))
+  it("项目草稿：不渲染登记接收入口", () => {
+    render(<SampleActionMenu {...baseProps} projectStatus={ProjectStatus.draft} />)
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    const body = JSON.parse(String(init.body))
-    expect(body).toMatchObject({
-      species: "小鼠",
-      tissueType: "肝脏组织",
-      experimentType: "组织解离",
-      transportCondition: "冰袋",
-      sampleCount: "2",
-      receiveStatus: "normal",
-      abnormalNote: null,
-    })
+    expect(screen.queryByRole("link", { name: "登记接收" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "样本 YP-001 更多动作" })).toBeInTheDocument()
   })
 
   it("溢出菜单「登记样本异常」：原因必填，提交调用 mark-abnormal API", async () => {

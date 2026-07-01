@@ -39,7 +39,7 @@ export function buildReminderBody(
     `项目：${projectNo} · ${task.project.customerOrg}`,
     `分析类型：${task.analysisType ?? "待定"}`,
     "",
-    `请登录单细胞云平台查看并处理：${baseUrl}/bioinfo-tasks/${task.id}`,
+    `请登录单细胞云平台查看并处理：${baseUrl}/bioinfo-tasks?view=${task.id}`,
     "",
     "— 单细胞云平台",
   ].join("\n")

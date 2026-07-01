@@ -37,7 +37,7 @@ export function ProjectFields({
       <FieldLine label="实际交付" value={formatDateTime(project.deliveredAt)} />
       <FieldLine label="创建时间" value={formatDateTime(project.createdAt)} />
       <div className={spanClass}>
-        <FieldLine label="备注" value={project.remark} />
+        <FieldLine label="备注" value={project.remark} multiline />
       </div>
     </div>
   )

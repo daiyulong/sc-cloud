@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, within, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
 import { ExperimentTaskStatus, UserRole } from "@/lib/enums"
@@ -66,12 +66,12 @@ describe("RunMetricsSection", () => {
     render(<RunMetricsSection {...baseProps} />)
 
     await user.click(screen.getByRole("button", { name: "录入指标" }))
-    const dialog = screen.getByRole("dialog")
-    fireEvent.change(within(dialog).getByLabelText("捕获细胞数"), { target: { value: "10836" } })
-    fireEvent.change(within(dialog).getByLabelText("基因中位数"), { target: { value: "2634" } })
-    await user.click(within(dialog).getByRole("button", { name: "保存" }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("捕获细胞数"), { target: { value: "10836" } })
+    fireEvent.change(screen.getByLabelText("基因中位数"), { target: { value: "2634" } })
+    await user.click(screen.getByRole("button", { name: "保存" }))
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe("/api/experiment-tasks/e1/run-metrics")
     expect(init.method).toBe("POST")

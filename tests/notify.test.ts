@@ -82,7 +82,7 @@ describe("buildReminderBody", () => {
     expect(subject).toContain("BP-G260505743-B01")
     expect(subject).toContain("已创建并指派给您")
     expect(text).toContain("标准分析")
-    expect(text).toContain("/bioinfo-tasks/task-1")
+    expect(text).toContain("/bioinfo-tasks?view=task-1")
   })
 
   it("reassigned：用「已指派给您」", () => {
@@ -98,6 +98,6 @@ describe("buildReminderBody", () => {
   it("APP_BASE_URL 前缀拼进链接、去尾斜杠", () => {
     process.env.APP_BASE_URL = "https://sc.example.com/"
     const { text } = buildReminderBody(task, "created")
-    expect(text).toContain("https://sc.example.com/bioinfo-tasks/task-1")
+    expect(text).toContain("https://sc.example.com/bioinfo-tasks?view=task-1")
   })
 })

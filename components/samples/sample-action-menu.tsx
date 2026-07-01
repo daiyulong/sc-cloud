@@ -1,19 +1,18 @@
 "use client"
 
 import { MoreHorizontal } from "lucide-react"
+import Link from "next/link"
 import * as React from "react"
-import type { SampleBatchStatus as SampleBatchStatusValue } from "@/lib/enums"
-import type { ActionSurface } from "@/components/detail/action-overlay"
+import type {
+  ProjectStatus as ProjectStatusValue,
+  SampleBatchStatus as SampleBatchStatusValue,
+} from "@/lib/enums"
 import { ReasonDialog } from "@/components/detail/reason-dialog"
 import { useEntityAction } from "@/components/detail/use-entity-action"
 import {
   partitionSampleActions,
   type SampleActionDescriptor,
 } from "@/components/samples/sample-action-config"
-import {
-  SampleReceiveDialog,
-  type ReceiveSampleBody,
-} from "@/components/samples/sample-receive-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -27,43 +26,28 @@ type SampleActionMenuProps = {
   sampleId: string
   sampleNo: string
   status: SampleBatchStatusValue
+  projectStatus?: ProjectStatusValue
   role?: string
   /** 列表行紧凑模式：sm outline 主按钮 + icon 溢出 */
   compact?: boolean
-  /** 无可用动作时显示提示文案（sheet/全页用），否则渲染 null */
+  /** 无可用动作时显示提示文案（工作项面板用），否则渲染 null */
   showEmptyHint?: boolean
-  /** 登记接收浮层落点：列表行传 "sheet"（右抽屉），详情侧滑/全页用默认 "dialog" 避免双右浮层 */
-  surface?: ActionSurface
-  /** 登记接收浮层的上下文条（可选）：所属项目 + 预计到样 + 样本数，跨项目收样队列里锚定上下文 */
-  projectId?: string
-  projectNo?: string
-  expectedArrival?: string
-  species?: string | null
-  tissueType?: string | null
-  experimentType?: string | null
-  transportCondition?: string | null
-  sampleCount?: number | null
+  /** 主工作项动作入口。登记接收等主任务只打开 WorkItemPanel，不在本组件内弹表单。 */
+  workItemHref?: string
 }
 
-/** 样本动作菜单：主动作按钮 + 溢出菜单 + 表单浮层，列表行 / 侧滑 / 全页三处共用 */
+/** 样本动作菜单：主动作按钮 + 溢出菜单；主任务入口统一进入 WorkItemPanel。 */
 export function SampleActionMenu({
   sampleId,
   sampleNo,
   status,
+  projectStatus,
   role,
   compact = false,
   showEmptyHint = false,
-  surface,
-  projectId,
-  projectNo,
-  expectedArrival,
-  species,
-  tissueType,
-  experimentType,
-  transportCondition,
-  sampleCount,
+  workItemHref,
 }: SampleActionMenuProps) {
-  const { primary, overflow } = partitionSampleActions(status, role)
+  const { primary, overflow } = partitionSampleActions(status, role, projectStatus)
   const { run, isPending } = useEntityAction()
   // Dialog 受控挂在 DropdownMenuContent 之外，菜单关闭不连坐
   const [active, setActive] = React.useState<SampleActionDescriptor | null>(null)
@@ -82,6 +66,23 @@ export function SampleActionMenu({
 
   function renderPrimary(descriptor: SampleActionDescriptor) {
     const Icon = descriptor.icon
+    if (descriptor.kind === "workItem") {
+      if (!workItemHref) return null
+      return (
+        <Button
+          size={compact ? "sm" : "default"}
+          variant={compact ? "outline" : "default"}
+          disabled={isPending}
+          asChild
+        >
+          <Link href={workItemHref} scroll={false}>
+            <Icon data-icon="inline-start" aria-hidden="true" />
+            {descriptor.label}
+          </Link>
+        </Button>
+      )
+    }
+
     return (
       <Button
         size={compact ? "sm" : "default"}
@@ -130,22 +131,6 @@ export function SampleActionMenu({
         </DropdownMenu>
       )}
 
-      <SampleReceiveDialog
-        open={active?.kind === "formDialog"}
-        onOpenChange={(next) => !next && setActive(null)}
-        sampleNo={sampleNo}
-        isPending={isPending}
-        surface={surface}
-        projectId={projectId}
-        projectNo={projectNo}
-        expectedArrival={expectedArrival}
-        species={species}
-        tissueType={tissueType}
-        experimentType={experimentType}
-        transportCondition={transportCondition}
-        sampleCount={sampleCount}
-        onConfirm={(body: ReceiveSampleBody) => active && execute(active, body)}
-      />
       <ReasonDialog
         open={active?.kind === "reasonDialog"}
         onOpenChange={(next) => !next && setActive(null)}

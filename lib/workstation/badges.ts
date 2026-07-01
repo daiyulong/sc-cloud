@@ -14,6 +14,8 @@ import {
   UserRole,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
+import { countExperimentAppointmentBatches } from "@/lib/experiment-tasks/service"
+import { sampleReceivableProjectStatuses } from "@/lib/samples/rules"
 
 /** 侧栏队列深度角标：按导航项 key 映射计数（只渲染 > 0 的）。 */
 export type WorkstationBadges = Partial<Record<"projects" | "intake" | "lab" | "bioinfo", number>>
@@ -40,15 +42,27 @@ function countProjects(role: UserRoleValue) {
 function countIntake(role: UserRoleValue) {
   return prisma.sampleBatch.count({
     where: {
-      AND: [buildSampleBatchScope(role), { status: SampleBatchStatus.waiting_arrival }],
+      AND: [
+        buildSampleBatchScope(role),
+        { status: SampleBatchStatus.waiting_arrival },
+        { project: { status: { in: [...sampleReceivableProjectStatuses] } } },
+      ],
     },
   })
 }
 
-function countLab(role: UserRoleValue) {
-  return prisma.experimentTask.count({
-    where: { AND: [buildExperimentTaskScope(role), { status: { in: LAB_OPEN_STATUSES } }] },
-  })
+/**
+ * lab 工位角标 = 我的未完成实验任务 + 待预约批次（已接收但尚未建任务的批次）。
+ * 两类口径合并表达"实验工位还要做多少活"，便于在侧栏一眼看出积压。
+ */
+async function countLab(role: UserRoleValue) {
+  const [openTasks, appointmentBatches] = await Promise.all([
+    prisma.experimentTask.count({
+      where: { AND: [buildExperimentTaskScope(role), { status: { in: LAB_OPEN_STATUSES } }] },
+    }),
+    countExperimentAppointmentBatches(role),
+  ])
+  return openTasks + appointmentBatches
 }
 
 function countBioinfo(operator: { id: string; role: UserRoleValue }) {

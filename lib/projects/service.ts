@@ -436,6 +436,24 @@ export async function confirmProject(
       after: updated,
     })
 
+    const batchCount = await tx.sampleBatch.count({ where: { projectId: id } })
+    if (batchCount === 0) {
+      const batch = await tx.sampleBatch.create({
+        data: {
+          projectId: id,
+          seq: 1,
+        },
+      })
+      await recordOperation({
+        tx,
+        entityType: "sample_batch",
+        entityId: batch.id,
+        action: OperationAction.create,
+        operatorId: operator.id,
+        after: batch,
+      })
+    }
+
     return updated
   })
 }

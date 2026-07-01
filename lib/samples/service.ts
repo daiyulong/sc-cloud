@@ -26,6 +26,7 @@ import {
   ensureSampleRole,
   ensureSampleStatus,
 } from "@/lib/samples/rules"
+import { compareDateOnly } from "@/lib/utils"
 
 // 2026-06 重构：本「样本」域操作的是 SampleBatch（样本批次/YP）。收样 = 批次级登记 + 按数量生成样本叶子。
 export type SampleOperator = {
@@ -68,7 +69,8 @@ const batchInclude = {
 
 function buildBatchListWhere(
   operator: SampleOperator,
-  query: SampleListQuery
+  query: SampleListQuery,
+  options?: { includeDraftProjects?: boolean }
 ): Prisma.SampleBatchWhereInput {
   const filters: Prisma.SampleBatchWhereInput[] = [buildSampleBatchScope(operator.role)]
 
@@ -85,6 +87,9 @@ function buildBatchListWhere(
   if (query.status?.length) filters.push({ status: { in: query.status } })
   if (query.projectId) filters.push({ projectId: query.projectId })
   if (query.received === "1") filters.push({ receivedAt: { not: null } })
+  if (!options?.includeDraftProjects) {
+    filters.push({ project: { status: { not: ProjectStatus.draft } } })
+  }
 
   return { AND: filters }
 }
@@ -115,9 +120,10 @@ function ensureCanUpdateBatch(
 export async function listSamples(
   operator: SampleOperator,
   query: SampleListQuery,
-  pagination: { skip: number; limit: number }
+  pagination: { skip: number; limit: number },
+  options?: { includeDraftProjects?: boolean }
 ) {
-  const where = buildBatchListWhere(operator, query)
+  const where = buildBatchListWhere(operator, query, options)
   const [data, total] = await Promise.all([
     prisma.sampleBatch.findMany({
       where,
@@ -167,6 +173,16 @@ export async function updateSample(
       })
       if (clash) throw new SampleDomainError(`样本编号 ${batchNo} 已存在`, 409)
     }
+  }
+
+  const nextSamplingDate =
+    input.samplingDate === undefined ? before.samplingDate : input.samplingDate
+  const nextExpectedArrivalDate =
+    input.expectedArrivalDate === undefined
+      ? before.expectedArrivalDate
+      : input.expectedArrivalDate
+  if (compareDateOnly(nextExpectedArrivalDate, nextSamplingDate) === -1) {
+    throw new SampleDomainError("预计到样日期不能早于客户取样日期", 409)
   }
 
   const data = Object.fromEntries(

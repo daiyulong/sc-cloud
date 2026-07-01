@@ -13,7 +13,7 @@ type TimelineLog = {
 }
 
 /**
- * 操作日志时间线（项目/样本/实验/生信详情共用）。
+ * 操作日志时间线（项目详情使用）。
  * 左侧轨道 + 圆点，每条翻译成「动作 + 状态转移」，项目时间线已聚合子实体事件。
  */
 export function OperationTimeline({ logs }: { logs: TimelineLog[] }) {

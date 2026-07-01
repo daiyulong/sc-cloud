@@ -1,17 +1,16 @@
 "use client"
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Check, ChevronDown, Save } from "lucide-react"
+import { ChevronDown, Save } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 import { toDateString } from "@/lib/utils"
-import type { OperatorOption } from "@/components/experiment-tasks/schedule-dialog"
+import type { OperatorOption } from "@/components/experiment-tasks/types"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -45,6 +44,8 @@ type ExperimentTaskFormProps = {
   operatorOptions: OperatorOption[]
   /** create 模式预填：来自 URL ?sampleIds= 或 ?sampleBatchId=；edit 模式忽略 */
   initialSampleIds?: string[]
+  /** create 模式预填：来自排期视图选中的计划实验日期 */
+  initialPlannedDate?: string
   /** modal = 在当前上下文 ?new 居中模态内创建（成功后关模态）；page = 全页表单（成功跳详情） */
   surface?: "page" | "modal"
 }
@@ -55,7 +56,7 @@ function dateInputValue(value: Date | string | null | undefined) {
   return value ? toDateString(value) : ""
 }
 
-/** 按 YP 批次折叠分组：同一 batch.id 的样本聚合，picker 内显示一个分组标题 + 全选按钮。 */
+/** 按 YP 批次折叠分组：预约入口按批次选择，提交时仍落到样本叶子关联。 */
 function groupSamplesByBatch(options: TaskSampleOption[]) {
   const map = new Map<string, { batchId: string; batchNo: string; items: TaskSampleOption[] }>()
   for (const s of options) {
@@ -73,6 +74,7 @@ export function ExperimentTaskForm({
   sampleOptions = [],
   operatorOptions,
   initialSampleIds = [],
+  initialPlannedDate,
   surface = "page",
 }: ExperimentTaskFormProps) {
   const router = useRouter()
@@ -91,8 +93,8 @@ export function ExperimentTaskForm({
 
   const grouped = React.useMemo(() => groupSamplesByBatch(sampleOptions), [sampleOptions])
 
-  // experimentType 自动预填：仅当 user 没手填过、且所有选中样本共享同一 batch.experimentType
-  // 命令式：在 toggleOne / toggleGroup 的 setSampleIds updater 里同步调用（避免 setState in useEffect）。
+  // experimentType 自动预填：仅当 user 没手填过、且所有选中批次共享同一 batch.experimentType。
+  // 命令式：在 toggleBatch 的 setSampleIds updater 里同步调用（避免 setState in useEffect）。
   // 闭包里的 experimentType 是上次 render 快照，但 userTouchedRef 是同步 ref，已能精准守护：
   //  - 用户从没动过 → userTouchedRef.current === false → 走 autoFill
   //  - 用户已动过 → userTouchedRef.current === true → 直接 return，与 experimentType 是否 stale 无关
@@ -106,24 +108,13 @@ export function ExperimentTaskForm({
     if (types.length === 1) setExperimentType(types[0])
   }
 
-  function toggleOne(id: string) {
-    setSampleIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      autoFillExperimentType(next)
-      return next
-    })
-  }
-
-  function toggleGroup(items: TaskSampleOption[], force?: boolean) {
+  function toggleBatch(items: TaskSampleOption[]) {
     setSampleIds((prev) => {
       const next = new Set(prev)
       const allSelected = items.every((it) => next.has(it.id))
-      const shouldSelect = force ?? !allSelected
       for (const it of items) {
-        if (shouldSelect) next.add(it.id)
-        else next.delete(it.id)
+        if (allSelected) next.delete(it.id)
+        else next.add(it.id)
       }
       autoFillExperimentType(next)
       return next
@@ -154,7 +145,7 @@ export function ExperimentTaskForm({
     }
 
     if (mode === "create" && sampleIds.size === 0) {
-      toast.error("请选择至少一个样本")
+      toast.error("请选择至少一个样本批次")
       return
     }
 
@@ -191,16 +182,19 @@ export function ExperimentTaskForm({
         closeModal()
         router.refresh()
       } else {
-        // 硬导航直达全页详情：整页刷新确保详情页拿到刚保存的数据
-        window.location.assign(`/experiment-tasks/${result.data.id}`)
+        // 全页表单兼容入口：保存后回到实验工位工作区。
+        window.location.assign(`/lab?view=${result.data.id}`)
       }
     })
   }
 
+  const selectedBatchCount = grouped.filter((group) =>
+    group.items.some((item) => sampleIds.has(item.id))
+  ).length
   const triggerLabel =
     sampleIds.size === 0
-      ? "选择样本（可多选）"
-      : `已选 ${sampleIds.size} / ${sampleOptions.length}`
+      ? "选择样本批次"
+      : `已选 ${selectedBatchCount} 个批次 · ${sampleIds.size} 个样本`
 
   return (
     <form onSubmit={onSubmit}>
@@ -208,7 +202,7 @@ export function ExperimentTaskForm({
         <div className="grid gap-5 md:grid-cols-2">
           {mode === "create" ? (
             <Field>
-              <FieldLabel>关联样本</FieldLabel>
+              <FieldLabel>关联批次</FieldLabel>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -226,47 +220,26 @@ export function ExperimentTaskForm({
                 >
                   {grouped.length === 0 && (
                     <p className="px-2 py-3 text-sm text-muted-foreground">
-                      当前项目下没有可建任务的样本（请先完成收样）。
+                      当前没有可预约的样本批次（请先完成收样）。
                     </p>
                   )}
                   {grouped.map((group, idx) => {
-                    const allSelected = group.items.every((it) => sampleIds.has(it.id))
-                    const noneSelected = group.items.every((it) => !sampleIds.has(it.id))
+                    const checked = group.items.some((it) => sampleIds.has(it.id))
                     return (
                       <div key={group.batchId}>
                         {idx > 0 && <DropdownMenuSeparator />}
-                        <DropdownMenuLabel className="flex items-center justify-between gap-2">
+                        <DropdownMenuCheckboxItem
+                          checked={checked}
+                          onCheckedChange={() => toggleBatch(group.items)}
+                          onSelect={(event) => event.preventDefault()}
+                        >
                           <span className="truncate">
                             {group.batchNo} · {group.items.length} 个样本
                           </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs"
-                            disabled={allSelected}
-                            onClick={() => toggleGroup(group.items, true)}
-                          >
-                            <Check aria-hidden="true" className="mr-1 h-3 w-3" />
-                            全选
-                          </Button>
-                        </DropdownMenuLabel>
-                        {group.items.map((it) => {
-                          const checked = sampleIds.has(it.id)
-                          return (
-                            <DropdownMenuCheckboxItem
-                              key={it.id}
-                              checked={checked}
-                              onCheckedChange={() => toggleOne(it.id)}
-                              onSelect={(event) => event.preventDefault()}
-                            >
-                              <span className="truncate">
-                                {it.sampleName || "未命名"} · {it.species || "-"}/{it.tissueType || "-"}
-                              </span>
-                            </DropdownMenuCheckboxItem>
-                          )
-                        })}
-                        {noneSelected && !allSelected && null}
+                          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                            整批预约
+                          </span>
+                        </DropdownMenuCheckboxItem>
                       </div>
                     )
                   })}
@@ -292,7 +265,7 @@ export function ExperimentTaskForm({
                 </DropdownMenuContent>
               </DropdownMenu>
               <FieldDescription>
-                按 YP 批次折叠，可单选/多选/全选/清空；跨批次勾选可合并上机。
+                按 YP 批次整批预约；本期不支持在同一批次内单独勾选样本。
               </FieldDescription>
             </Field>
           ) : (
@@ -341,7 +314,7 @@ export function ExperimentTaskForm({
               id="plannedDate"
               name="plannedDate"
               type="date"
-              defaultValue={dateInputValue(task?.plannedDate)}
+              defaultValue={dateInputValue(task?.plannedDate ?? initialPlannedDate)}
             />
             <FieldDescription>填写后任务直接进入已排期。</FieldDescription>
           </Field>

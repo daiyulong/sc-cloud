@@ -9,12 +9,13 @@ import {
 import { staffRoles } from "@/lib/auth/action-roles"
 import { recordOperation } from "@/lib/operation-log"
 import { advanceProjectStatus } from "@/lib/projects/aggregation"
-import { compareDateOnly } from "@/lib/utils"
+import { compareDateOnly, toDateOnly } from "@/lib/utils"
 import {
   BIOINFO_SERVICE_LEVELS,
   ExperimentTaskStatus,
   OperationAction,
   ProjectStatus,
+  SampleBatchStatus,
   SampleStatus,
   SERVICE_LEVEL_LABELS,
   UserRole,
@@ -44,6 +45,7 @@ import {
   feedbackSubmittableTaskStatuses,
   metricsRecordableTaskStatuses,
   qcRecordableTaskStatuses,
+  taskCreatableProjectStatuses,
   taskCreatableSampleStatuses,
 } from "@/lib/experiment-tasks/rules"
 import { notifyBioinfoTaskAssigned, type BioinfoTaskForNotify } from "@/lib/notify/task-reminder"
@@ -122,6 +124,14 @@ function todayRange() {
   return { start, end }
 }
 
+function dateOnlyRange(value: Date | string) {
+  const start = toDateOnly(value)
+  if (!start) return null
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return { start, end }
+}
+
 function buildTaskListWhere(
   operator: ExperimentTaskOperator,
   query: ExperimentTaskListQuery
@@ -142,11 +152,17 @@ function buildTaskListWhere(
     })
   }
   if (query.status?.length) filters.push({ status: { in: query.status } })
+  if (query.range === "mine") filters.push({ operatorId: operator.id })
+  if (query.range === "pending") filters.push({ status: ExperimentTaskStatus.waiting_schedule })
   if (query.projectId) filters.push({ projectId: query.projectId })
   if (query.operatorId) filters.push({ operatorId: query.operatorId })
   if (query.date === "today") {
     const { start, end } = todayRange()
     filters.push({ plannedDate: { gte: start, lt: end } })
+  }
+  if (query.plannedDate) {
+    const range = dateOnlyRange(query.plannedDate)
+    if (range) filters.push({ plannedDate: { gte: range.start, lt: range.end } })
   }
   if (query.awaiting === "bioinfo") filters.push(tasksAwaitingBioinfoWhere)
 
@@ -786,3 +802,66 @@ export function handleExperimentTaskDomainError(error: unknown) {
 }
 
 export type { TaskWithSamples }
+
+/* ----------------------------------------------------------------------------
+ * 待预约批次查询（实验工位的 "14 天预约候选池"）
+ * 收样批次符合"已接收/异常接收 + 项目允许建任务 + 仍有未上机样本"即为待预约批次。
+ * 仅承担查询与可见性，不动状态机。原先独立在 appointments.ts，已合并到 service 层。
+ * --------------------------------------------------------------------------*/
+
+const appointmentSampleWhere: Prisma.SampleWhereInput = {
+  status: { in: [...taskCreatableSampleStatuses] },
+  taskSamples: { none: {} },
+}
+
+export function buildExperimentAppointmentBatchWhere(
+  role: UserRoleValue | undefined,
+  filters: { projectId?: string | null } = {}
+): Prisma.SampleBatchWhereInput {
+  const clauses: Prisma.SampleBatchWhereInput[] = [
+    { project: buildProjectScope(role) },
+    { status: { in: [SampleBatchStatus.received, SampleBatchStatus.received_abnormal] } },
+    { project: { status: { in: [...taskCreatableProjectStatuses] } } },
+    { samples: { some: appointmentSampleWhere } },
+  ]
+  if (filters.projectId) clauses.push({ projectId: filters.projectId })
+  return { AND: clauses }
+}
+
+export async function listExperimentAppointmentBatches(
+  role: UserRoleValue | undefined,
+  filters: { projectId?: string | null; take?: number } = {}
+) {
+  const batches = await prisma.sampleBatch.findMany({
+    where: buildExperimentAppointmentBatchWhere(role, filters),
+    select: {
+      id: true,
+      batchNo: true,
+      experimentType: true,
+      receivedAt: true,
+      sampleCount: true,
+      project: { select: { id: true, projectNo: true, customerOrg: true } },
+      _count: {
+        select: {
+          samples: { where: appointmentSampleWhere },
+        },
+      },
+    },
+    orderBy: [{ receivedAt: "desc" }, { updatedAt: "desc" }],
+    take: filters.take ?? 10,
+  })
+
+  return batches.map(({ _count, ...batch }) => ({
+    ...batch,
+    appointmentSampleCount: _count.samples,
+  }))
+}
+
+export function countExperimentAppointmentBatches(
+  role: UserRoleValue | undefined,
+  filters: { projectId?: string | null } = {}
+) {
+  return prisma.sampleBatch.count({
+    where: buildExperimentAppointmentBatchWhere(role, filters),
+  })
+}

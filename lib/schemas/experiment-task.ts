@@ -36,6 +36,17 @@ const suspensionTypeValues = Object.values(SuspensionType) as [
   SuspensionTypeValue,
   ...SuspensionTypeValue[],
 ]
+const dateOnlyString = optionalString.refine((value) => {
+  if (!value) return true
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [year, month, day] = value.split("-").map(Number)
+  const date = new Date(year, month - 1, day)
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  )
+}, "日期格式应为 YYYY-MM-DD")
 
 export const experimentTaskStatusSchema = z.enum(experimentTaskStatusValues)
 export const resultStatusSchema = z.enum(resultStatusValues)
@@ -60,13 +71,13 @@ export type CreateExperimentTaskInput = z.infer<typeof createExperimentTaskSchem
 /**
  * 多对多入口：POST /api/experiment-tasks，body 含 sampleIds[]。
  * 一次上机多样本是 M3 落地现实（TaskSample 多对多表已建），schema 与 service 同步扩展。
- * 上限 20 是一次上机多通道的富余（典型 1-8 通道），防误选整个项目。
+ * 上限 200 是批次级预约的安全阈值：UI 按 YP 批次整批选择，避免大批次被 20 个样本硬挡住。
  */
 export const createExperimentTaskWithSamplesSchema = createExperimentTaskSchema.extend({
   sampleIds: z
     .array(z.string().min(1))
     .min(1, "请至少选择一个样本")
-    .max(20, "单次最多 20 个样本"),
+    .max(200, "单次最多 200 个样本"),
 })
 export type CreateExperimentTaskWithSamplesInput = z.infer<
   typeof createExperimentTaskWithSamplesSchema
@@ -156,11 +167,14 @@ export type RecordRunMetricsInput = z.infer<typeof recordRunMetricsSchema>
 
 export const experimentTaskListQuerySchema = z.object({
   q: optionalString,
+  range: z.enum(["mine", "pending", "all"]).optional(),
   status: statusListSchema(experimentTaskStatusValues),
   projectId: optionalString,
   operatorId: optionalString,
   /** today = 计划实验日期为今日（实验工位「今日实验」入口） */
   date: z.enum(["today"]).optional(),
+  /** 任意计划实验日期筛选（排期视图选中某天） */
+  plannedDate: dateOnlyString,
   /** awaiting=bioinfo：完成待建生信任务队列（§接缝 S3） */
   awaiting: z.enum(["bioinfo"]).optional(),
   page: optionalString,

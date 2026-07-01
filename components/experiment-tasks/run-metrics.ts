@@ -1,5 +1,5 @@
 // 产出指标的纯数据形态与取值逻辑。
-// 刻意不带 "use client"：server 组件（任务详情页/侧滑）直接调用 pickRunMetrics，
+// 刻意不带 "use client"：server 组件（全页 / 工作项面板）直接调用 pickRunMetrics，
 // 放进 client 模块会被当作 client reference、server 端调用即报错。
 
 export type RunMetricsView = {

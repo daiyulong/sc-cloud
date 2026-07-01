@@ -1,15 +1,13 @@
 import Link from "next/link"
-import { CalendarPlus, FlaskConical, Plus, SearchX } from "lucide-react"
+import { FlaskConical, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
 import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
-  BIOINFO_SERVICE_LEVELS,
   EXPERIMENT_TASK_STATUS_LABELS,
   ExperimentTaskStatus,
-  SampleBatchStatus,
+  UserRole,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
-  type ServiceLevel as ServiceLevelValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { buildProjectScope } from "@/lib/auth/role-scope"
@@ -18,24 +16,25 @@ import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getAnalystOptions } from "@/lib/bioinfo-tasks/options"
 import { getOperatorOptions, getTaskSampleOptions } from "@/lib/experiment-tasks/options"
-import {
-  taskCreatableProjectStatuses,
-  taskCreatableSampleStatuses,
-} from "@/lib/experiment-tasks/rules"
 import { getExperimentTaskDetail, listExperimentTasks } from "@/lib/experiment-tasks/service"
-import { firstParam, formatDate } from "@/lib/utils"
+import { listExperimentAppointmentBatches } from "@/lib/experiment-tasks/service"
+import type {
+  ExperimentScheduleAppointmentBatch,
+  ExperimentScheduleTask,
+} from "@/lib/experiment-tasks/lab-schedule"
+import { cn, firstParam, formatDate, todayString, toDateString } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
 import { ListToolbar } from "@/components/list/list-toolbar"
-import { DetailSheet, DetailSheetEmpty } from "@/components/detail/detail-sheet"
+import { WorkItemPanel, WorkItemPanelEmpty } from "@/components/detail/work-item-panel"
 import { FormDialog } from "@/components/detail/form-dialog"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { ExperimentTaskForm } from "@/components/experiment-tasks/experiment-task-form"
-import { ExperimentTaskSheetBody } from "@/components/experiment-tasks/experiment-task-sheet-body"
+import { ExperimentScheduleBoard } from "@/components/experiment-tasks/experiment-schedule-board"
+import { ExperimentTaskWorkItemBody } from "@/components/experiment-tasks/experiment-task-work-item-body"
 import { EXPERIMENT_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
 import { UserCell } from "@/components/user-cell"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -52,6 +51,29 @@ type LabPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+type LabRange = "mine" | "pending" | "all"
+
+const RANGE_LABELS: Record<LabRange, string> = {
+  mine: "我的",
+  pending: "待排期",
+  all: "全部",
+}
+
+const RANGE_EMPTY: Record<LabRange, { title: string; description: string }> = {
+  mine: {
+    title: "暂无我的实验任务",
+    description: "已指派给你的实验任务会出现在这里。",
+  },
+  pending: {
+    title: "暂无待排期实验任务",
+    description: "待预约批次统一在排期视图处理，任务列表只展示已创建的实验任务。",
+  },
+  all: {
+    title: "暂无实验任务",
+    description: "样本接收后，从排期视图按批次预约实验。",
+  },
+}
+
 // 任务终态：默认浏览队列时隐藏（多选状态默认勾选其余在途态）。搜索或显式勾选则照常显示。
 const TERMINAL_TASK_STATUSES: ExperimentTaskStatusValue[] = [
   ExperimentTaskStatus.completed,
@@ -62,20 +84,32 @@ const DEFAULT_TASK_STATUS_SELECTION: ExperimentTaskStatusValue[] = (
   Object.values(ExperimentTaskStatus) as ExperimentTaskStatusValue[]
 ).filter((status) => !TERMINAL_TASK_STATUSES.includes(status))
 
+function parseRange(value: string | undefined, role: UserRoleValue): LabRange {
+  if (value === "mine" || value === "pending" || value === "all") return value
+  if (role === UserRole.lab_operator) return "mine"
+  if (role === UserRole.viewer) return "all"
+  return "pending"
+}
+
 export default async function LabPage({ searchParams }: LabPageProps) {
   const session = await getVerifiedSession()
   if (!session) redirect("/login")
   const role = session.user.role as UserRoleValue
   const operator = { id: session.user.id, role }
+  const canCreate = canActAsStaff(role)
 
   const raw = (await searchParams) ?? {}
   const viewId = firstParam(raw.view)
+  const range = parseRange(firstParam(raw.range), role)
+  const isScheduleMode = range === "pending"
   const query = experimentTaskListQuerySchema.parse({
     q: firstParam(raw.q),
+    range,
     status: firstParam(raw.status),
     projectId: firstParam(raw.projectId),
     operatorId: firstParam(raw.operatorId),
     date: firstParam(raw.date),
+    plannedDate: firstParam(raw.plannedDate),
     awaiting: firstParam(raw.awaiting),
     page: firstParam(raw.page),
     limit: firstParam(raw.limit),
@@ -84,50 +118,30 @@ export default async function LabPage({ searchParams }: LabPageProps) {
 
   // 状态多选：未显式勾选且非 awaiting 队列时默认隐藏终态。awaiting=bioinfo 队列自带 completed 语义，
   // 叠加"隐藏终态"会清空它，故此时不注入默认（让队列 where 决定状态集）。
-  const hasStatusFilter = Boolean(query.status?.length)
-  const useStatusDefault = !hasStatusFilter && !query.awaiting
-  const selectedStatuses = hasStatusFilter
+  const hasStatusFilter = range !== "pending" && Boolean(query.status?.length)
+  const useStatusDefault = range !== "pending" && !hasStatusFilter && !query.awaiting
+  const selectedStatuses = range === "pending"
+    ? undefined
+    : hasStatusFilter
     ? (query.status as ExperimentTaskStatusValue[])
     : useStatusDefault
       ? DEFAULT_TASK_STATUS_SELECTION
       : undefined
-  const effectiveQuery = { ...query, status: selectedStatuses }
-
-  const [{ data: tasks, total }, contextProject, operatorOptions, analystOptions] = await Promise.all([
-    listExperimentTasks(operator, effectiveQuery, { skip, limit }),
-    query.projectId
-      ? prisma.project.findFirst({
-          where: { AND: [{ id: query.projectId }, buildProjectScope(role)] },
-          select: { projectNo: true },
-        })
-      : null,
-    getOperatorOptions(),
-    getAnalystOptions(),
-  ])
-
-  const totalPages = Math.max(1, Math.ceil(total / limit))
-  const baseParams = new URLSearchParams()
-  for (const key of ["q", "status", "projectId", "operatorId", "date", "awaiting"]) {
-    const value = firstParam(raw[key])
-    if (value) baseParams.set(key, value)
+  const effectiveQuery = {
+    ...query,
+    status: selectedStatuses,
+    operatorId: range === "mine" || range === "pending" ? undefined : query.operatorId,
   }
-  const pageHref = (nextPage: number) => {
-    const params = new URLSearchParams(baseParams)
-    params.set("page", String(nextPage))
-    params.set("limit", String(limit))
-    return `/lab?${params.toString()}`
+  const scheduleQuery = {
+    ...query,
+    q: undefined,
+    range: undefined,
+    status: DEFAULT_TASK_STATUS_SELECTION,
+    operatorId: undefined,
+    date: undefined,
+    plannedDate: undefined,
+    awaiting: undefined,
   }
-  // ?view=<id> 抽屉：保留当前筛选/页，叠加 view 参数
-  const viewHref = (id: string) => {
-    const params = new URLSearchParams(baseParams)
-    if (page > 1) params.set("page", String(page))
-    params.set("view", id)
-    return `/lab?${params.toString()}`
-  }
-  const viewDetail = viewId
-    ? await getExperimentTaskDetail(operator, viewId).catch(() => null)
-    : null
-  // ?new=1 模态：在队列里建任务（成功后关模态回列表、不跳全页）
   const isNew = firstParam(raw.new) === "1"
   // 多对多入口预填：支持 ?sampleIds=id1,id2,id3（新建 task 覆盖 N 个样本）；?sampleBatchId= 自动全选该批次
   const initialSampleIds = (() => {
@@ -138,66 +152,108 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     return legacy ? [legacy] : []
   })()
   const initialSampleBatchId = firstParam(raw.sampleBatchId)
-  const newHref = (() => {
-    const params = new URLSearchParams(baseParams)
-    if (page > 1) params.set("page", String(page))
-    params.set("new", "1")
-    return `/lab?${params.toString()}`
-  })()
-  const canCreate = canActAsStaff(role)
-  const showAppointmentRows =
-    canCreate &&
-    page === 1 &&
-    !query.q &&
-    !query.date &&
-    !query.awaiting &&
-    !query.operatorId &&
-    !hasStatusFilter
-  const appointmentBatches = showAppointmentRows
-    ? await prisma.sampleBatch.findMany({
-        where: {
-          AND: [
-            { project: buildProjectScope(role) },
-            { status: { in: [SampleBatchStatus.received, SampleBatchStatus.received_abnormal] } },
-            { project: { status: { in: [...taskCreatableProjectStatuses] } } },
-            {
-              samples: {
-                some: {
-                  status: { in: [...taskCreatableSampleStatuses] },
-                  taskSamples: { none: {} },
-                },
-              },
-            },
-            ...(query.projectId ? [{ projectId: query.projectId }] : []),
-          ],
-        },
-        select: {
-          id: true,
-          batchNo: true,
-          experimentType: true,
-          receivedAt: true,
-          project: { select: { id: true, projectNo: true, customerOrg: true } },
-          samples: {
-            where: {
-              status: { in: [...taskCreatableSampleStatuses] },
-              taskSamples: { none: {} },
-            },
-            select: { id: true, sampleName: true },
-            orderBy: { sampleName: "asc" },
-            take: 20,
-          },
-        },
-        orderBy: [{ receivedAt: "desc" }, { updatedAt: "desc" }],
-        take: 10,
-      })
-    : []
-  const sampleOptions =
+  const showAppointmentQueue = canCreate && isScheduleMode
+
+  const [
+    { data: tasks, total },
+    contextProject,
+    operatorOptions,
+    analystOptions,
+    { data: scheduleTaskRows },
+    appointmentBatches,
+    sampleOptions,
+    viewDetail,
+  ] = await Promise.all([
+    isScheduleMode
+      ? Promise.resolve({ data: [], total: 0 })
+      : listExperimentTasks(operator, effectiveQuery, { skip, limit }),
+    query.projectId
+      ? prisma.project.findFirst({
+          where: { AND: [{ id: query.projectId }, buildProjectScope(role)] },
+          select: { projectNo: true },
+        })
+      : null,
+    getOperatorOptions(),
+    getAnalystOptions(),
+    isScheduleMode
+      ? listExperimentTasks(operator, scheduleQuery, { skip: 0, limit: 500 })
+      : Promise.resolve({ data: [], total: 0 }),
+    showAppointmentQueue
+      ? listExperimentAppointmentBatches(role, {
+          projectId: query.projectId,
+          take: 20,
+        })
+      : Promise.resolve([]),
     isNew && canCreate
-      ? await getTaskSampleOptions(operator, {
+      ? getTaskSampleOptions(operator, {
           projectId: query.projectId,
           sampleBatchId: initialSampleBatchId,
         })
-      : []
+      : Promise.resolve([]),
+    viewId ? getExperimentTaskDetail(operator, viewId).catch(() => null) : Promise.resolve(null),
+  ])
+  const scheduleTasks: ExperimentScheduleTask[] = scheduleTaskRows
+    .filter((task) => task.plannedDate)
+    .map((task) => ({
+      id: task.id,
+      taskNo: task.taskNo,
+      projectNo: task.project.projectNo ?? "未编号项目",
+      customerOrg: task.project.customerOrg,
+      experimentType: task.experimentType,
+      status: task.status,
+      plannedDate: toDateString(task.plannedDate),
+      operatorName: task.operator?.name ?? null,
+      sampleNames: task.taskSamples.map((ts) => ts.sample.sampleName || "未命名"),
+    }))
+
+  const totalPages = Math.max(1, Math.ceil(total / limit))
+  const baseParams = new URLSearchParams()
+  baseParams.set("range", range)
+  for (const key of ["projectId", "date", "plannedDate", "awaiting"]) {
+    const value = firstParam(raw[key])
+    if (value) baseParams.set(key, value)
+  }
+  if (!isScheduleMode) {
+    if (query.q) baseParams.set("q", query.q)
+    if (hasStatusFilter && query.status?.length) {
+      baseParams.set("status", query.status.join(","))
+    }
+    if (range === "all" && query.operatorId) baseParams.set("operatorId", query.operatorId)
+  }
+  const pageHref = (nextPage: number) => {
+    const params = new URLSearchParams(baseParams)
+    params.set("page", String(nextPage))
+    params.set("limit", String(limit))
+    return `/lab?${params.toString()}`
+  }
+  // ?view=<id> 工作区：保留当前筛选/页，叠加 view 参数
+  const viewHref = (id: string) => {
+    const params = new URLSearchParams(baseParams)
+    if (page > 1) params.set("page", String(page))
+    params.set("view", id)
+    return `/lab?${params.toString()}`
+  }
+  const rangeHref = (nextRange: LabRange) => {
+    const params = new URLSearchParams()
+    params.set("range", nextRange)
+    if (query.projectId) params.set("projectId", query.projectId)
+    if (nextRange === "pending" && query.plannedDate) {
+      params.set("plannedDate", query.plannedDate)
+    }
+    return `/lab?${params.toString()}`
+  }
+  const scheduleAppointmentBatches: ExperimentScheduleAppointmentBatch[] = appointmentBatches.map(
+    (batch) => ({
+      id: batch.id,
+      batchNo: batch.batchNo,
+      projectId: batch.project.id,
+      projectNo: batch.project.projectNo ?? "未编号项目",
+      customerOrg: batch.project.customerOrg,
+      experimentType: batch.experimentType,
+      receivedAt: batch.receivedAt ? toDateString(batch.receivedAt) : null,
+      sampleCount: batch.appointmentSampleCount,
+    })
+  )
   // ?sampleBatchId= 命中时，自动默认选中该批次所有未上机样本（picker 默认「YP 全选」）
   const prefilledSampleIds =
     initialSampleIds.length > 0
@@ -206,58 +262,74 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         ? sampleOptions.map((s) => s.id)
         : []
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
-  const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.date)
-  const clearFiltersHref = query.projectId
-    ? `/lab?projectId=${query.projectId}`
-    : "/lab"
-  const appointmentHref = (sampleBatchId: string) => {
-    const params = new URLSearchParams(baseParams)
-    params.set("new", "1")
-    params.set("sampleBatchId", sampleBatchId)
-    return `/lab?${params.toString()}`
-  }
+  const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.date || query.plannedDate)
+  const clearParams = new URLSearchParams()
+  clearParams.set("range", range)
+  if (query.projectId) clearParams.set("projectId", query.projectId)
+  const clearFiltersHref = clearParams.size ? `/lab?${clearParams.toString()}` : "/lab"
+  const selectedScheduleDate = query.plannedDate ?? (query.date === "today" ? todayString() : undefined)
 
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
       <h1 className="sr-only">实验</h1>
-      <ListToolbar
-        basePath="/lab"
-        searchPlaceholder="搜索任务编号 / 实验类型 / 上机方式 / 样本 / 项目…"
-        searchDefault={query.q}
-        filters={[
-          {
-            key: "status",
-            label: "任务状态",
-            allLabel: "全部状态",
-            multiple: true,
-            value: (selectedStatuses ?? []).join(","),
-            options: Object.values(ExperimentTaskStatus).map((value) => ({
-              value,
-              label: EXPERIMENT_TASK_STATUS_LABELS[value],
-              dot: EXPERIMENT_TASK_STATUS_DOT[value],
-            })),
-          },
-        ]}
-        context={
-          query.projectId
-            ? {
-                label: `项目：${contextProject?.projectNo ?? query.projectId}`,
-                clearKeys: ["projectId"],
-              }
-            : undefined
-        }
-      >
-        {canCreate && (
-          <Button variant="outline" asChild>
-            <Link href={newHref}>
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              手动创建
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-md border bg-background p-0.5">
+          {(Object.keys(RANGE_LABELS) as LabRange[]).map((value) => (
+            <Link
+              key={value}
+              href={rangeHref(value)}
+              aria-current={range === value ? "page" : undefined}
+              className={cn(
+                "inline-flex h-8 items-center rounded-sm px-3 text-sm font-medium transition-colors",
+                range === value
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {RANGE_LABELS[value]}
             </Link>
-          </Button>
-        )}
-      </ListToolbar>
+          ))}
+        </div>
+      </div>
 
-      {total === 0 && appointmentBatches.length === 0 ? (
+      {!isScheduleMode && (
+        <ListToolbar
+          basePath="/lab"
+          searchPlaceholder="搜索任务编号 / 实验类型 / 上机方式 / 样本 / 项目…"
+          searchDefault={query.q}
+          filters={[
+            {
+              key: "status",
+              label: "任务状态",
+              allLabel: "全部状态",
+              multiple: true,
+              value: (selectedStatuses ?? []).join(","),
+              options: Object.values(ExperimentTaskStatus).map((value) => ({
+                value,
+                label: EXPERIMENT_TASK_STATUS_LABELS[value],
+                dot: EXPERIMENT_TASK_STATUS_DOT[value],
+              })),
+            },
+          ]}
+          context={
+            query.projectId
+              ? {
+                  label: `项目：${contextProject?.projectNo ?? query.projectId}`,
+                  clearKeys: ["projectId"],
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {isScheduleMode ? (
+        <ExperimentScheduleBoard
+          tasks={scheduleTasks}
+          appointmentBatches={scheduleAppointmentBatches}
+          selectedDate={selectedScheduleDate}
+          canCreate={canCreate}
+        />
+      ) : total === 0 ? (
         hasActiveFilters ? (
           <ListEmpty
             icon={<SearchX />}
@@ -271,28 +343,13 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         ) : (
           <ListEmpty
             icon={<FlaskConical />}
-            title={
-              query.projectId
-                ? "该项目暂无实验任务"
-                : useStatusDefault
-                  ? "暂无在途实验任务"
-                  : "暂无实验任务"
-            }
+            title={query.projectId ? "该项目暂无实验任务" : RANGE_EMPTY[range].title}
             description={
-              useStatusDefault
-                ? "默认仅显示在途状态。点上方「任务状态」可查看含已完成等终态的全部。"
-                : "样本接收后，由项目经理或实验执行员从样本创建实验任务。"
+              query.projectId
+                ? "样本接收后，从排期视图按批次预约实验。"
+                : RANGE_EMPTY[range].description
             }
-          >
-            {canCreate && (
-              <Button variant="outline" asChild>
-                <Link href={newHref}>
-                  <Plus data-icon="inline-start" aria-hidden="true" />
-                  手动创建
-                </Link>
-              </Button>
-            )}
-          </ListEmpty>
+          />
         )
       ) : (
         <>
@@ -311,48 +368,6 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {appointmentBatches.map((batch) => (
-                  <TableRow key={`appointment-${batch.id}`} className="bg-muted/25">
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline">待预约实验</Badge>
-                          <span className="font-medium">{batch.batchNo}</span>
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          到样日期 {formatDate(batch.receivedAt)}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {batch.samples.map((sample) => sample.sampleName || "未命名").join("、") || "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/projects/${batch.project.id}`} className="hover:underline">
-                        {batch.project.projectNo}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{batch.experimentType}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-2 whitespace-nowrap">
-                        <StatusDot className="bg-amber-400" />
-                        待预约
-                      </span>
-                    </TableCell>
-                    <TableCell>-</TableCell>
-                    <TableCell>
-                      <span className="text-muted-foreground">未指派</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" asChild>
-                        <Link href={appointmentHref(batch.id)}>
-                          <CalendarPlus data-icon="inline-start" aria-hidden="true" />
-                          预约实验
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
                 {tasks.map((task) => (
                   <ClickableRow key={task.id} href={viewHref(task.id)} scroll={false}>
                     <TableCell>
@@ -392,13 +407,8 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                           taskNo={task.taskNo}
                           status={task.status as ExperimentTaskStatusValue}
                           role={session.user.role}
-                          operatorOptions={operatorOptions}
-                          bioinfoEnabled={BIOINFO_SERVICE_LEVELS.includes(
-                            task.project.serviceLevel as ServiceLevelValue
-                          )}
-                          analystOptions={analystOptions}
+                          workItemHref={viewHref(task.id)}
                           compact
-                          surface="sheet"
                         />
                       </div>
                     </TableCell>
@@ -413,26 +423,30 @@ export default async function LabPage({ searchParams }: LabPageProps) {
       )}
 
       {viewId && (
-        <DetailSheet title={viewDetail ? `实验任务 ${viewDetail.task.taskNo}` : "实验任务详情"}>
+        <WorkItemPanel
+          title={viewDetail ? `实验任务 ${viewDetail.task.taskNo}` : "实验任务详情"}
+        >
           {viewDetail ? (
-            <ExperimentTaskSheetBody
+            <ExperimentTaskWorkItemBody
               detail={viewDetail}
               role={session.user.role}
               operatorOptions={operatorOptions}
               analystOptions={analystOptions}
             />
           ) : (
-            <DetailSheetEmpty message="实验任务不存在或无权限查看。" />
+            <WorkItemPanelEmpty message="实验任务不存在或无权限查看。" />
           )}
-        </DetailSheet>
+        </WorkItemPanel>
       )}
 
       {isNew && canCreate && (
         <FormDialog
           param="new"
           title={
-            prefilledSampleIds.length > 0
-              ? `新建实验任务 · 已预选 ${prefilledSampleIds.length} 个样本`
+            initialSampleBatchId
+              ? "预约实验 · 已预选批次"
+              : prefilledSampleIds.length > 0
+                ? `预约实验 · 已预选 ${prefilledSampleIds.length} 个样本`
               : "新建实验任务"
           }
         >
@@ -442,6 +456,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
             sampleOptions={sampleOptions}
             operatorOptions={operatorOptions}
             initialSampleIds={prefilledSampleIds}
+            initialPlannedDate={query.plannedDate}
           />
         </FormDialog>
       )}

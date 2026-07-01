@@ -4,10 +4,10 @@ import { ArrowUpRight, FileDown, Plus } from "lucide-react"
 import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { SetBreadcrumb } from "@/components/header-breadcrumb"
 import {
-  BIOINFO_SERVICE_LEVELS,
   BIOINFO_TASK_STATUS_LABELS,
   EXPERIMENT_TASK_STATUS_LABELS,
   PROJECT_STATUS_LABELS,
+  ProjectStatus,
   type BioinfoTaskStatus as BioinfoTaskStatusValue,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
@@ -16,26 +16,34 @@ import {
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { getProjectDetail } from "@/lib/projects/service"
+import { getSampleDetail } from "@/lib/samples/service"
+import { getExperimentTaskDetail, listExperimentTasks } from "@/lib/experiment-tasks/service"
+import { getBioinfoTaskDetail, listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { ProjectPipeline } from "@/components/projects/project-pipeline"
 import { ProjectDetailTabs } from "@/components/projects/project-detail-tabs"
 import { listSamples } from "@/lib/samples/service"
 import { canActAsStaff } from "@/lib/auth/action-roles"
 import { getOperatorOptions, getTaskSampleOptions } from "@/lib/experiment-tasks/options"
-import { listExperimentTasks } from "@/lib/experiment-tasks/service"
 import { getAnalystOptions } from "@/lib/bioinfo-tasks/options"
-import { listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { canRegisterDelivery, listProjectDeliveries } from "@/lib/sequencing-deliveries/service"
 import { DeliverySection } from "@/components/sequencing-deliveries/delivery-section"
 import { firstParam, formatDate, formatDateTime } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { OperationTimeline } from "@/components/detail/operation-timeline"
+import {
+  WorkItemPanel,
+  WorkItemPanelEmpty,
+} from "@/components/detail/work-item-panel"
 import { FormDialog } from "@/components/detail/form-dialog"
 import { ProjectHeaderActions } from "@/components/projects/project-header-actions"
 import { ProjectFields } from "@/components/projects/project-fields"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { ExperimentTaskForm } from "@/components/experiment-tasks/experiment-task-form"
+import { ExperimentTaskWorkItemBody } from "@/components/experiment-tasks/experiment-task-work-item-body"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
+import { BioinfoTaskWorkItemBody } from "@/components/bioinfo-tasks/bioinfo-task-work-item-body"
 import { SampleActionMenu } from "@/components/samples/sample-action-menu"
+import { SampleWorkItemBody } from "@/components/samples/sample-work-item-body"
 import {
   BIOINFO_TASK_STATUS_DOT,
   EXPERIMENT_TASK_STATUS_DOT,
@@ -101,25 +109,39 @@ export default async function ProjectDetailPage({
   if (!detail) notFound()
 
   const { project, operationLogs } = detail
+  // ?view=<kind>:<id> —— <kind> ∈ {sample,task,bioinfo}，与该项目下的工位详情复用同一 WorkItemPanel
+  const rawView = firstParam(raw.view) ?? ""
+  const viewMatch = rawView.match(/^(sample|task|bioinfo):(.+)$/)
+  const viewKind = viewMatch?.[1] ?? null
+  const viewId = viewMatch?.[2] ?? null
   const [
     { data: samples },
     { data: tasks },
     { data: bioinfoTasks },
     operatorOptions,
+    analystOptions,
     deliveries,
     taskSampleOptions,
-    analystOptions,
   ] = await Promise.all([
-    listSamples(operator, { projectId: id }, { skip: 0, limit: 20 }),
+    listSamples(operator, { projectId: id }, { skip: 0, limit: 20 }, { includeDraftProjects: true }),
     listExperimentTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
     listBioinfoTasks(operator, { projectId: id }, { skip: 0, limit: 20 }),
     getOperatorOptions(),
+    getAnalystOptions().catch(() => []),
     listProjectDeliveries(operator, id).catch(() => []),
     isNewExperimentTask && canCreateTask
       ? getTaskSampleOptions(operator, { projectId: id, sampleBatchId: initialSampleBatchId })
       : Promise.resolve([]),
-    getAnalystOptions(),
   ])
+  const viewDetail = viewId
+    ? await (viewKind === "sample"
+        ? getSampleDetail(operator, viewId).catch(() => null)
+        : viewKind === "task"
+          ? getExperimentTaskDetail(operator, viewId).catch(() => null)
+          : viewKind === "bioinfo"
+            ? getBioinfoTaskDetail(operator, viewId).catch(() => null)
+            : Promise.resolve(null))
+    : null
   const deliveryItems = deliveries.map((d) => ({
     id: d.id,
     storageUrl: d.storageUrl,
@@ -154,12 +176,14 @@ export default async function ProjectDetailPage({
           <CardTitle>样本批次</CardTitle>
           <CardDescription>该项目下的送样批次与接收进度（最多展示 20 条）</CardDescription>
         </div>
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/intake?projectId=${project.id}`}>
-            在收样工位查看
-            <ArrowUpRight aria-hidden="true" />
-          </Link>
-        </Button>
+        {project.status !== ProjectStatus.draft && (
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/intake?projectId=${project.id}`}>
+              在收样工位查看
+              <ArrowUpRight aria-hidden="true" />
+            </Link>
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <Table>
@@ -176,10 +200,13 @@ export default async function ProjectDetailPage({
           </TableHeader>
           <TableBody>
             {samples.map((sample) => (
-              <ClickableRow key={sample.id} href={`/samples/${sample.id}`}>
+              <ClickableRow
+                key={sample.id}
+                href={`/projects/${project.id}?tab=samples&view=sample:${sample.id}`}
+              >
                 <TableCell>
                   <Link
-                    href={`/samples/${sample.id}`}
+                    href={`/projects/${project.id}?tab=samples&view=sample:${sample.id}`}
                     className="font-medium hover:underline"
                   >
                     {sample.batchNo ?? "未编号"}
@@ -204,15 +231,9 @@ export default async function ProjectDetailPage({
                     sampleId={sample.id}
                     sampleNo={sample.batchNo ?? "未编号"}
                     status={sample.status as SampleBatchStatusValue}
+                    projectStatus={project.status as ProjectStatusValue}
                     role={session.user.role}
-                    projectId={project.id}
-                    projectNo={project.projectNo ?? undefined}
-                    expectedArrival={formatDate(sample.expectedArrivalDate)}
-                    species={sample.species}
-                    tissueType={sample.tissueType}
-                    experimentType={sample.experimentType}
-                    transportCondition={sample.transportCondition}
-                    sampleCount={sample.sampleCount}
+                    workItemHref={`/projects/${project.id}?tab=samples&view=sample:${sample.id}`}
                     compact
                   />
                 </TableCell>
@@ -270,10 +291,13 @@ export default async function ProjectDetailPage({
           </TableHeader>
           <TableBody>
             {tasks.map((task) => (
-              <ClickableRow key={task.id} href={`/experiment-tasks/${task.id}`}>
+              <ClickableRow
+                key={task.id}
+                href={`/projects/${project.id}?tab=tasks&view=task:${task.id}`}
+              >
                 <TableCell>
                   <Link
-                    href={`/experiment-tasks/${task.id}`}
+                    href={`/projects/${project.id}?tab=tasks&view=task:${task.id}`}
                     className="font-medium hover:underline"
                   >
                     {task.taskNo}
@@ -299,11 +323,7 @@ export default async function ProjectDetailPage({
                     taskNo={task.taskNo}
                     status={task.status as ExperimentTaskStatusValue}
                     role={session.user.role}
-                    operatorOptions={operatorOptions}
-                    bioinfoEnabled={BIOINFO_SERVICE_LEVELS.includes(
-                      task.project.serviceLevel as ServiceLevelValue
-                    )}
-                    analystOptions={analystOptions}
+                    workItemHref={`/projects/${project.id}?tab=tasks&view=task:${task.id}`}
                     compact
                   />
                 </TableCell>
@@ -359,10 +379,13 @@ export default async function ProjectDetailPage({
             </TableHeader>
             <TableBody>
               {bioinfoTasks.map((task) => (
-                <ClickableRow key={task.id} href={`/bioinfo-tasks/${task.id}`}>
+                <ClickableRow
+                  key={task.id}
+                  href={`/projects/${project.id}?tab=bioinfo&view=bioinfo:${task.id}`}
+                >
                   <TableCell>
                     <Link
-                      href={`/bioinfo-tasks/${task.id}`}
+                      href={`/projects/${project.id}?tab=bioinfo&view=bioinfo:${task.id}`}
                       className="font-medium hover:underline"
                     >
                       {task.taskNo}
@@ -370,7 +393,7 @@ export default async function ProjectDetailPage({
                   </TableCell>
                   <TableCell>
                     <Link
-                      href={`/experiment-tasks/${task.experimentTask.id}`}
+                      href={`/projects/${project.id}?tab=tasks&view=task:${task.experimentTask.id}`}
                       className="hover:underline"
                     >
                       {task.experimentTask.taskNo}
@@ -492,6 +515,42 @@ export default async function ProjectDetailPage({
           { value: "timeline", label: "时间线", content: timelineContent },
         ]}
       />
+
+      {viewId && viewKind && (
+        <WorkItemPanel
+          title={
+            viewDetail && viewKind === "sample"
+              ? `样本批次 ${(viewDetail as NonNullable<Awaited<ReturnType<typeof getSampleDetail>>>).sample.batchNo ?? "未编号"}`
+              : viewDetail && viewKind === "task"
+                ? `实验任务 ${(viewDetail as NonNullable<Awaited<ReturnType<typeof getExperimentTaskDetail>>>).task.taskNo}`
+                : viewDetail && viewKind === "bioinfo"
+                  ? `生信任务 ${(viewDetail as NonNullable<Awaited<ReturnType<typeof getBioinfoTaskDetail>>>).task.taskNo}`
+                  : "详情"
+          }
+        >
+          {viewDetail && viewKind === "sample" ? (
+            <SampleWorkItemBody
+              detail={viewDetail as NonNullable<Awaited<ReturnType<typeof getSampleDetail>>>}
+              role={session.user.role}
+            />
+          ) : viewDetail && viewKind === "task" ? (
+            <ExperimentTaskWorkItemBody
+              detail={viewDetail as NonNullable<Awaited<ReturnType<typeof getExperimentTaskDetail>>>}
+              role={session.user.role}
+              operatorOptions={operatorOptions}
+              analystOptions={analystOptions}
+            />
+          ) : viewDetail && viewKind === "bioinfo" ? (
+            <BioinfoTaskWorkItemBody
+              detail={viewDetail as NonNullable<Awaited<ReturnType<typeof getBioinfoTaskDetail>>>}
+              role={session.user.role}
+              analystOptions={analystOptions}
+            />
+          ) : (
+            <WorkItemPanelEmpty message="实体不存在或无权限查看。" />
+          )}
+        </WorkItemPanel>
+      )}
 
       {isNewExperimentTask && canCreateTask && (
         <FormDialog

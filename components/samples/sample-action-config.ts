@@ -1,5 +1,8 @@
 import { AlertTriangle, PackageCheck, type LucideIcon } from "lucide-react"
-import type { SampleBatchStatus as SampleBatchStatusValue } from "@/lib/enums"
+import type {
+  ProjectStatus as ProjectStatusValue,
+  SampleBatchStatus as SampleBatchStatusValue,
+} from "@/lib/enums"
 import { getAvailableSampleActions, type SampleAction } from "@/lib/samples/rules"
 
 export type SampleActionDescriptor = {
@@ -8,8 +11,8 @@ export type SampleActionDescriptor = {
   /** API 路径段：POST /api/samples/[id]/<path> */
   path: string
   icon: LucideIcon
-  /** formDialog=接收表单；reasonDialog=带原因输入 */
-  kind: "formDialog" | "reasonDialog"
+  /** workItem=打开工作项面板处理；reasonDialog=带原因输入 */
+  kind: "workItem" | "reasonDialog"
   destructive?: boolean
   reasonRequired?: boolean
   reasonLabel?: string
@@ -22,7 +25,7 @@ const descriptors: Record<SampleAction, SampleActionDescriptor> = {
     label: "登记接收",
     path: "receive",
     icon: PackageCheck,
-    kind: "formDialog",
+    kind: "workItem",
   },
   markAbnormal: {
     action: "markAbnormal",
@@ -40,9 +43,12 @@ const descriptors: Record<SampleAction, SampleActionDescriptor> = {
 /** 主动作 = 首个非破坏性动作；破坏性动作永远进溢出菜单 */
 export function partitionSampleActions(
   status: SampleBatchStatusValue,
-  role?: string
+  role?: string,
+  projectStatus?: ProjectStatusValue
 ): { primary?: SampleActionDescriptor; overflow: SampleActionDescriptor[] } {
-  const available = getAvailableSampleActions(status, role).map((action) => descriptors[action])
+  const available = getAvailableSampleActions(status, role, projectStatus).map(
+    (action) => descriptors[action]
+  )
   const primary = available.find((descriptor) => !descriptor.destructive)
   const overflow = available.filter((descriptor) => descriptor !== primary)
   return { primary, overflow }

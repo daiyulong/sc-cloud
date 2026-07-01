@@ -68,14 +68,18 @@ export function ensureProjectCanReceiveSample(projectStatus: ProjectStatusValue)
 
 export function getAvailableSampleActions(
   status: SampleBatchStatusValue,
-  role: string | undefined
+  role: string | undefined,
+  projectStatus?: ProjectStatusValue
 ): SampleAction[] {
   if (!canActAsStaff(role)) {
     return []
   }
 
   const actions: SampleAction[] = []
-  if (status === SampleBatchStatus.waiting_arrival) actions.push("receive")
+  const canReceive =
+    status === SampleBatchStatus.waiting_arrival &&
+    (!projectStatus || sampleReceivableProjectStatuses.includes(projectStatus))
+  if (canReceive) actions.push("receive")
   if (abnormalMarkableSampleStatuses.includes(status)) actions.push("markAbnormal")
   return actions
 }

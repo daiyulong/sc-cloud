@@ -1,11 +1,24 @@
 import * as React from "react"
 
 /** 详情视图的「标签 + 值」行，值为空时显示 - */
-export function FieldLine({ label, value }: { label: string; value: React.ReactNode }) {
+export function FieldLine({
+  label,
+  value,
+  multiline = false,
+}: {
+  label: string
+  value: React.ReactNode
+  multiline?: boolean
+}) {
+  const containerClass = multiline
+    ? "flex h-24 min-w-0 flex-col gap-1 px-2 py-1.5"
+    : "flex h-14 min-w-0 flex-col gap-1 px-2 py-1.5"
+  const valueClass = multiline ? "line-clamp-3 break-words text-sm" : "truncate text-sm"
+
   return (
-    <div className="flex flex-col gap-1">
+    <div className={containerClass}>
       <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-sm">{value || "-"}</span>
+      <span className={valueClass}>{value || "-"}</span>
     </div>
   )
 }

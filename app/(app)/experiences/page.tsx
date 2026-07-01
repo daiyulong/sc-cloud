@@ -132,7 +132,7 @@ export default async function ExperiencesPage({ searchParams }: ExperiencesPageP
                   {similar.runs.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell>
-                        <Link href={`/experiment-tasks/${r.id}`} className="font-medium hover:underline">
+                        <Link href={`/lab?view=${r.id}`} className="font-medium hover:underline">
                           {r.taskNo}
                         </Link>
                         <span className="block text-xs text-muted-foreground">{r.projectNo ?? "—"}</span>

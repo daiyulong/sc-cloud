@@ -35,7 +35,7 @@ export default async function NewProjectPage() {
       <Card>
         <CardHeader>
           <CardTitle>项目信息</CardTitle>
-          <CardDescription>创建后状态为草稿，需项目经理确认后进入待到样。</CardDescription>
+          <CardDescription>创建后状态为草稿，需项目经理确认后进入收样流程。</CardDescription>
         </CardHeader>
         <CardContent>
           <ProjectForm

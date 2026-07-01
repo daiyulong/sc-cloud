@@ -18,8 +18,8 @@ export type ExperimentTaskActionDescriptor = {
   /** API 路径段：POST /api/experiment-tasks/[id]/<path> */
   path: string
   icon: LucideIcon
-  /** direct=点击即执行；其余各自对应一个专用表单 Dialog */
-  kind: "direct" | "scheduleDialog" | "feedbackDialog" | "qcDialog"
+  /** workItem=进入工作项主任务；inlineSection=在工作项分区内处理 */
+  kind: "workItem" | "inlineSection"
   description?: string
 }
 
@@ -29,21 +29,21 @@ const descriptors: Record<ExperimentTaskAction, ExperimentTaskActionDescriptor> 
     label: "设置排期",
     path: "schedule",
     icon: CalendarClock,
-    kind: "scheduleDialog",
+    kind: "workItem",
   },
   start: {
     action: "start",
     label: "开始实验",
     path: "start",
     icon: PlayCircle,
-    kind: "direct",
+    kind: "workItem",
   },
   finish: {
     action: "finish",
     label: "完成实验（待反馈）",
     path: "finish",
     icon: FlaskConical,
-    kind: "direct",
+    kind: "workItem",
     description: "标记实验台操作完成、等待结果反馈。",
   },
   feedback: {
@@ -51,18 +51,18 @@ const descriptors: Record<ExperimentTaskAction, ExperimentTaskActionDescriptor> 
     label: "提交实验反馈",
     path: "feedback",
     icon: Send,
-    kind: "feedbackDialog",
+    kind: "workItem",
   },
   qc: {
     action: "qc",
     label: "录入质控",
     path: "qc",
     icon: ClipboardCheck,
-    kind: "qcDialog",
+    kind: "inlineSection",
   },
 }
 
-/** 主动作 = 推进工作流的首个动作；完成实验(待反馈) / 录入质控 进溢出菜单 */
+/** 主动作 = 推进工作流的首个动作；补充动作在 WorkItemPanel 内分区处理 */
 export function partitionExperimentTaskActions(
   status: ExperimentTaskStatusValue,
   role?: string

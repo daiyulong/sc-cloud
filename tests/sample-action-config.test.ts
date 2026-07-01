@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest"
 import { partitionSampleActions } from "@/components/samples/sample-action-config"
-import { SampleBatchStatus, UserRole } from "@/lib/enums"
+import { ProjectStatus, SampleBatchStatus, UserRole } from "@/lib/enums"
 
 describe("partitionSampleActions", () => {
-  it("waiting_arrival + 接收员：主动作 receive（表单 Dialog），溢出 markAbnormal", () => {
+  it("waiting_arrival + 接收员：主动作 receive（进入工作项面板），溢出 markAbnormal", () => {
     const { primary, overflow } = partitionSampleActions(
       SampleBatchStatus.waiting_arrival,
       UserRole.sample_receiver
     )
     expect(primary?.action).toBe("receive")
-    expect(primary?.kind).toBe("formDialog")
+    expect(primary?.kind).toBe("workItem")
     expect(overflow.map((d) => d.action)).toEqual(["markAbnormal"])
     expect(overflow[0].destructive).toBe(true)
     expect(overflow[0].reasonRequired).toBe(true)
@@ -43,5 +43,15 @@ describe("partitionSampleActions", () => {
     )
     expect(primary).toBeUndefined()
     expect(overflow).toEqual([])
+  })
+
+  it("项目草稿：不暴露登记接收主动作", () => {
+    const { primary, overflow } = partitionSampleActions(
+      SampleBatchStatus.waiting_arrival,
+      UserRole.sample_receiver,
+      ProjectStatus.draft
+    )
+    expect(primary).toBeUndefined()
+    expect(overflow.map((d) => d.action)).toEqual(["markAbnormal"])
   })
 })

@@ -1,17 +1,17 @@
 "use client"
 
-import * as React from "react"
 import Link from "next/link"
-import { AlertTriangle } from "lucide-react"
+import * as React from "react"
 import {
   RECEIVE_STATUS_LABELS,
   ReceiveStatus,
   type ReceiveStatus as ReceiveStatusValue,
 } from "@/lib/enums"
 import { cn } from "@/lib/utils"
-import { ActionOverlay, type ActionSurface } from "@/components/detail/action-overlay"
+import { useCloseWorkItemPanel } from "@/components/detail/use-close-work-item-panel"
+import { useEntityAction } from "@/components/detail/use-entity-action"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -31,6 +31,7 @@ function nowInputValue() {
 }
 
 export type ReceiveSampleBody = {
+  batchNo: string | null
   species: string
   tissueType: string
   experimentType: string
@@ -41,14 +42,11 @@ export type ReceiveSampleBody = {
   abnormalNote: string | null
 }
 
-type SampleReceiveDialogProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+type SampleReceiveFormProps = {
+  endpoint: string
   sampleNo: string
-  isPending: boolean
-  onConfirm: (body: ReceiveSampleBody) => void
-  surface?: ActionSurface
-  /** 上下文条（可选）：跨项目收样队列里锚定「这批属于哪个项目 / 预计到样 / 几个样本」 */
+  batchNo?: string | null
+  param?: string
   projectId?: string
   projectNo?: string
   expectedArrival?: string
@@ -63,16 +61,13 @@ type SampleReceiveDialogProps = {
 const ABNORMAL_ISSUES = ["温度异常", "容器破损", "泄漏/污染", "数量不符"] as const
 
 /**
- * 登记接收表单：沿用建项目/样本编辑时已填的批次信息，到样时核对；
- * 缺失项由收样员补齐，并记录实际到样（时间/状态/异常说明）。
+ * 登记接收是待到样批次的主任务，直接内嵌在 WorkItemPanel 中，不再通过二级弹窗承载。
  */
-export function SampleReceiveDialog({
-  open,
-  onOpenChange,
+export function SampleReceiveForm({
+  endpoint,
   sampleNo,
-  isPending,
-  onConfirm,
-  surface,
+  batchNo: initialBatchNo,
+  param = "view",
   projectId,
   projectNo,
   expectedArrival,
@@ -81,37 +76,24 @@ export function SampleReceiveDialog({
   experimentType: initialExperimentType,
   transportCondition: initialTransportCondition,
   sampleCount,
-}: SampleReceiveDialogProps) {
-  const [species, setSpecies] = React.useState("")
-  const [tissueType, setTissueType] = React.useState("")
-  const [experimentType, setExperimentType] = React.useState("")
-  const [transportCondition, setTransportCondition] = React.useState("")
-  const [countInput, setCountInput] = React.useState("")
-  const [receivedAt, setReceivedAt] = React.useState("")
+}: SampleReceiveFormProps) {
+  const [batchNo, setBatchNo] = React.useState(initialBatchNo ?? "")
+  const [species, setSpecies] = React.useState(initialSpecies ?? "")
+  const [tissueType, setTissueType] = React.useState(initialTissueType ?? "")
+  const [experimentType, setExperimentType] = React.useState(initialExperimentType ?? "")
+  const [transportCondition, setTransportCondition] = React.useState(
+    initialTransportCondition ?? ""
+  )
+  const [countInput, setCountInput] = React.useState(sampleCount == null ? "" : String(sampleCount))
+  const [receivedAt, setReceivedAt] = React.useState(() => nowInputValue())
   const [receiveStatus, setReceiveStatus] = React.useState<ReceiveStatusValue>(
     ReceiveStatus.normal
   )
   const [abnormalNote, setAbnormalNote] = React.useState("")
   const [issues, setIssues] = React.useState<Set<string>>(() => new Set())
   const [showError, setShowError] = React.useState(false)
-  const [prevOpen, setPrevOpen] = React.useState(open)
-
-  // 每次打开重置（渲染期间调整状态，避免 effect 级联渲染）
-  if (open !== prevOpen) {
-    setPrevOpen(open)
-    if (open) {
-      setSpecies(initialSpecies ?? "")
-      setTissueType(initialTissueType ?? "")
-      setExperimentType(initialExperimentType ?? "")
-      setTransportCondition(initialTransportCondition ?? "")
-      setCountInput(sampleCount == null ? "" : String(sampleCount))
-      setReceivedAt(nowInputValue())
-      setReceiveStatus(ReceiveStatus.normal)
-      setAbnormalNote("")
-      setIssues(new Set())
-      setShowError(false)
-    }
-  }
+  const closePanel = useCloseWorkItemPanel(param)
+  const { run, isPending } = useEntityAction()
 
   const noteRequired = receiveStatus === ReceiveStatus.abnormal
   const countMissing = !countInput.trim()
@@ -125,10 +107,12 @@ export function SampleReceiveDialog({
     !transportCondition.trim() ||
     countMissing ||
     countInvalidValue
-  // 异常接收：至少勾一个类型或填一段说明
+  // 异常接收：至少勾一个类型或填一段说明。
   const noteMissing = noteRequired && issues.size === 0 && !abnormalNote.trim()
   const noteInvalid = showError && noteMissing
-  const hasContext = Boolean(projectNo || (expectedArrival && expectedArrival !== "-") || sampleCount != null)
+  const hasContext = Boolean(
+    projectNo || (expectedArrival && expectedArrival !== "-") || sampleCount != null
+  )
 
   function toggleIssue(issue: string) {
     setIssues((prev) => {
@@ -145,12 +129,14 @@ export function SampleReceiveDialog({
     return [tags, abnormalNote.trim()].filter(Boolean).join(" · ") || null
   }
 
-  function handleConfirm() {
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (missingInfo || noteMissing) {
       setShowError(true)
       return
     }
-    onConfirm({
+    run(endpoint, "登记接收", {
+      batchNo: batchNo.trim() || null,
       species: species.trim(),
       tissueType: tissueType.trim(),
       experimentType: experimentType.trim(),
@@ -166,33 +152,17 @@ export function SampleReceiveDialog({
     return showError && !value.trim()
   }
 
-  const allInfoPrefilled = Boolean(
-    initialSpecies?.trim() &&
-      initialTissueType?.trim() &&
-      initialExperimentType?.trim() &&
-      initialTransportCondition?.trim() &&
-      sampleCount
-  )
-
   return (
-    <ActionOverlay
-      surface={surface}
-      open={open}
-      onOpenChange={onOpenChange}
-      title="登记接收"
-      description={`${sampleNo} · ${allInfoPrefilled ? "核对样本信息" : "补全样本信息"}并登记实际到样`}
-      footer={
-        <>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
-            取消
-          </Button>
-          <Button onClick={handleConfirm} disabled={isPending}>
-            登记接收
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex flex-col gap-5">
+          <div>
+            <h3 className="text-sm font-medium">登记接收</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {sampleNo} · 核对样本信息并登记实际到样。
+            </p>
+          </div>
+
           {hasContext && (
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-xs">
               {projectNo && (
@@ -221,7 +191,17 @@ export function SampleReceiveDialog({
               )}
             </div>
           )}
-          <div className="grid gap-4 sm:grid-cols-2">
+
+          <FieldGroup className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="receive-batch-no">样品编号 (YP)</FieldLabel>
+              <Input
+                id="receive-batch-no"
+                value={batchNo}
+                onChange={(event) => setBatchNo(event.target.value)}
+                placeholder="YP-xxxx…"
+              />
+            </Field>
             <Field data-invalid={infoInvalid(species) || undefined}>
               <FieldLabel htmlFor="receive-species">物种</FieldLabel>
               <Input
@@ -284,12 +264,14 @@ export function SampleReceiveDialog({
                 onChange={(event) => setReceivedAt(event.target.value)}
               />
             </Field>
-          </div>
+          </FieldGroup>
+
           {showError && missingInfo && (
             <FieldDescription className="text-destructive">
               物种 / 组织类型 / 实验类型 / 运输条件 / 样本数量为必填，样本数量至少为 1。
             </FieldDescription>
           )}
+
           <Field>
             <FieldLabel>接收状态</FieldLabel>
             <Select
@@ -310,6 +292,7 @@ export function SampleReceiveDialog({
               </SelectContent>
             </Select>
           </Field>
+
           {noteRequired && (
             <Field data-invalid={noteInvalid || undefined}>
               <FieldLabel>异常类型</FieldLabel>
@@ -323,13 +306,12 @@ export function SampleReceiveDialog({
                       onClick={() => toggleIssue(issue)}
                       aria-pressed={on}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                        "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
                         on
                           ? "border-destructive/40 bg-destructive/10 text-destructive"
                           : "border-input bg-background text-muted-foreground hover:bg-accent"
                       )}
                     >
-                      <AlertTriangle className="size-3.5" aria-hidden="true" />
                       {issue}
                     </button>
                   )
@@ -337,7 +319,6 @@ export function SampleReceiveDialog({
               </div>
               <Textarea
                 id="receive-abnormal-note"
-                className="mt-2"
                 value={abnormalNote}
                 onChange={(event) => setAbnormalNote(event.target.value)}
                 placeholder="补充说明：破损程度 / 超温时长 / 延迟原因…"
@@ -349,6 +330,16 @@ export function SampleReceiveDialog({
             </Field>
           )}
         </div>
-    </ActionOverlay>
+      </div>
+
+      <div className="flex shrink-0 justify-end gap-2 border-t bg-background px-6 py-4">
+        <Button type="button" variant="outline" onClick={closePanel} disabled={isPending}>
+          取消
+        </Button>
+        <Button type="submit" disabled={isPending}>
+          确认接收
+        </Button>
+      </div>
+    </form>
   )
 }
