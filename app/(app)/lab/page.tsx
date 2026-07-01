@@ -224,9 +224,10 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     if (query.plannedDate) params.set("plannedDate", query.plannedDate)
     return `/lab?${params.toString()}`
   }
-  // 状态 Tab(待办/进行中/已完成)切换时清掉 plannedDate ——
-  // 它是排期模式带出的隐藏筛选，状态 Tab 视图里没有任何可见 chip 提示这个筛选存在，
-  // 留着会让用户看到一个"莫名被日期过滤"的列表却找不到原因。
+  // Tab 切换时清掉 plannedDate ——它是排期模式带出的隐藏筛选，其余视图里没有
+  // 任何可见 chip 提示这个筛选存在，留着会让用户看到一个"莫名被日期过滤"的
+  // 列表却找不到原因。两级 ListTabs 都用这份 params：一级"任务"项(默认值，
+  // 不写 mode 参数)与二级状态 Tab 都借此正确回到无 mode/plannedDate 的任务列表。
   // pageHref / viewHref 不受影响，翻页/开面板不应该改变当前筛选状态。
   const tabSwitchParams = new URLSearchParams(baseParams)
   tabSwitchParams.delete("plannedDate")
@@ -262,17 +263,40 @@ export default async function LabPage({ searchParams }: LabPageProps) {
       <h1 className="sr-only">实验</h1>
 
       {/*
-        状态 Tab（待办/进行中/已完成）与「排期」不是同一种控件，不混进一行 Tabs：
-        Tab 语义上代表"同一份数据的不同状态切面"，三项都满足；「排期」是日历规划 +
-        按批次预约新任务的独立工具，不是任务列表的另一种切面，用普通 Button 表达，
-        与 Tab 的下划线视觉明确区分开（不靠图标硬撑语义，见 ADR-0003）。
-        进入排期模式时状态 Tab 不高亮任何一项（此时没有在看某个状态的列表）。
+        两级 Tab（ADR-0003）：
+        第一级「任务/排期」是模式切换——两者都是"处理实验任务"的不同工作方式
+        (按状态浏览 vs 日历规划+批次预约)，用 variant="default" 的填充胶囊样式，
+        视觉上比第二级"重"一档。
+        第二级「待办/进行中/已完成」只在"任务"模式下出现，是任务列表的状态切面，
+        用 variant="line" 下划线样式——两级视觉层次不同，不会混成同一种控件。
         不再有"我的/团队"scope 控件，见 ADR-0003 移除记录。
       */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <ListTabs
+        basePath="/lab"
+        searchKey="mode"
+        variant="default"
+        value={isScheduleMode ? "schedule" : "tasks"}
+        defaultValue="tasks"
+        items={[
+          { value: "tasks", label: "任务" },
+          {
+            value: "schedule",
+            label: (
+              <>
+                <CalendarClock data-icon="inline-start" aria-hidden="true" className="size-3.5" />
+                排期
+              </>
+            ),
+            href: scheduleModeHref(),
+          },
+        ]}
+        extraSearchParams={tabSwitchParams}
+      />
+
+      {!isScheduleMode && (
         <ListTabs
           basePath="/lab"
-          value={isScheduleMode ? null : tab}
+          value={tab}
           defaultValue="doing"
           items={[
             { value: "todo", label: "待办" },
@@ -281,13 +305,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
           ]}
           extraSearchParams={tabSwitchParams}
         />
-        <Button asChild variant={isScheduleMode ? "default" : "outline"} size="sm">
-          <Link href={scheduleModeHref()} prefetch={false}>
-            <CalendarClock data-icon="inline-start" aria-hidden="true" />
-            排期看板
-          </Link>
-        </Button>
-      </div>
+      )}
 
       {!isScheduleMode && (
         <ListToolbar

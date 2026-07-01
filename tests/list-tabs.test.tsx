@@ -219,4 +219,35 @@ describe("ListTabs", () => {
     const [href] = replace.mock.calls.at(-1) ?? []
     expect(href).toBe("/lab?tab=todo")
   })
+
+  it("回归 2026-07-01: variant='default' 用于上级模式切换(与下级状态 Tab 的下划线区分层级)", () => {
+    render(
+      <ListTabs
+        basePath="/lab"
+        searchKey="mode"
+        variant="default"
+        defaultValue="tasks"
+        items={[
+          { value: "tasks", label: "任务" },
+          { value: "schedule", label: "排期", href: "/lab?mode=schedule" },
+        ]}
+      />,
+    )
+    // TabsList 的 data-variant 属性反映所选样式
+    const tablist = screen.getByRole("tablist")
+    expect(tablist.getAttribute("data-variant")).toBe("default")
+  })
+
+  it("默认 variant 仍是 'line'(不传时不影响现有状态 Tab 用法)", () => {
+    render(
+      <ListTabs
+        basePath="/lab"
+        items={[
+          { value: "todo", label: "待办" },
+          { value: "doing", label: "进行中" },
+        ]}
+      />,
+    )
+    expect(screen.getByRole("tablist").getAttribute("data-variant")).toBe("line")
+  })
 })

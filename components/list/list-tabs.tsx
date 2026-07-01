@@ -35,6 +35,12 @@ export type ListTabsProps<V extends string> = {
   searchKey?: string
   /** 切换 Tab 时保留的其余 URL 参数(过滤、scope、分页等);首项/默认值不写 searchKey */
   extraSearchParams?: URLSearchParams
+  /**
+   * TabsList 视觉变体，默认 "line"(下划线，状态 Tab 用)。
+   * "default" 是填充背景的胶囊组，用于视觉上更"重"的上级 Tab
+   * （如任务/排期这种模式切换），与下级状态 Tab 的下划线区分开层级。
+   */
+  variant?: "default" | "line"
   className?: string
 }
 
@@ -50,6 +56,7 @@ export function ListTabs<V extends string>({
   defaultValue,
   searchKey = "tab",
   extraSearchParams,
+  variant = "line",
   className,
 }: ListTabsProps<V>) {
   const router = useRouter()
@@ -84,9 +91,9 @@ export function ListTabs<V extends string>({
     <Tabs
       value={effectiveValue}
       onValueChange={onValueChange}
-      className={cn("w-full overflow-x-auto", className)}
+      className={cn("w-fit max-w-full overflow-x-auto", className)}
     >
-      <TabsList variant="line">
+      <TabsList variant={variant}>
         {items.map((item) => (
           <TabsTrigger key={item.value} value={item.value}>
             {item.label}
