@@ -303,8 +303,17 @@ export default async function ProjectDetailPage({
                     {task.taskNo}
                   </Link>
                 </TableCell>
-                <TableCell>
-                  {task.taskSamples.map((ts) => ts.sample.sampleName || "未命名").join("、") || "-"}
+                <TableCell className="max-w-[14rem]">
+                  <span
+                    className="line-clamp-2 break-words"
+                    title={
+                      task.taskSamples
+                        .map((ts) => ts.sample.sampleName || "未命名")
+                        .join("、") || "-"
+                    }
+                  >
+                    {task.taskSamples.map((ts) => ts.sample.sampleName || "未命名").join("、") || "-"}
+                  </span>
                 </TableCell>
                 <TableCell>{task.experimentType}</TableCell>
                 <TableCell>
