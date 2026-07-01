@@ -253,16 +253,27 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
       <h1 className="sr-only">实验</h1>
 
-      {isScheduleMode ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">按批次预约实验、查看近期负载</p>
-          <Button asChild variant="outline" size="sm">
-            <Link href={listModeHref()} prefetch={false}>
-              返回任务列表
-            </Link>
-          </Button>
-        </div>
-      ) : (
+      {/*
+        「任务/排期」用紧凑填充胶囊（参考 Vercel Desktop/Mobile 切换），不用下划线 Tab：
+        两者数据来源不同（任务列表 vs 待预约批次+日历），切换需要服务端重新查询，
+        视觉上刻意做"轻"（小、不占整行），避免让用户误以为是即时的客户端 Tab 切换
+        （那种预期更适合 ProjectDetailTabs 那种数据一次性加载好的场景），见 ADR-0003。
+      */}
+      <div className="inline-flex w-fit items-center gap-0.5 rounded-md border bg-muted/40 p-0.5">
+        <Button asChild variant={isScheduleMode ? "ghost" : "default"} size="sm" className="h-7 px-3">
+          <Link href={listModeHref()} prefetch={false}>
+            任务
+          </Link>
+        </Button>
+        <Button asChild variant={isScheduleMode ? "default" : "ghost"} size="sm" className="h-7 px-3">
+          <Link href={scheduleModeHref()} prefetch={false}>
+            <CalendarClock data-icon="inline-start" aria-hidden="true" className="size-3.5" />
+            排期
+          </Link>
+        </Button>
+      </div>
+
+      {!isScheduleMode && (
         <ListToolbar
           basePath="/lab"
           searchPlaceholder="搜索任务编号 / 实验类型 / 上机方式 / 样本 / 项目…"
@@ -289,14 +300,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                 }
               : undefined
           }
-        >
-          <Button asChild variant="outline" size="sm">
-            <Link href={scheduleModeHref()} prefetch={false}>
-              <CalendarClock data-icon="inline-start" aria-hidden="true" />
-              排期看板
-            </Link>
-          </Button>
-        </ListToolbar>
+        />
       )}
 
       {isScheduleMode ? (
