@@ -139,7 +139,7 @@ export async function uploadRecordImage(
   }
   const { task, leaves } = await loadTaskInScope(operator, taskId)
   if (!UPLOADABLE_STATUSES.includes(task.status as ExperimentTaskStatusValue)) {
-    throw new ExperimentRecordError("仅上机后（进行中/待反馈/已完成）的任务可上传实验记录", 409)
+    throw new ExperimentRecordError("仅上机后（进行中/待提交结果/已完成）的任务可上传实验记录", 409)
   }
 
   const enabled = isMultimodalEnabled()

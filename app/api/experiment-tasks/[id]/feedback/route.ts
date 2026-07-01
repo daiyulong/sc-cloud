@@ -22,6 +22,6 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({ data: task })
   } catch (error) {
-    return handleExperimentTaskDomainError(error) ?? handleApiError(error, "提交实验反馈失败")
+    return handleExperimentTaskDomainError(error) ?? handleApiError(error, "提交实验结果失败")
   }
 }

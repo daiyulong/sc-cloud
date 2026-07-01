@@ -40,15 +40,15 @@ const descriptors: Record<ExperimentTaskAction, ExperimentTaskActionDescriptor> 
   },
   finish: {
     action: "finish",
-    label: "完成实验（待反馈）",
+    label: "完成实验（待提交结果）",
     path: "finish",
     icon: FlaskConical,
     kind: "workItem",
-    description: "标记实验台操作完成、等待结果反馈。",
+    description: "标记实验台操作完成、等待提交结果。",
   },
   feedback: {
     action: "feedback",
-    label: "提交实验反馈",
+    label: "提交实验结果",
     path: "feedback",
     icon: Send,
     kind: "workItem",

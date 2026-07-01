@@ -21,8 +21,8 @@ export class ExperimentTaskDomainError extends Error {
 }
 
 /**
- * 录入质控允许的任务执行态：进行中 / 待反馈 / 已完成。质控是业务判定、不改执行态。
- * 含 completed 是为「补录」——若提交反馈（→已完成）前漏填质控，仍可事后补，避免一旦完成就再也填不了。
+ * 录入质控允许的任务执行态：进行中 / 待提交结果 / 已完成。质控是业务判定、不改执行态。
+ * 含 completed 是为「补录」——若提交结果（→已完成）前漏填质控，仍可事后补，避免一旦完成就再也填不了。
  */
 export const qcRecordableTaskStatuses: readonly ExperimentTaskStatusValue[] = [
   ExperimentTaskStatus.in_progress,
@@ -30,7 +30,7 @@ export const qcRecordableTaskStatuses: readonly ExperimentTaskStatusValue[] = [
   ExperimentTaskStatus.completed,
 ]
 
-/** 提交实验反馈允许的前置态（进行中可直接提交，待反馈也可补提交） */
+/** 提交实验结果允许的前置态（进行中可直接提交，待提交结果也可补提交） */
 export const feedbackSubmittableTaskStatuses: readonly ExperimentTaskStatusValue[] = [
   ExperimentTaskStatus.in_progress,
   ExperimentTaskStatus.waiting_feedback,
@@ -98,7 +98,7 @@ export function ensureSampleCanCreateTask(sampleStatus: SampleStatusValue) {
 
 /**
  * 当前状态 + 角色下可执行的语义动作（行内动作菜单与单测共用）。
- * 主动作 = 推进工作流的动作；录入质控 / 完成实验(待反馈) 进溢出菜单。
+ * 主动作 = 推进工作流的动作；录入质控 / 完成实验(待提交结果) 进溢出菜单。
  */
 export function getAvailableExperimentTaskActions(
   status: ExperimentTaskStatusValue,

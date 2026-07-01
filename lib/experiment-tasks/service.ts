@@ -478,7 +478,7 @@ export async function startExperimentTask(
   })
 }
 
-/** 完成实验（进行中 → 待反馈）：等待结果反馈（不触发项目聚合） */
+/** 完成实验（进行中 → 待提交结果）：等待提交结果（不触发项目聚合） */
 export async function finishExperimentTask(
   operator: ExperimentTaskOperator,
   id: string,
@@ -512,7 +512,7 @@ export async function finishExperimentTask(
 }
 
 /**
- * 提交实验反馈（§5.1：进行中/待反馈 → 已完成）。同一事务内聚合驱动：
+ * 提交实验结果（§5.1：进行中/待提交结果 → 已完成）。同一事务内聚合驱动：
  * 关联样本叶子 → feedback_submitted（扇出）；项目下实验任务全部完成时按 service_level 分流（§7.1）。
  */
 export async function submitExperimentFeedback(
@@ -520,9 +520,9 @@ export async function submitExperimentFeedback(
   id: string,
   input: SubmitFeedbackInput
 ) {
-  ensureExperimentTaskRole(operator.role, undefined, "提交实验反馈")
+  ensureExperimentTaskRole(operator.role, undefined, "提交实验结果")
   const before = await getWritableTask(id)
-  ensureExperimentTaskStatus(before.status, feedbackSubmittableTaskStatuses, "提交实验反馈")
+  ensureExperimentTaskStatus(before.status, feedbackSubmittableTaskStatuses, "提交实验结果")
   ensureActualDateValid(input.actualDate, latestReceivedAt(before), operator.role)
 
   const bioinfoAnalystId = input.bioinfoAnalystId ?? null
@@ -560,7 +560,7 @@ export async function submitExperimentFeedback(
       after: updated,
     })
 
-    // 样本反馈完成（扇出所有关联叶子）
+    // 样本结果完成（扇出所有关联叶子）
     for (const leaf of taskLeaves(before)) {
       if (leaf.status === SampleStatus.feedback_submitted) continue
       const sampleAfter = await tx.sample.update({
@@ -758,7 +758,7 @@ export async function recordRunMetrics(
   })
 }
 
-/** 聚合：样本叶子进入实验中（扇出，仅当尚未进入实验/反馈态时） */
+/** 聚合：样本叶子进入实验中（扇出，仅当尚未进入实验/出结果态时） */
 async function advanceSamplesToLab(
   tx: Prisma.TransactionClient,
   operator: ExperimentTaskOperator,

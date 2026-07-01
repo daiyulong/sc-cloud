@@ -65,7 +65,7 @@ function metric(label: string, value: number | null, suffix = "") {
   )
 }
 
-/** 质控记录区：展示既有记录 + 录入入口（进行中/待反馈/已完成可录，已完成为补录，§6.6 一任务可多条） */
+/** 质控记录区：展示既有记录 + 录入入口（进行中/待提交结果/已完成可录，已完成为补录，§6.6 一任务可多条） */
 export function QcSection({ taskId, taskNo, status, role, records }: QcSectionProps) {
   const { run, isPending } = useEntityAction()
   const [editing, setEditing] = React.useState(false)

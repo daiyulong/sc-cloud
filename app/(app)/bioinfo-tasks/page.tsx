@@ -179,7 +179,7 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
           <ListEmpty
             icon={<Dna />}
             title="暂无生信任务"
-            description="含生信服务的项目在实验反馈完成后，会自动生成生信任务。"
+            description="含生信服务的项目在实验结果提交后，会自动生成生信任务。"
           />
         )
       ) : (

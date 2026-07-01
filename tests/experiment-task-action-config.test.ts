@@ -33,7 +33,7 @@ describe("partitionExperimentTaskActions", () => {
     expect(overflow.map((d) => d.action)).toEqual(["finish", "qc"])
   })
 
-  it("待反馈：主动作 feedback，溢出 qc", () => {
+  it("待提交结果：主动作 feedback，溢出 qc", () => {
     const { primary, overflow } = partitionExperimentTaskActions(
       ExperimentTaskStatus.waiting_feedback,
       UserRole.lab_operator

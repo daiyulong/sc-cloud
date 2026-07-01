@@ -40,7 +40,7 @@ describe("scheduleTaskSchema", () => {
 })
 
 describe("submitFeedbackSchema", () => {
-  it("结果状态 + 结果反馈必填", () => {
+  it("结果状态 + 结果说明必填", () => {
     expect(() => submitFeedbackSchema.parse({ resultStatus: ResultStatus.normal_run })).toThrow()
     expect(() =>
       submitFeedbackSchema.parse({ resultStatus: "bogus", resultFeedback: "ok" })

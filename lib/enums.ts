@@ -96,7 +96,7 @@ export const SAMPLE_STATUS_LABELS: Record<SampleStatus, string> = {
   received_abnormal: "异常接收",
   waiting_task: "待实验任务",
   lab_in_progress: "实验中",
-  feedback_submitted: "已反馈",
+  feedback_submitted: "已出结果",
   abnormal: "异常",
 }
 
@@ -131,7 +131,7 @@ export const EXPERIMENT_TASK_STATUS_LABELS: Record<ExperimentTaskStatus, string>
   waiting_schedule: "待排期",
   scheduled: "已排期",
   in_progress: "进行中",
-  waiting_feedback: "待反馈",
+  waiting_feedback: "待提交结果",
   completed: "已完成",
   cancelled: "已取消",
   abnormal: "异常",

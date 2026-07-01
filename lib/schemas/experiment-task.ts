@@ -120,16 +120,16 @@ export const startTaskSchema = z.object({
 })
 export type StartTaskInput = z.infer<typeof startTaskSchema>
 
-/** 完成实验（待反馈）：录入上机信息，进入待反馈 */
+/** 完成实验（待提交结果）：录入上机信息，进入待提交结果 */
 export const finishTaskSchema = z.object({
   actualDate: nullableDate,
 })
 export type FinishTaskInput = z.infer<typeof finishTaskSchema>
 
-/** 提交实验反馈：结果状态 + 结果反馈必填（§8.8），可补录上机数与实际日期 */
+/** 提交实验结果：结果状态 + 结果说明必填（§8.8），可补录上机数与实际日期 */
 export const submitFeedbackSchema = z.object({
   resultStatus: resultStatusSchema,
-  resultFeedback: requiredString("请输入结果反馈").max(2000, "结果反馈最多 2000 字"),
+  resultFeedback: requiredString("请输入结果说明").max(2000, "结果说明最多 2000 字"),
   actualDate: nullableDate,
   bioinfoAnalystId: nullableString,
 })

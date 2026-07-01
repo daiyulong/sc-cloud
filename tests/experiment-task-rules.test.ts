@@ -15,13 +15,13 @@ describe("getAvailableExperimentTaskActions", () => {
     ).toEqual(["start"])
   })
 
-  it("进行中：提交反馈（主）+ 完成实验 + 录入质控", () => {
+  it("进行中：提交结果（主）+ 完成实验 + 录入质控", () => {
     expect(
       getAvailableExperimentTaskActions(ExperimentTaskStatus.in_progress, UserRole.lab_operator)
     ).toEqual(["feedback", "finish", "qc"])
   })
 
-  it("待反馈：提交反馈（主）+ 录入质控（无完成实验）", () => {
+  it("待提交结果：提交结果（主）+ 录入质控（无完成实验）", () => {
     expect(
       getAvailableExperimentTaskActions(ExperimentTaskStatus.waiting_feedback, UserRole.lab_operator)
     ).toEqual(["feedback", "qc"])
@@ -58,7 +58,7 @@ describe("getAvailableExperimentTaskActions", () => {
 })
 
 describe("canRecordQc（含 completed 补录）", () => {
-  it("进行中/待反馈/已完成 + 管理角色可录（已完成为补录）", () => {
+  it("进行中/待提交结果/已完成 + 管理角色可录（已完成为补录）", () => {
     for (const status of [
       ExperimentTaskStatus.in_progress,
       ExperimentTaskStatus.waiting_feedback,

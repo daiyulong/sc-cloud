@@ -46,10 +46,10 @@ describe("ExperimentTaskActionMenu", () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it("进行中：提交反馈主入口进入工作项面板，不暴露行内溢出动作", () => {
+  it("进行中：提交实验结果主入口进入工作项面板，不暴露行内溢出动作", () => {
     render(<ExperimentTaskActionMenu {...baseProps} status={ExperimentTaskStatus.in_progress} />)
 
-    expect(screen.getByRole("link", { name: "提交实验反馈" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "提交实验结果" })).toBeInTheDocument()
     expect(
       screen.queryByRole("button", { name: "任务 BP-G26001-E01 更多动作" })
     ).not.toBeInTheDocument()
