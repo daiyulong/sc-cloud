@@ -261,9 +261,17 @@ export function ExperimentScheduleBoard({
                         {EXPERIMENT_TASK_STATUS_LABELS[status]}
                       </span>
                     </div>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {task.experimentType} · {task.operatorName ?? "未指派"}
+                    <p
+                      className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground"
+                      title={task.customerOrg}
+                    >
+                      {[task.customerOrg, task.experimentType].filter(Boolean).join(" · ") || "—"}
                     </p>
+                    {task.operatorName && (
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {task.operatorName}
+                      </p>
+                    )}
                     <p className="mt-1 truncate text-xs text-muted-foreground">
                       {task.sampleCount > 0 ? `${task.sampleCount} 个样本` : "—"}
                     </p>
