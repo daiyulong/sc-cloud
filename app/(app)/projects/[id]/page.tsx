@@ -281,7 +281,6 @@ export default async function ProjectDetailPage({
           <TableHeader>
             <TableRow>
               <TableHead>任务编号</TableHead>
-              <TableHead>样本</TableHead>
               <TableHead>实验类型</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>计划日期</TableHead>
@@ -302,18 +301,6 @@ export default async function ProjectDetailPage({
                   >
                     {task.taskNo}
                   </Link>
-                </TableCell>
-                <TableCell className="max-w-[14rem]">
-                  <span
-                    className="line-clamp-2 break-words"
-                    title={
-                      task.taskSamples
-                        .map((ts) => ts.sample.sampleName || "未命名")
-                        .join("、") || "-"
-                    }
-                  >
-                    {task.taskSamples.map((ts) => ts.sample.sampleName || "未命名").join("、") || "-"}
-                  </span>
                 </TableCell>
                 <TableCell>{task.experimentType}</TableCell>
                 <TableCell>

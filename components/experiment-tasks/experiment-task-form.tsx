@@ -270,7 +270,7 @@ export function ExperimentTaskForm({
             </Field>
           ) : (
             <Field>
-              <FieldLabel>关联样本</FieldLabel>
+              <FieldLabel>关联样本名</FieldLabel>
               <Input
                 value={`${task?.taskSamples?.map((ts) => ts.sample.sampleName || "未命名").join("、") ?? ""}${task?.project?.projectNo ? ` · ${task.project.projectNo}` : ""}`}
                 disabled

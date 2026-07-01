@@ -358,7 +358,6 @@ export default async function LabPage({ searchParams }: LabPageProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>任务编号</TableHead>
-                  <TableHead>关联样本</TableHead>
                   <TableHead>所属项目</TableHead>
                   <TableHead>实验类型</TableHead>
                   <TableHead>状态</TableHead>
@@ -378,18 +377,6 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                       >
                         {task.taskNo}
                       </Link>
-                    </TableCell>
-                    <TableCell className="max-w-[14rem]">
-                      <span
-                        className="line-clamp-2 break-words"
-                        title={
-                          task.taskSamples
-                            .map((ts) => ts.sample.sampleName || "未命名")
-                            .join("、") || "-"
-                        }
-                      >
-                        {task.taskSamples.map((ts) => ts.sample.sampleName || "未命名").join("、") || "-"}
-                      </span>
                     </TableCell>
                     <TableCell>
                       <Link href={`/projects/${task.project.id}`} className="hover:underline">
