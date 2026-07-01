@@ -72,14 +72,14 @@ describe("listExperimentTasks 的 tab 桶过滤(回归 2026-07-01: 已完成 Tab
     expect(filters[0]).toEqual(tasksAwaitingBioinfoWhere)
   })
 
-  it("scope=mine 叠加 operatorId 过滤", async () => {
+  it("显式 ?operatorId= 仍作为深链接/API 过滤能力(不在 UI 暴露,见 ADR-0003 我的/团队移除记录)", async () => {
     await listExperimentTasks(
       OPERATOR,
-      { tab: "doing", scope: "mine" },
+      { tab: "doing", operatorId: "other-user-id" },
       { skip: 0, limit: 20 },
     )
     const operatorFilter = andClauses().find((clause) => "operatorId" in clause)
-    expect(operatorFilter).toEqual({ operatorId: OPERATOR.id })
+    expect(operatorFilter).toEqual({ operatorId: "other-user-id" })
   })
 
   it("显式 ?status= 仍作为深链接叠加过滤(交集)", async () => {

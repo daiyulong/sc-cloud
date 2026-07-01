@@ -5,7 +5,6 @@ import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
   EXPERIMENT_TASK_STATUS_LABELS,
-  UserRole,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
@@ -26,7 +25,6 @@ import { firstParam, formatDate, todayString, toDateString } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
-import { ListScopeToggle } from "@/components/list/list-scope-toggle"
 import { ListTabs } from "@/components/list/list-tabs"
 import { ListToolbar } from "@/components/list/list-toolbar"
 import { WorkItemPanel, WorkItemPanelEmpty } from "@/components/detail/work-item-panel"
@@ -54,7 +52,6 @@ type LabPageProps = {
 }
 
 type LabTab = "todo" | "doing" | "done"
-type LabScope = "mine" | "team"
 
 const TAB_EMPTY: Record<LabTab, { title: string; description: string }> = {
   todo: {
@@ -71,27 +68,8 @@ const TAB_EMPTY: Record<LabTab, { title: string; description: string }> = {
   },
 }
 
-// 角色驱动默认 scope(ADR-0003):
-//   - 操作类(实验员/生信员/接收员) 默认 mine —— 聚焦个人待办
-//   - 管理类(PM/销售/超管/查看) 默认 team —— 团队视角
-function defaultScope(role: UserRoleValue): LabScope {
-  switch (role) {
-    case UserRole.lab_operator:
-    case UserRole.bioinfo_analyst:
-    case UserRole.sample_receiver:
-      return "mine"
-    default:
-      return "team"
-  }
-}
-
 function parseTab(value: string | undefined): LabTab | undefined {
   return value === "todo" || value === "doing" || value === "done" ? value : undefined
-}
-
-function parseScope(value: string | undefined, role: UserRoleValue): LabScope {
-  if (value === "mine" || value === "team") return value
-  return defaultScope(role)
 }
 
 // 排期模式日历需要"未结束"的任务(待办+进行中两桶)做负载/日程展示，
@@ -111,12 +89,10 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   const raw = (await searchParams) ?? {}
   const viewId = firstParam(raw.view)
   const tab = parseTab(firstParam(raw.tab)) ?? "doing"
-  const scope = parseScope(firstParam(raw.scope), role)
   const isScheduleMode = firstParam(raw.mode) === "schedule"
   const query = experimentTaskListQuerySchema.parse({
     q: firstParam(raw.q),
     tab,
-    scope,
     status: firstParam(raw.status),
     projectId: firstParam(raw.projectId),
     operatorId: firstParam(raw.operatorId),
@@ -132,21 +108,17 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   // 状态由 tab 桶决定(lib/workstation-buckets.ts,service 层应用)，
   // 这里不再叠加任何默认状态注入 —— 之前的"默认隐藏终态"清单与桶重复且会打架
   // (如 tab=done 时桶=[completed,cancelled,abnormal]，再注入"非终态默认"会
-  // 与桶取交集得空集，导致"已完成"Tab 恒为空)。?status= 仍保留为可选的
-  // 深链接叠加过滤(在当前桶内进一步收窄)，不在 UI 暴露。
-  const effectiveQuery = {
-    ...query,
-    operatorId: scope === "team" ? query.operatorId : undefined,
-  }
+  // 与桶取交集得空集，导致"已完成"Tab 恒为空)。?status= / ?operatorId= 仍保留
+  // 为可选的深链接叠加过滤，不在 UI 暴露(见 ADR-0003 "我的/团队" 移除记录:
+  // 这是内部全员可见的小团队工具，个人/团队视角切换的实际价值低于其带来的
+  // 界面复杂度，真出现"按负责人查"的需求再加，不预先猜)。
+  const effectiveQuery = query
   const scheduleQuery = {
     ...query,
     q: undefined,
     tab: undefined,
-    scope: undefined,
     status: NON_TERMINAL_TASK_STATUSES,
-    // 排期模式没有状态 Tab,但 scope 仍生效:筛选日历/当日列表里"我的"任务；
-    // 待预约批次本身无负责人，恒为团队共享，不受 scope 影响。
-    operatorId: scope === "mine" ? operator.id : undefined,
+    operatorId: undefined,
     date: undefined,
     plannedDate: undefined,
     awaiting: undefined,
@@ -221,9 +193,8 @@ export default async function LabPage({ searchParams }: LabPageProps) {
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
-  // tab/scope 默认值不写(由 ListTabs/ListScopeToggle 默认逻辑处理),只在非默认时写
+  // tab 默认值不写(由 ListTabs 默认逻辑处理),只在非默认时写
   if (firstParam(raw.tab) && firstParam(raw.tab) !== "doing") baseParams.set("tab", firstParam(raw.tab)!)
-  if (scope !== defaultScope(role)) baseParams.set("scope", scope)
   for (const key of ["projectId", "date", "plannedDate", "awaiting"]) {
     const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
@@ -231,7 +202,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   if (!isScheduleMode) {
     if (query.q) baseParams.set("q", query.q)
     if (query.status?.length) baseParams.set("status", query.status.join(","))
-    if (query.operatorId && scope === "team") baseParams.set("operatorId", query.operatorId)
+    if (query.operatorId) baseParams.set("operatorId", query.operatorId)
   }
   const pageHref = (nextPage: number) => {
     const params = new URLSearchParams(baseParams)
@@ -282,7 +253,6 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   const hasActiveFilters = Boolean(query.q || query.status?.length || query.date || query.plannedDate)
   const clearParams = new URLSearchParams()
   if (firstParam(raw.tab) && firstParam(raw.tab) !== "doing") clearParams.set("tab", firstParam(raw.tab)!)
-  if (scope !== defaultScope(role)) clearParams.set("scope", scope)
   if (query.projectId) clearParams.set("projectId", query.projectId)
   const clearFiltersHref = clearParams.size ? `/lab?${clearParams.toString()}` : "/lab"
   const selectedScheduleDate = query.plannedDate ?? (query.date === "today" ? todayString() : undefined)
@@ -297,32 +267,30 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         状态 Tab（待办/进行中/已完成）与「排期」是一行统一的 Tabs：
         前三项共享 ?tab= 是同一批数据按状态分组；「排期」项带图标 + 显式 href（?mode=schedule），
         跳到日历规划 + 按批次预约新任务的独立工具（不是同一份数据的另一种视图，见 ADR-0003）。
-        不再叠加单独一层"模式切换"，避免多层 Tab 堆叠。
+        不再有"我的/团队"scope 控件——内部全员可见的小团队工具，个人/团队视角切换的
+        实际价值低于界面复杂度，负责人信息已在表格列可见，见 ADR-0003 移除记录。
       */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ListTabs
-          basePath="/lab"
-          value={activeModeTab}
-          defaultValue="doing"
-          items={[
-            { value: "todo", label: "待办" },
-            { value: "doing", label: "进行中" },
-            { value: "done", label: "已完成" },
-            {
-              value: "schedule",
-              label: (
-                <>
-                  <CalendarClock data-icon="inline-start" aria-hidden="true" className="size-3.5" />
-                  排期
-                </>
-              ),
-              href: scheduleModeHref(),
-            },
-          ]}
-          extraSearchParams={tabSwitchParams}
-        />
-        <ListScopeToggle basePath="/lab" defaultValue={defaultScope(role)} />
-      </div>
+      <ListTabs
+        basePath="/lab"
+        value={activeModeTab}
+        defaultValue="doing"
+        items={[
+          { value: "todo", label: "待办" },
+          { value: "doing", label: "进行中" },
+          { value: "done", label: "已完成" },
+          {
+            value: "schedule",
+            label: (
+              <>
+                <CalendarClock data-icon="inline-start" aria-hidden="true" className="size-3.5" />
+                排期
+              </>
+            ),
+            href: scheduleModeHref(),
+          },
+        ]}
+        extraSearchParams={tabSwitchParams}
+      />
 
       {!isScheduleMode && (
         <ListToolbar

@@ -169,10 +169,9 @@ export const experimentTaskListQuerySchema = z.object({
   q: optionalString,
   /** 状态桶：todo / doing / done(ADR-0003);默认值由 page 层角色驱动补 */
   tab: z.enum(["todo", "doing", "done"]).optional(),
-  /** scope:mine 限定我的(operator.id = me);不写或 =team 即团队视角 */
-  scope: z.enum(["mine", "team"]).optional(),
   status: statusListSchema(experimentTaskStatusValues),
   projectId: optionalString,
+  /** 按负责人筛选的深链接/API 能力；未在 UI 暴露（见 ADR-0003 "我的/团队" 移除记录） */
   operatorId: optionalString,
   /** today = 计划实验日期为今日(实验工位「今日实验」入口) */
   date: z.enum(["today"]).optional(),

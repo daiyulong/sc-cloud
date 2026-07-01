@@ -114,12 +114,6 @@ describe("experimentTaskListQuerySchema", () => {
     expect(() => experimentTaskListQuerySchema.parse({ tab: "other" })).toThrow()
   })
 
-  it("scope 仅接受 mine / team", () => {
-    expect(experimentTaskListQuerySchema.parse({ scope: "mine" }).scope).toBe("mine")
-    expect(experimentTaskListQuerySchema.parse({ scope: "team" }).scope).toBe("team")
-    expect(() => experimentTaskListQuerySchema.parse({ scope: "other" })).toThrow()
-  })
-
   it("mode=schedule 标志位", () => {
     expect(experimentTaskListQuerySchema.parse({ mode: "schedule" }).mode).toBe("schedule")
     expect(() => experimentTaskListQuerySchema.parse({ mode: "list" })).toThrow()
