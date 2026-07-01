@@ -263,18 +263,27 @@ export function ExperimentScheduleBoard({
                     </div>
                     <p
                       className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground"
-                      title={task.customerOrg}
+                      title={[
+                        task.customerOrg,
+                        task.experimentType,
+                        task.sampleCount > 0 ? `${task.sampleCount} 个样本` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     >
-                      {[task.customerOrg, task.experimentType].filter(Boolean).join(" · ") || "—"}
+                      {[
+                        task.customerOrg,
+                        task.experimentType,
+                        task.sampleCount > 0 ? `${task.sampleCount} 个样本` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "—"}
                     </p>
                     {task.operatorName && (
                       <p className="mt-1 truncate text-xs text-muted-foreground">
                         {task.operatorName}
                       </p>
                     )}
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {task.sampleCount > 0 ? `${task.sampleCount} 个样本` : "—"}
-                    </p>
                   </button>
                 )
               })}
