@@ -257,40 +257,37 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   const clearFiltersHref = clearParams.size ? `/lab?${clearParams.toString()}` : "/lab"
   const selectedScheduleDate = query.plannedDate ?? (query.date === "today" ? todayString() : undefined)
 
-  const activeModeTab = isScheduleMode ? "schedule" : tab
-
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
       <h1 className="sr-only">实验</h1>
 
       {/*
-        状态 Tab（待办/进行中/已完成）与「排期」是一行统一的 Tabs：
-        前三项共享 ?tab= 是同一批数据按状态分组；「排期」项带图标 + 显式 href（?mode=schedule），
-        跳到日历规划 + 按批次预约新任务的独立工具（不是同一份数据的另一种视图，见 ADR-0003）。
-        不再有"我的/团队"scope 控件——内部全员可见的小团队工具，个人/团队视角切换的
-        实际价值低于界面复杂度，负责人信息已在表格列可见，见 ADR-0003 移除记录。
+        状态 Tab（待办/进行中/已完成）与「排期」不是同一种控件，不混进一行 Tabs：
+        Tab 语义上代表"同一份数据的不同状态切面"，三项都满足；「排期」是日历规划 +
+        按批次预约新任务的独立工具，不是任务列表的另一种切面，用普通 Button 表达，
+        与 Tab 的下划线视觉明确区分开（不靠图标硬撑语义，见 ADR-0003）。
+        进入排期模式时状态 Tab 不高亮任何一项（此时没有在看某个状态的列表）。
+        不再有"我的/团队"scope 控件，见 ADR-0003 移除记录。
       */}
-      <ListTabs
-        basePath="/lab"
-        value={activeModeTab}
-        defaultValue="doing"
-        items={[
-          { value: "todo", label: "待办" },
-          { value: "doing", label: "进行中" },
-          { value: "done", label: "已完成" },
-          {
-            value: "schedule",
-            label: (
-              <>
-                <CalendarClock data-icon="inline-start" aria-hidden="true" className="size-3.5" />
-                排期
-              </>
-            ),
-            href: scheduleModeHref(),
-          },
-        ]}
-        extraSearchParams={tabSwitchParams}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ListTabs
+          basePath="/lab"
+          value={isScheduleMode ? null : tab}
+          defaultValue="doing"
+          items={[
+            { value: "todo", label: "待办" },
+            { value: "doing", label: "进行中" },
+            { value: "done", label: "已完成" },
+          ]}
+          extraSearchParams={tabSwitchParams}
+        />
+        <Button asChild variant={isScheduleMode ? "default" : "outline"} size="sm">
+          <Link href={scheduleModeHref()} prefetch={false}>
+            <CalendarClock data-icon="inline-start" aria-hidden="true" />
+            排期看板
+          </Link>
+        </Button>
+      </div>
 
       {!isScheduleMode && (
         <ListToolbar

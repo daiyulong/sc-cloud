@@ -162,7 +162,7 @@ describe("ListTabs", () => {
     expect(url.searchParams.has("tab")).toBe(false)
   })
 
-  it("显式 href 的项(如跨 query key 的排期入口)跳过 isDefault 判断，始终用给定 href", async () => {
+  it("显式 href 的项(如跨 query key 的入口)跳过 isDefault 判断，始终用给定 href", async () => {
     vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("tab=doing") as never)
     const user = userEvent.setup()
     render(
@@ -173,12 +173,50 @@ describe("ListTabs", () => {
         items={[
           { value: "todo", label: "待办" },
           { value: "doing", label: "进行中" },
-          { value: "schedule", label: "排期", href: "/lab?mode=schedule&plannedDate=2026-07-03" },
+          { value: "other", label: "其他", href: "/lab?mode=other&plannedDate=2026-07-03" },
         ]}
       />,
     )
-    await user.click(screen.getByRole("tab", { name: /排期/ }))
+    await user.click(screen.getByRole("tab", { name: /其他/ }))
     const [href] = replace.mock.calls.at(-1) ?? []
-    expect(href).toBe("/lab?mode=schedule&plannedDate=2026-07-03")
+    expect(href).toBe("/lab?mode=other&plannedDate=2026-07-03")
+  })
+
+  it("回归 2026-07-01: value 显式传 null 时不高亮任何一项(调用方处于正交的另一模式)", () => {
+    // 复现场景:/lab 进入"排期看板"(与状态 Tab 正交的独立工具)时，
+    // 待办/进行中/已完成都不该显示为选中态。
+    render(
+      <ListTabs
+        basePath="/lab"
+        value={null}
+        defaultValue="doing"
+        items={[
+          { value: "todo", label: "待办" },
+          { value: "doing", label: "进行中" },
+          { value: "done", label: "已完成" },
+        ]}
+      />,
+    )
+    for (const name of [/待办/, /进行中/, /已完成/]) {
+      expect(screen.getByRole("tab", { name }).getAttribute("data-state")).toBe("inactive")
+    }
+  })
+
+  it("value=null 时 Tab 仍可点击导航(不是禁用状态)", async () => {
+    const user = userEvent.setup()
+    render(
+      <ListTabs
+        basePath="/lab"
+        value={null}
+        defaultValue="doing"
+        items={[
+          { value: "todo", label: "待办" },
+          { value: "doing", label: "进行中" },
+        ]}
+      />,
+    )
+    await user.click(screen.getByRole("tab", { name: /待办/ }))
+    const [href] = replace.mock.calls.at(-1) ?? []
+    expect(href).toBe("/lab?tab=todo")
   })
 })

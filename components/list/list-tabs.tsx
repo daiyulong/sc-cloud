@@ -55,7 +55,10 @@ export function ListTabs<V extends string>({
   const router = useRouter()
   const searchParams = useSearchParams()
   const resolvedDefault = (defaultValue ?? items[0]?.value) as string | undefined
-  const effectiveValue = (value ?? resolvedDefault) as string | undefined
+  // value 未传(undefined) → 用默认值；value 显式传 null → 不高亮任何一项
+  // (调用方正处于与本 Tab 组正交的另一个模式，此时没有哪个状态算"当前选中");
+  // value 传具体值 → 高亮它。用 "" 兜底 null，因为它不会匹配任何 item.value。
+  const effectiveValue = value === undefined ? resolvedDefault : (value ?? "")
 
   function hrefFor(nextValue: string): string {
     const explicitHref = items.find((item) => item.value === nextValue)?.href
@@ -75,7 +78,7 @@ export function ListTabs<V extends string>({
     router.replace(hrefFor(next), { scroll: false })
   }
 
-  if (!effectiveValue) return null
+  if (items.length === 0) return null
 
   return (
     <Tabs
