@@ -40,8 +40,10 @@ import { ProjectFields } from "@/components/projects/project-fields"
 import { ExperimentTaskActionMenu } from "@/components/experiment-tasks/experiment-task-action-menu"
 import { ExperimentTaskForm } from "@/components/experiment-tasks/experiment-task-form"
 import { ExperimentTaskWorkItemBody } from "@/components/experiment-tasks/experiment-task-work-item-body"
+import { TaskSummaryCard } from "@/components/projects/task-summary-card"
 import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-action-menu"
 import { BioinfoTaskWorkItemBody } from "@/components/bioinfo-tasks/bioinfo-task-work-item-body"
+import { BioinfoSummaryCard } from "@/components/projects/bioinfo-summary-card"
 import { SampleActionMenu } from "@/components/samples/sample-action-menu"
 import { SampleWorkItemBody } from "@/components/samples/sample-work-item-body"
 import {
@@ -257,7 +259,7 @@ export default async function ProjectDetailPage({
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <CardTitle>实验任务</CardTitle>
-          <CardDescription>该项目下的排期与执行进度（最多展示 20 条）</CardDescription>
+          <CardDescription>通常 1 个；多个时显示列表。</CardDescription>
         </div>
         <div className="flex items-center gap-1.5">
           <Button asChild variant="ghost" size="sm">
@@ -276,6 +278,73 @@ export default async function ProjectDetailPage({
           )}
         </div>
       </CardHeader>
+      <CardContent>
+        {tasks.length === 1 ? (
+          <TaskSummaryCard
+            projectId={project.id}
+            task={tasks[0]}
+            role={session.user.role}
+          />
+        ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>任务编号</TableHead>
+              <TableHead>实验类型</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>计划日期</TableHead>
+              <TableHead>负责人</TableHead>
+              <TableHead className="text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tasks.map((task) => (
+              <ClickableRow
+                key={task.id}
+                href={`/projects/${project.id}?tab=tasks&view=task:${task.id}`}
+              >
+                <TableCell>
+                  <Link
+                    href={`/projects/${project.id}?tab=tasks&view=task:${task.id}`}
+                    className="font-medium hover:underline"
+                  >
+                    {task.taskNo}
+                  </Link>
+                </TableCell>
+                <TableCell>{task.experimentType}</TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-2 whitespace-nowrap">
+                    <StatusDot
+                      className={EXPERIMENT_TASK_STATUS_DOT[task.status as ExperimentTaskStatusValue]}
+                    />
+                    {EXPERIMENT_TASK_STATUS_LABELS[task.status as ExperimentTaskStatusValue]}
+                  </span>
+                </TableCell>
+                <TableCell>{formatDate(task.plannedDate)}</TableCell>
+                <TableCell>{task.operator?.name ?? "-"}</TableCell>
+                <TableCell className="text-right">
+                  <ExperimentTaskActionMenu
+                    taskId={task.id}
+                    taskNo={task.taskNo}
+                    status={task.status as ExperimentTaskStatusValue}
+                    role={session.user.role}
+                    workItemHref={`/projects/${project.id}?tab=tasks&view=task:${task.id}`}
+                    compact
+                  />
+                </TableCell>
+              </ClickableRow>
+            ))}
+            {tasks.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
+                  暂无实验任务
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        )}
+      </CardContent>
       <CardContent>
         <Table>
           <TableHeader>
@@ -344,7 +413,7 @@ export default async function ProjectDetailPage({
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="flex flex-col gap-1.5">
             <CardTitle>生信任务</CardTitle>
-            <CardDescription>该项目下的分析与报告进度（最多展示 20 条）</CardDescription>
+            <CardDescription>通常 1 个；多个时显示列表。</CardDescription>
           </div>
           <div className="flex items-center gap-1.5">
             <Button asChild variant="ghost" size="sm">
@@ -362,6 +431,13 @@ export default async function ProjectDetailPage({
           </div>
         </CardHeader>
         <CardContent>
+          {bioinfoTasks.length === 1 ? (
+            <BioinfoSummaryCard
+              projectId={project.id}
+              task={bioinfoTasks[0]}
+              role={session.user.role}
+            />
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -426,6 +502,7 @@ export default async function ProjectDetailPage({
               )}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
