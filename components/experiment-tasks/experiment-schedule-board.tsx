@@ -265,11 +265,7 @@ export function ExperimentScheduleBoard({
                       {task.experimentType} · {task.operatorName ?? "未指派"}
                     </p>
                     <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {task.sampleNames.length > 0
-                        ? `${task.sampleNames.join("、")} · ${task.sampleCount} 个样本`
-                        : task.sampleCount > 0
-                          ? `${task.sampleCount} 个样本（未命名）`
-                          : "—"}
+                      {task.sampleCount > 0 ? `${task.sampleCount} 个样本` : "—"}
                     </p>
                   </button>
                 )
