@@ -73,4 +73,14 @@ describe("listExperimentTasks 的 where 拼装(无 tab/桶概念)", () => {
     const projectFilter = andClauses().find((clause) => "projectId" in clause)
     expect(projectFilter).toEqual({ projectId: "proj-1" })
   })
+
+  it("date=week 按未来 7 天(含今日)过滤 plannedDate(参考 Vercel Last 7 Days 加的「计划日期」筛选)", async () => {
+    await listExperimentTasks(OPERATOR, { date: "week" }, { skip: 0, limit: 20 })
+    const dateFilter = andClauses().find((clause) => "plannedDate" in clause) as {
+      plannedDate: { gte: Date; lt: Date }
+    }
+    expect(dateFilter).toBeDefined()
+    const spanDays = (dateFilter.plannedDate.lt.getTime() - dateFilter.plannedDate.gte.getTime()) / 86400000
+    expect(spanDays).toBe(7)
+  })
 })

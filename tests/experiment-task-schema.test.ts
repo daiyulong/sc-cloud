@@ -94,8 +94,9 @@ describe("updateExperimentTaskSchema", () => {
 })
 
 describe("experimentTaskListQuerySchema", () => {
-  it("date 仅接受 today", () => {
+  it("date 仅接受 today / week", () => {
     expect(experimentTaskListQuerySchema.parse({ date: "today" }).date).toBe("today")
+    expect(experimentTaskListQuerySchema.parse({ date: "week" }).date).toBe("week")
     expect(() => experimentTaskListQuerySchema.parse({ date: "tomorrow" })).toThrow()
   })
 

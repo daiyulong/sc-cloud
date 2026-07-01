@@ -291,6 +291,17 @@ export default async function LabPage({ searchParams }: LabPageProps) {
                 dot: EXPERIMENT_TASK_STATUS_DOT[value],
               })),
             },
+            {
+              key: "date",
+              label: "计划日期",
+              allLabel: "全部日期",
+              icon: CalendarClock,
+              value: query.date,
+              options: [
+                { value: "today", label: "今天" },
+                { value: "week", label: "未来 7 天" },
+              ],
+            },
           ]}
           context={
             query.projectId

@@ -170,8 +170,8 @@ export const experimentTaskListQuerySchema = z.object({
   status: statusListSchema(experimentTaskStatusValues),
   projectId: optionalString,
   operatorId: optionalString,
-  /** today = 计划实验日期为今日(实验工位「今日实验」入口) */
-  date: z.enum(["today"]).optional(),
+  /** today = 计划实验日期为今日；week = 未来 7 天内(含今日)，「计划日期」筛选下拉用 */
+  date: z.enum(["today", "week"]).optional(),
   /** 任意计划实验日期筛选(排期视图选中某天) */
   plannedDate: dateOnlyString,
   /** awaiting=bioinfo:完成待建生信任务队列(§接缝 S3) */
