@@ -115,4 +115,70 @@ describe("ListTabs", () => {
     expect(url.searchParams.has("tab")).toBe(false)
     expect(url.searchParams.get("scope")).toBe("mine")
   })
+
+  it("回归 2026-07-01: defaultValue 与 items[0] 不同时,点击非默认首项不会被误判为默认值清空", async () => {
+    // 复现 /lab 真实场景:items[0]="todo",但页面实际默认值是 "doing"(defaultValue="doing")。
+    // 组件若仍按 items[0] 判断"是否默认"，点击"待办"(todo, items[0])会被误当成默认值而清空
+    // tab 参数，导致落地页被 parseTab(undefined) ?? "doing" 解析回"doing"，而不是用户点的"待办"。
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("tab=done") as never)
+    const user = userEvent.setup()
+    render(
+      <ListTabs
+        basePath="/lab"
+        value="done"
+        defaultValue="doing"
+        items={[
+          { value: "todo", label: "待办" },
+          { value: "doing", label: "进行中" },
+          { value: "done", label: "已完成" },
+        ]}
+      />,
+    )
+    await user.click(screen.getByRole("tab", { name: /待办/ }))
+    const [href] = replace.mock.calls.at(-1) ?? []
+    const url = new URL(href as string, "http://x")
+    // 点"待办"必须显式写 tab=todo，不能因为它是 items[0] 就被当成默认值清掉参数
+    expect(url.searchParams.get("tab")).toBe("todo")
+  })
+
+  it("回归 2026-07-01: 点击真正的 defaultValue 项才清空 searchKey", async () => {
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("tab=done") as never)
+    const user = userEvent.setup()
+    render(
+      <ListTabs
+        basePath="/lab"
+        value="done"
+        defaultValue="doing"
+        items={[
+          { value: "todo", label: "待办" },
+          { value: "doing", label: "进行中" },
+          { value: "done", label: "已完成" },
+        ]}
+      />,
+    )
+    await user.click(screen.getByRole("tab", { name: /进行中/ }))
+    const [href] = replace.mock.calls.at(-1) ?? []
+    const url = new URL(href as string, "http://x")
+    expect(url.searchParams.has("tab")).toBe(false)
+  })
+
+  it("显式 href 的项(如跨 query key 的排期入口)跳过 isDefault 判断，始终用给定 href", async () => {
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("tab=doing") as never)
+    const user = userEvent.setup()
+    render(
+      <ListTabs
+        basePath="/lab"
+        value="doing"
+        defaultValue="doing"
+        items={[
+          { value: "todo", label: "待办" },
+          { value: "doing", label: "进行中" },
+          { value: "schedule", label: "排期", href: "/lab?mode=schedule&plannedDate=2026-07-03" },
+        ]}
+      />,
+    )
+    await user.click(screen.getByRole("tab", { name: /排期/ }))
+    const [href] = replace.mock.calls.at(-1) ?? []
+    expect(href).toBe("/lab?mode=schedule&plannedDate=2026-07-03")
+  })
 })

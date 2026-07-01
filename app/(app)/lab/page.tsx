@@ -1,16 +1,16 @@
 import Link from "next/link"
-import { FlaskConical, SearchX } from "lucide-react"
+import { CalendarClock, FlaskConical, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
 import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
   EXPERIMENT_TASK_STATUS_LABELS,
-  ExperimentTaskStatus,
   UserRole,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { buildProjectScope } from "@/lib/auth/role-scope"
+import { EXPERIMENT_TASK_BUCKETS, statusesInBucket } from "@/lib/workstation-buckets"
 import { prisma } from "@/lib/prisma"
 import { experimentTaskListQuerySchema } from "@/lib/schemas/experiment-task"
 import { canActAsStaff } from "@/lib/auth/action-roles"
@@ -22,7 +22,7 @@ import type {
   ExperimentScheduleAppointmentBatch,
   ExperimentScheduleTask,
 } from "@/lib/experiment-tasks/lab-schedule"
-import { cn, firstParam, formatDate, todayString, toDateString } from "@/lib/utils"
+import { firstParam, formatDate, todayString, toDateString } from "@/lib/utils"
 import { ClickableRow } from "@/components/list/clickable-row"
 import { ListEmpty } from "@/components/list/list-empty"
 import { ListPager } from "@/components/list/list-pager"
@@ -59,7 +59,7 @@ type LabScope = "mine" | "team"
 const TAB_EMPTY: Record<LabTab, { title: string; description: string }> = {
   todo: {
     title: "暂无待办实验任务",
-    description: "waiting_schedule 队列将在新任务被创建或已排期任务退回排期时进入。",
+    description: "还没有日期的实验任务会出现这里；按批次预约实验请点上方「排期」标签。",
   },
   doing: {
     title: "暂无进行中的实验任务",
@@ -94,15 +94,12 @@ function parseScope(value: string | undefined, role: UserRoleValue): LabScope {
   return defaultScope(role)
 }
 
-// 任务终态:默认浏览队列时隐藏(多选状态默认勾选其余在途态)。搜索或显式勾选则照常显示。
-const TERMINAL_TASK_STATUSES: ExperimentTaskStatusValue[] = [
-  ExperimentTaskStatus.completed,
-  ExperimentTaskStatus.cancelled,
-  ExperimentTaskStatus.abnormal,
+// 排期模式日历需要"未结束"的任务(待办+进行中两桶)做负载/日程展示，
+// 不属于任何一个状态 Tab，直接从桶映射派生，避免维护第二份终态清单。
+const NON_TERMINAL_TASK_STATUSES: ExperimentTaskStatusValue[] = [
+  ...statusesInBucket(EXPERIMENT_TASK_BUCKETS, "todo"),
+  ...statusesInBucket(EXPERIMENT_TASK_BUCKETS, "doing"),
 ]
-const DEFAULT_TASK_STATUS_SELECTION: ExperimentTaskStatusValue[] = (
-  Object.values(ExperimentTaskStatus) as ExperimentTaskStatusValue[]
-).filter((status) => !TERMINAL_TASK_STATUSES.includes(status))
 
 export default async function LabPage({ searchParams }: LabPageProps) {
   const session = await getVerifiedSession()
@@ -132,20 +129,13 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   })
   const { page, limit, skip } = parsePagination({ page: firstParam(raw.page), limit: firstParam(raw.limit) })
 
-  // 状态多选:未显式勾选且非 awaiting 队列时默认隐藏终态。awaiting=bioinfo 队列自带 completed 语义,
-  // 叠加"隐藏终态"会清空它,故此时不注入默认(让队列 where 决定状态集)。
-  const hasStatusFilter = !isScheduleMode && Boolean(query.status?.length)
-  const useStatusDefault = !isScheduleMode && !hasStatusFilter && !query.awaiting
-  const selectedStatuses = isScheduleMode
-    ? undefined
-    : hasStatusFilter
-    ? (query.status as ExperimentTaskStatusValue[])
-    : useStatusDefault
-      ? DEFAULT_TASK_STATUS_SELECTION
-      : undefined
+  // 状态由 tab 桶决定(lib/workstation-buckets.ts,service 层应用)，
+  // 这里不再叠加任何默认状态注入 —— 之前的"默认隐藏终态"清单与桶重复且会打架
+  // (如 tab=done 时桶=[completed,cancelled,abnormal]，再注入"非终态默认"会
+  // 与桶取交集得空集，导致"已完成"Tab 恒为空)。?status= 仍保留为可选的
+  // 深链接叠加过滤(在当前桶内进一步收窄)，不在 UI 暴露。
   const effectiveQuery = {
     ...query,
-    status: selectedStatuses,
     operatorId: scope === "team" ? query.operatorId : undefined,
   }
   const scheduleQuery = {
@@ -153,8 +143,10 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     q: undefined,
     tab: undefined,
     scope: undefined,
-    status: DEFAULT_TASK_STATUS_SELECTION,
-    operatorId: undefined,
+    status: NON_TERMINAL_TASK_STATUSES,
+    // 排期模式没有状态 Tab,但 scope 仍生效:筛选日历/当日列表里"我的"任务；
+    // 待预约批次本身无负责人，恒为团队共享，不受 scope 影响。
+    operatorId: scope === "mine" ? operator.id : undefined,
     date: undefined,
     plannedDate: undefined,
     awaiting: undefined,
@@ -238,9 +230,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   }
   if (!isScheduleMode) {
     if (query.q) baseParams.set("q", query.q)
-    if (hasStatusFilter && query.status?.length) {
-      baseParams.set("status", query.status.join(","))
-    }
+    if (query.status?.length) baseParams.set("status", query.status.join(","))
     if (query.operatorId && scope === "team") baseParams.set("operatorId", query.operatorId)
   }
   const pageHref = (nextPage: number) => {
@@ -256,18 +246,19 @@ export default async function LabPage({ searchParams }: LabPageProps) {
     params.set("view", id)
     return `/lab?${params.toString()}`
   }
-  // 排期视图切换锚点:?mode=schedule + 保留当前 projectId 等上下文
+  // 「排期」是独立工具(ADR-0003)，显式 href 带 mode=schedule + 当前 plannedDate(日历选中日跟着走)。
   const scheduleModeHref = () => {
     const params = new URLSearchParams(baseParams)
     params.set("mode", "schedule")
     if (query.plannedDate) params.set("plannedDate", query.plannedDate)
     return `/lab?${params.toString()}`
   }
-  const listModeHref = () => {
-    const params = new URLSearchParams(baseParams)
-    params.delete("mode")
-    return `/lab?${params.toString()}`
-  }
+  // 状态 Tab(待办/进行中/已完成)切换时清掉 plannedDate ——
+  // 它是排期模式带出的隐藏筛选，状态 Tab 视图里没有任何可见 chip 提示这个筛选存在，
+  // 留着会让用户看到一个"莫名被日期过滤"的列表却找不到原因。
+  // pageHref / viewHref 不受影响，翻页/开面板不应该改变当前筛选状态。
+  const tabSwitchParams = new URLSearchParams(baseParams)
+  tabSwitchParams.delete("plannedDate")
   const scheduleAppointmentBatches: ExperimentScheduleAppointmentBatch[] = appointmentBatches.map(
     (batch) => ({
       id: batch.id,
@@ -288,7 +279,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
         ? sampleOptions.map((s) => s.id)
         : []
   // projectId 是上下文不是筛选，不参与「无匹配结果」判定；date 由工位链接带入，视作筛选
-  const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.date || query.plannedDate)
+  const hasActiveFilters = Boolean(query.q || query.status?.length || query.date || query.plannedDate)
   const clearParams = new URLSearchParams()
   if (firstParam(raw.tab) && firstParam(raw.tab) !== "doing") clearParams.set("tab", firstParam(raw.tab)!)
   if (scope !== defaultScope(role)) clearParams.set("scope", scope)
@@ -296,31 +287,41 @@ export default async function LabPage({ searchParams }: LabPageProps) {
   const clearFiltersHref = clearParams.size ? `/lab?${clearParams.toString()}` : "/lab"
   const selectedScheduleDate = query.plannedDate ?? (query.date === "today" ? todayString() : undefined)
 
+  const activeModeTab = isScheduleMode ? "schedule" : tab
+
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
       <h1 className="sr-only">实验</h1>
+
+      {/*
+        状态 Tab（待办/进行中/已完成）与「排期」是一行统一的 Tabs：
+        前三项共享 ?tab= 是同一批数据按状态分组；「排期」项带图标 + 显式 href（?mode=schedule），
+        跳到日历规划 + 按批次预约新任务的独立工具（不是同一份数据的另一种视图，见 ADR-0003）。
+        不再叠加单独一层"模式切换"，避免多层 Tab 堆叠。
+      */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ListTabs
           basePath="/lab"
-          value={tab}
+          value={activeModeTab}
+          defaultValue="doing"
           items={[
             { value: "todo", label: "待办" },
             { value: "doing", label: "进行中" },
             { value: "done", label: "已完成" },
+            {
+              value: "schedule",
+              label: (
+                <>
+                  <CalendarClock data-icon="inline-start" aria-hidden="true" className="size-3.5" />
+                  排期
+                </>
+              ),
+              href: scheduleModeHref(),
+            },
           ]}
-          extraSearchParams={baseParams}
+          extraSearchParams={tabSwitchParams}
         />
-        <div className="flex items-center gap-2">
-          <ListScopeToggle
-            basePath="/lab"
-            defaultValue={defaultScope(role)}
-          />
-          <Button asChild variant="outline" size="sm">
-            <Link href={isScheduleMode ? listModeHref() : scheduleModeHref()} prefetch={false}>
-              {isScheduleMode ? "返回列表" : "切换到排期视图"}
-            </Link>
-          </Button>
-        </div>
+        <ListScopeToggle basePath="/lab" defaultValue={defaultScope(role)} />
       </div>
 
       {!isScheduleMode && (
@@ -328,20 +329,6 @@ export default async function LabPage({ searchParams }: LabPageProps) {
           basePath="/lab"
           searchPlaceholder="搜索任务编号 / 实验类型 / 上机方式 / 样本 / 项目…"
           searchDefault={query.q}
-          filters={[
-            {
-              key: "status",
-              label: "任务状态",
-              allLabel: "全部状态",
-              multiple: true,
-              value: (selectedStatuses ?? []).join(","),
-              options: Object.values(ExperimentTaskStatus).map((value) => ({
-                value,
-                label: EXPERIMENT_TASK_STATUS_LABELS[value],
-                dot: EXPERIMENT_TASK_STATUS_DOT[value],
-              })),
-            },
-          ]}
           context={
             query.projectId
               ? {
@@ -377,7 +364,7 @@ export default async function LabPage({ searchParams }: LabPageProps) {
             title={query.projectId ? "该项目暂无实验任务" : TAB_EMPTY[tab].title}
             description={
               query.projectId
-                ? "样本接收后，从排期视图按批次预约实验。"
+                ? "样本接收后，点上方「排期」标签按批次预约实验。"
                 : TAB_EMPTY[tab].description
             }
           />
