@@ -158,12 +158,6 @@ function buildTaskListWhere(
     const { start, end } = todayRange()
     filters.push({ plannedDate: { gte: start, lt: end } })
   }
-  if (query.date === "week") {
-    const { start } = todayRange()
-    const end = new Date(start)
-    end.setDate(end.getDate() + 7)
-    filters.push({ plannedDate: { gte: start, lt: end } })
-  }
   if (query.plannedDate) {
     const range = dateOnlyRange(query.plannedDate)
     if (range) filters.push({ plannedDate: { gte: range.start, lt: range.end } })
