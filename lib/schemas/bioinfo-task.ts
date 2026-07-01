@@ -50,9 +50,11 @@ export const submitBioinfoTaskSchema = z.object({
 })
 export type SubmitBioinfoTaskInput = z.infer<typeof submitBioinfoTaskSchema>
 
+/** analystId 筛选的特殊值：命中「未分配」（analystId 为空）的任务。 */
+export const ANALYST_UNASSIGNED = "unassigned"
+
 export const bioinfoTaskListQuerySchema = z.object({
   q: optionalString,
-  range: z.enum(["mine", "unassigned", "all"]).optional(),
   status: statusListSchema(bioinfoTaskStatusValues),
   projectId: optionalString,
   analystId: optionalString,

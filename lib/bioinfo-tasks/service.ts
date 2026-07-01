@@ -9,9 +9,11 @@ import {
   BioinfoTaskStatus,
   OperationAction,
   ProjectStatus,
+  UserRole,
   type ServiceLevel as ServiceLevelValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
+import { ANALYST_UNASSIGNED } from "@/lib/schemas/bioinfo-task"
 import type {
   BioinfoTaskListQuery,
   CreateBioinfoTaskInput,
@@ -26,6 +28,7 @@ import {
   ensureExperimentTaskCompleted,
   ensureProjectCanCreateBioinfo,
   ensureServiceHasBioinfo,
+  resolveStartAnalyst,
   submittableBioinfoStatuses,
 } from "@/lib/bioinfo-tasks/rules"
 import { notifyBioinfoTaskAssigned, type BioinfoTaskForNotify } from "@/lib/notify/task-reminder"
@@ -119,13 +122,12 @@ function buildBioinfoListWhere(
     })
   }
   if (query.status?.length) filters.push({ status: { in: query.status } })
-  if (query.range === "mine") {
-    filters.push({ analystId: operator.id })
-  } else if (query.range === "unassigned") {
-    filters.push({ analystId: null, status: BioinfoTaskStatus.pending })
-  }
   if (query.projectId) filters.push({ projectId: query.projectId })
-  if (query.analystId) filters.push({ analystId: query.analystId })
+  if (query.analystId === ANALYST_UNASSIGNED) {
+    filters.push({ analystId: null })
+  } else if (query.analystId) {
+    filters.push({ analystId: query.analystId })
+  }
   if (query.open === "1") filters.push({ status: { in: openBioinfoStatuses } })
 
   return { AND: filters }
@@ -139,6 +141,15 @@ async function getWritableBioinfoTask(id: string) {
   })
   if (!task) throw new BioinfoTaskDomainError("生信任务不存在", 404)
   return task
+}
+
+/** 校验指定的分析负责人是在岗生信分析员（防 API 塞任意 userId）。 */
+async function ensureActiveAnalyst(analystId: string) {
+  const analyst = await prisma.user.findFirst({
+    where: { id: analystId, role: UserRole.bioinfo_analyst, isActive: true },
+    select: { id: true },
+  })
+  if (!analyst) throw new BioinfoTaskDomainError("指定的分析负责人无效或已停用", 400)
 }
 
 export async function listBioinfoTasks(
@@ -283,12 +294,21 @@ export async function startBioinfoTask(
   const before = await getWritableBioinfoTask(id)
   ensureBioinfoStatus(before.status, [BioinfoTaskStatus.pending], "开始分析")
 
+  // 不变量：离开 pending 必有负责人。谁开始谁负责——见 resolveStartAnalyst / ADR-0003。
+  const analystId = resolveStartAnalyst({
+    explicitAnalystId: input.analystId,
+    currentAnalystId: before.analystId,
+    operatorId: operator.id,
+    operatorRole: operator.role,
+  })
+  if (input.analystId && input.analystId !== before.analystId) {
+    await ensureActiveAnalyst(input.analystId)
+  }
+
   const data: Prisma.BioinfoTaskUpdateInput = {
     status: BioinfoTaskStatus.in_progress,
     dataReceivedAt: input.dataReceivedAt ?? before.dataReceivedAt ?? new Date(),
-  }
-  if (input.analystId !== undefined) {
-    data.analyst = input.analystId ? { connect: { id: input.analystId } } : { disconnect: true }
+    analyst: { connect: { id: analystId } },
   }
 
   const updated = await prisma.$transaction(async (tx) => {

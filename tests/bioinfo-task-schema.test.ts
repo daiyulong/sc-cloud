@@ -47,13 +47,6 @@ describe("updateBioinfoTaskSchema", () => {
 })
 
 describe("bioinfoTaskListQuerySchema", () => {
-  it("range 仅接受 mine / unassigned / all", () => {
-    expect(bioinfoTaskListQuerySchema.parse({ range: "mine" }).range).toBe("mine")
-    expect(bioinfoTaskListQuerySchema.parse({ range: "unassigned" }).range).toBe("unassigned")
-    expect(bioinfoTaskListQuerySchema.parse({ range: "all" }).range).toBe("all")
-    expect(() => bioinfoTaskListQuerySchema.parse({ range: "pending" })).toThrow()
-  })
-
   it("open 仅接受 '1'", () => {
     expect(bioinfoTaskListQuerySchema.parse({ open: "1" }).open).toBe("1")
     expect(() => bioinfoTaskListQuerySchema.parse({ open: "yes" })).toThrow()

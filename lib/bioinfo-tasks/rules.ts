@@ -2,6 +2,7 @@ import {
   BioinfoTaskStatus,
   ExperimentTaskStatus,
   ProjectStatus,
+  UserRole,
   type BioinfoTaskStatus as BioinfoTaskStatusValue,
   type ExperimentTaskStatus as ExperimentTaskStatusValue,
   type ProjectStatus as ProjectStatusValue,
@@ -55,6 +56,27 @@ export function ensureBioinfoStatus(
       409
     )
   }
+}
+
+/**
+ * 开始分析时确定负责人。不变量：离开 pending 必有负责人（in_progress 起不允许 analystId 为空）。
+ * 优先级：显式指定 > 任务已有 > 分析员本人自动认领（谁开始谁负责）。
+ * 非分析员代推进且任务未分配时报错，要求先指定负责人。
+ */
+export function resolveStartAnalyst(params: {
+  explicitAnalystId?: string | null
+  currentAnalystId: string | null
+  operatorId: string
+  operatorRole: string | undefined
+}): string {
+  const resolved =
+    params.explicitAnalystId ||
+    params.currentAnalystId ||
+    (params.operatorRole === UserRole.bioinfo_analyst ? params.operatorId : null)
+  if (!resolved) {
+    throw new BioinfoTaskDomainError("开始分析前请先指定分析负责人（或由分析员本人开始）", 400)
+  }
+  return resolved
 }
 
 /** 项目须含生信服务（standard/advanced）才允许建生信任务 */

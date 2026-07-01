@@ -1,19 +1,18 @@
 import Link from "next/link"
 import { Dna, SearchX } from "lucide-react"
 import { redirect } from "next/navigation"
-import { cn, firstParam } from "@/lib/utils"
+import { firstParam } from "@/lib/utils"
 import { getVerifiedSession } from "@/lib/auth/verified-session"
 import { parsePagination } from "@/lib/api-utils"
 import {
   BIOINFO_TASK_STATUS_LABELS,
   BioinfoTaskStatus,
-  UserRole,
   type BioinfoTaskStatus as BioinfoTaskStatusValue,
   type UserRole as UserRoleValue,
 } from "@/lib/enums"
 import { buildProjectScope } from "@/lib/auth/role-scope"
 import { prisma } from "@/lib/prisma"
-import { bioinfoTaskListQuerySchema } from "@/lib/schemas/bioinfo-task"
+import { ANALYST_UNASSIGNED, bioinfoTaskListQuerySchema } from "@/lib/schemas/bioinfo-task"
 import { getAnalystOptions } from "@/lib/bioinfo-tasks/options"
 import { getBioinfoTaskDetail, listBioinfoTasks } from "@/lib/bioinfo-tasks/service"
 import { ClickableRow } from "@/components/list/clickable-row"
@@ -41,29 +40,6 @@ type BioinfoTasksPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-type BioinfoRange = "mine" | "unassigned" | "all"
-
-const RANGE_LABELS: Record<BioinfoRange, string> = {
-  mine: "我的",
-  unassigned: "待分配",
-  all: "全部",
-}
-
-const RANGE_EMPTY: Record<BioinfoRange, { title: string; description: string }> = {
-  mine: {
-    title: "暂无我的生信任务",
-    description: "实验反馈时指定给你的任务会出现在这里；未指定的任务先进入待分配。",
-  },
-  unassigned: {
-    title: "暂无待分配生信任务",
-    description: "实验反馈未指定生信人员时，自动生成的生信任务会进入这里。",
-  },
-  all: {
-    title: "暂无生信任务",
-    description: "含生信服务的项目在实验反馈完成后，会自动生成生信任务。",
-  },
-}
-
 // 默认列表隐藏终态，避免日常工位被已交付/异常记录淹没；显式状态筛选仍可查看。
 const TERMINAL_BIOINFO_STATUSES: BioinfoTaskStatusValue[] = [
   BioinfoTaskStatus.delivered,
@@ -73,11 +49,6 @@ const DEFAULT_BIOINFO_STATUS_SELECTION: BioinfoTaskStatusValue[] = (
   Object.values(BioinfoTaskStatus) as BioinfoTaskStatusValue[]
 ).filter((status) => !TERMINAL_BIOINFO_STATUSES.includes(status))
 
-function parseRange(value: string | undefined, role: UserRoleValue): BioinfoRange {
-  if (value === "mine" || value === "unassigned" || value === "all") return value
-  return role === UserRole.bioinfo_analyst ? "mine" : "all"
-}
-
 export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPageProps) {
   const session = await getVerifiedSession()
   if (!session) redirect("/login")
@@ -85,7 +56,6 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
   const operator = { id: session.user.id, role }
 
   const raw = (await searchParams) ?? {}
-  const range = parseRange(firstParam(raw.range), role)
   const viewId = firstParam(raw.view)
   const { page, limit, skip } = parsePagination({
     page: firstParam(raw.page),
@@ -94,7 +64,6 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
 
   const query = bioinfoTaskListQuerySchema.parse({
     q: firstParam(raw.q),
-    range,
     status: firstParam(raw.status),
     projectId: firstParam(raw.projectId),
     analystId: firstParam(raw.analystId),
@@ -124,8 +93,8 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const baseParams = new URLSearchParams()
-  for (const key of ["q", "range", "status", "projectId", "analystId", "open"]) {
-    const value = key === "range" ? range : firstParam(raw[key])
+  for (const key of ["q", "status", "projectId", "analystId", "open"]) {
+    const value = firstParam(raw[key])
     if (value) baseParams.set(key, value)
   }
   const pageHref = (nextPage: number) => {
@@ -140,19 +109,10 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
     params.set("view", id)
     return `/bioinfo-tasks?${params.toString()}`
   }
-  const rangeHref = (nextRange: BioinfoRange) => {
-    const params = new URLSearchParams(baseParams)
-    params.set("range", nextRange)
-    params.delete("page")
-    return `/bioinfo-tasks?${params.toString()}`
-  }
-  const clearFiltersHref = (() => {
-    const params = new URLSearchParams()
-    params.set("range", range)
-    if (query.projectId) params.set("projectId", query.projectId)
-    return `/bioinfo-tasks?${params.toString()}`
-  })()
-  const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.open)
+  const clearFiltersHref = query.projectId
+    ? `/bioinfo-tasks?projectId=${query.projectId}`
+    : "/bioinfo-tasks"
+  const hasActiveFilters = Boolean(query.q || hasStatusFilter || query.open || query.analystId)
 
   const [viewDetail, analystOptions] = await Promise.all([
     viewId ? getBioinfoTaskDetail(operator, viewId).catch(() => null) : Promise.resolve(null),
@@ -162,26 +122,6 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
   return (
     <div className="group/list flex flex-1 flex-col gap-4 p-4 md:p-6">
       <h1 className="sr-only">生信</h1>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-md border bg-background p-0.5">
-          {(Object.keys(RANGE_LABELS) as BioinfoRange[]).map((value) => (
-            <Link
-              key={value}
-              href={rangeHref(value)}
-              aria-current={range === value ? "page" : undefined}
-              className={cn(
-                "inline-flex h-8 items-center rounded-sm px-3 text-sm font-medium transition-colors",
-                range === value
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {RANGE_LABELS[value]}
-            </Link>
-          ))}
-        </div>
-      </div>
 
       <ListToolbar
         basePath="/bioinfo-tasks"
@@ -199,6 +139,19 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
               label: BIOINFO_TASK_STATUS_LABELS[value],
               dot: BIOINFO_TASK_STATUS_DOT[value],
             })),
+          },
+          {
+            key: "analystId",
+            label: "分析负责人",
+            allLabel: "全部负责人",
+            value: query.analystId ?? "",
+            options: [
+              { value: ANALYST_UNASSIGNED, label: "未分配" },
+              ...analystOptions.map((analyst) => ({
+                value: analyst.id,
+                label: analyst.name,
+              })),
+            ],
           },
         ]}
         context={
@@ -225,8 +178,8 @@ export default async function BioinfoTasksPage({ searchParams }: BioinfoTasksPag
         ) : (
           <ListEmpty
             icon={<Dna />}
-            title={RANGE_EMPTY[range].title}
-            description={RANGE_EMPTY[range].description}
+            title="暂无生信任务"
+            description="含生信服务的项目在实验反馈完成后，会自动生成生信任务。"
           />
         )
       ) : (

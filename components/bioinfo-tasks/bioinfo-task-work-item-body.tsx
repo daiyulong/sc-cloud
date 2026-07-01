@@ -1,4 +1,3 @@
-import Link from "next/link"
 import {
   BIOINFO_TASK_STATUS_LABELS,
   BioinfoTaskStatus,
@@ -17,7 +16,7 @@ import type { AnalystOption } from "@/components/bioinfo-tasks/bioinfo-task-form
 import { BioinfoTaskPrimaryAction } from "@/components/bioinfo-tasks/bioinfo-task-primary-action"
 import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
 import { pickRunMetrics } from "@/components/experiment-tasks/run-metrics"
-import { BIOINFO_TASK_STATUS_DOT, StatusDot } from "@/components/status-dot"
+import { BIOINFO_TASK_STATUS_DOT } from "@/components/status-dot"
 import { Separator } from "@/components/ui/separator"
 
 type BioinfoTaskDetail = Awaited<ReturnType<typeof getBioinfoTaskDetail>>
@@ -143,6 +142,9 @@ export function BioinfoTaskWorkItemBody({
                 taskNo={task.taskNo}
                 status={status}
                 analysisType={task.analysisType}
+                role={role}
+                currentAnalystId={task.analystId}
+                analystOptions={analystOptionsForSelect}
               />
               <Separator />
             </>
