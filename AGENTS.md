@@ -7,6 +7,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 **当前为实现中阶段**：Next.js 16 + Prisma + NextAuth + shadcn/ui 项目骨架已建立，已完成登录、主布局、项目/收样/实验/生信/经验库工位、核心状态动作、交付登记、多模态实验记录和任务单/提醒等第一期主链路。当前交互模型以 ADR-0002 为准：项目等容器实体走全页详情，样本批次/实验任务/生信任务等叶子工作对象在工位列表用 `?view=` 宽工作区查看和处理，叶子快速创建用 `?new` 居中模态。
 
 - 需求唯一权威来源：`docs/单细胞云平台-完善版需求规格说明书.md`。动手前先读相关章节；本文件只做导航和补充设计意图，不重复规格细节。
+  - 2026-07 新增：「登记接收」窗口补 **样品名录入** + Excel 第 3 列提取（`S1、S2、S3` 顿号拼接），接收后仍可在 WorkItemPanel「修正信息」分区编辑——规格 §6.4a，落地涉及 `components/samples/sample-receive-form.tsx` + `lib/samples/service.ts::receiveSample` + `lib/schemas/sample.ts::receiveSampleSchema`（增 `sampleNames?: string[]`）。
 - 需求评审结论（2026-06，已据此修订规格）：`docs/需求评审报告-2026-06.md`，记录 81 条审核发现的修订决策与老板拍板的业务口径。
 - 样例/seed 数据：`data/拜谱单细胞实验预约.xlsx`（→ 项目/样本/实验任务/反馈）、`data/单细胞项目经验.xlsx`（→ 经验库）。这两份是第一期 demo seed 的真实数据源，也是字段映射的事实依据；历史导入产品功能已删。
 - 常用命令：`npm run lint`、`npm run test:run`、`npm run build`、`npm run db:push`、`npm run db:seed`。
