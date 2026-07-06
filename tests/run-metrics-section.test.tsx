@@ -22,6 +22,7 @@ const emptyMetrics = {
   sequencingAmount: null,
   capturedCells: null,
   medianGenes: null,
+  cellAnnotation: null,
 }
 
 const baseProps = {
@@ -53,6 +54,7 @@ describe("RunMetricsSection", () => {
           sequencingAmount: 100,
           capturedCells: 10836,
           medianGenes: 2634,
+          cellAnnotation: null,
         }}
       />
     )

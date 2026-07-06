@@ -206,6 +206,27 @@ export async function updateSample(
       include: batchInclude,
     })
 
+    // sampleNames 修正：按叶子顺序 1:1 覆盖（不改 status）
+    const leavesWithNames: { id: string; sample_name: string | null }[] = []
+    if (input.sampleNames !== undefined) {
+      const leaves = await tx.sample.findMany({
+        where: { batchId: id },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      })
+      if (input.sampleNames.length !== leaves.length) {
+        throw new SampleDomainError(
+          `样本名数量（${input.sampleNames.length}）与叶子数量（${leaves.length}）不一致`,
+          409
+        )
+      }
+      for (let i = 0; i < leaves.length; i++) {
+        const name = input.sampleNames[i]?.trim() || null
+        await tx.sample.update({ where: { id: leaves[i].id }, data: { sampleName: name } })
+        leavesWithNames.push({ id: leaves[i].id, sample_name: name })
+      }
+    }
+
     await recordOperation({
       tx,
       entityType: "sample_batch",
@@ -213,7 +234,7 @@ export async function updateSample(
       action: OperationAction.update,
       operatorId: operator.id,
       before,
-      after: updated,
+      after: { batch: updated, leaves: leavesWithNames.length > 0 ? leavesWithNames : undefined },
     })
 
     return updated
@@ -264,7 +285,7 @@ export async function receiveSample(
       include: batchInclude,
     })
 
-    // 据数量生成样本叶子（首次接收，批次此前 0 叶子）；样本名留空，经实验/多模态补
+    // 据数量生成样本叶子（首次接收，批次此前 0 叶子）
     const existing = await tx.sample.count({ where: { batchId: id } })
     const toCreate = Math.max(0, input.sampleCount - existing)
     if (toCreate > 0) {
@@ -279,6 +300,21 @@ export async function receiveSample(
       })
     }
 
+    // 按叶子顺序（createdAt asc）1:1 写入 sampleNames
+    const leaves = await tx.sample.findMany({
+      where: { batchId: id },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    })
+    const leavesWithNames: { id: string; sample_name: string | null }[] = []
+    if (input.sampleNames && leaves.length > 0) {
+      for (let i = 0; i < leaves.length; i++) {
+        const name = input.sampleNames[i]?.trim() || null
+        await tx.sample.update({ where: { id: leaves[i].id }, data: { sampleName: name } })
+        leavesWithNames.push({ id: leaves[i].id, sample_name: name })
+      }
+    }
+
     await recordOperation({
       tx,
       entityType: "sample_batch",
@@ -286,7 +322,7 @@ export async function receiveSample(
       action: OperationAction.status_change,
       operatorId: operator.id,
       before,
-      after: { batch: updated, leavesCreated: toCreate },
+      after: { batch: updated, leavesCreated: toCreate, leaves: leavesWithNames },
     })
 
     if (before.project.status === ProjectStatus.waiting_sample) {

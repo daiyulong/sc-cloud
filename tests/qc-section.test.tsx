@@ -27,6 +27,7 @@ describe("QcSection", () => {
         status={ExperimentTaskStatus.in_progress}
         role={UserRole.lab_operator}
         records={[]}
+        taskSamples={[{ id: "s1", sampleName: "样本-001" }]}
       />
     )
 
@@ -41,6 +42,7 @@ describe("QcSection", () => {
     const body = JSON.parse(String(init.body))
     expect(body.qcResult).toBe("passed")
     expect(body.viability).toBe("90")
+    expect(body.sampleId).toBe("s1")
   })
 
   it("viewer：不显示录入入口", () => {
@@ -51,6 +53,7 @@ describe("QcSection", () => {
         status={ExperimentTaskStatus.in_progress}
         role={UserRole.viewer}
         records={[]}
+        taskSamples={[{ id: "s1", sampleName: "样本-001" }]}
       />
     )
 

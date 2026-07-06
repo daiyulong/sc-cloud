@@ -63,14 +63,28 @@ export const updateProjectSchema = createProjectSchema
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>
 
 export const confirmProjectSchema = z.object({
-  // 项目编号（委托单号）= 上游给定，PM 确认时录入并校验唯一
-  projectNo: requiredString("请输入项目编号（委托单号）"),
+  // 项目编号（委托单号）留空：推迟到「样本登记接收之后、项目排期之前」填写（需求 2026-07）
+  projectNo: nullableString,
   projectManagerId: nullableString,
   serviceLevel: serviceLevelSchema.optional(),
   priority: optionalString,
   expectedDeliveryDate: nullableDate,
 })
 export type ConfirmProjectInput = z.infer<typeof confirmProjectSchema>
+
+/**
+ * 补填合同编号与项目编号（需求 2026-07）：在预约实验之前填写，两者均必填。
+ * 预约实验时若 projectNo 或 contractNo 缺失，后端返回特定错误码触发前端弹窗。
+ */
+export const fillContractNoSchema = z.object({
+  contractNo: requiredString("请输入合同编号"),
+  projectNo: requiredString("请输入项目编号（委托单号）"),
+})
+export type FillContractNoInput = z.infer<typeof fillContractNoSchema>
+
+/** 兼容旧名（代码迁移用） */
+export const fillProjectNoSchema = fillContractNoSchema
+export type FillProjectNoInput = FillContractNoInput
 
 export const projectReasonSchema = z.object({
   reason: requiredString("请输入原因").max(1000, "原因最多 1000 字"),

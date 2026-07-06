@@ -85,6 +85,7 @@ const bioinfoExperimentTaskSelect = {
           sequencingAmount: true,
           capturedCells: true,
           medianGenes: true,
+          cellAnnotation: true,
         },
       },
     },

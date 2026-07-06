@@ -67,6 +67,7 @@ const taskUserSelect = {
 const taskProjectSelect = {
   id: true,
   projectNo: true,
+  contractNo: true,
   customerOrg: true,
   customerName: true,
   status: true,
@@ -85,6 +86,7 @@ const taskLeafSelect = {
   sequencingAmount: true,
   capturedCells: true,
   medianGenes: true,
+  cellAnnotation: true,
   batch: { select: { batchNo: true, receivedAt: true } },
 } satisfies Prisma.SampleSelect
 
@@ -218,7 +220,21 @@ export async function getExperimentTaskDetail(operator: ExperimentTaskOperator, 
       include: {
         ...taskInclude,
         qcRecords: {
-          include: { createdByUser: { select: taskUserSelect } },
+          select: {
+            id: true,
+            sampleId: true,
+            concentration: true,
+            viability: true,
+            aggregationRate: true,
+            volume: true,
+            qcResult: true,
+            riskLevel: true,
+            reason: true,
+            feedback: true,
+            createdAt: true,
+            sample: { select: { id: true, sampleName: true } },
+            createdByUser: { select: taskUserSelect },
+          },
           orderBy: { createdAt: "desc" },
         },
       },
@@ -245,7 +261,10 @@ export async function listTaskQcRecords(operator: ExperimentTaskOperator, taskId
 
   return prisma.qcRecord.findMany({
     where: { taskId },
-    include: { createdByUser: { select: taskUserSelect } },
+    include: {
+      sample: { select: { id: true, sampleName: true } },
+      createdByUser: { select: taskUserSelect },
+    },
     orderBy: { createdAt: "desc" },
   })
 }
@@ -401,6 +420,15 @@ export async function scheduleExperimentTask(
     [ExperimentTaskStatus.waiting_schedule, ExperimentTaskStatus.scheduled],
     "设置排期"
   )
+
+  // 预约实验前检查合同编号与项目编号（需求 2026-07）
+  if (!before.project.contractNo || !before.project.projectNo) {
+    throw new ExperimentTaskDomainError(
+      "请先填写合同编号与项目编号",
+      409,
+      "NEED_CONTRACT_NO"
+    )
+  }
 
   const data: Prisma.ExperimentTaskUpdateInput = {
     status: ExperimentTaskStatus.scheduled,
@@ -679,27 +707,28 @@ export async function recordTaskQc(
   if (leaves.length === 0) {
     throw new ExperimentTaskDomainError("该任务尚未关联样本，无法录入质控", 409)
   }
+  const targetSampleId = input.sampleId ?? leaves[0].id
+  if (!leaves.find((l) => l.id === targetSampleId)) {
+    throw new ExperimentTaskDomainError("所选样本不属于本任务", 409)
+  }
 
   return prisma.$transaction(async (tx) => {
-    const created = []
-    for (const leaf of leaves) {
-      const qc = await tx.qcRecord.create({
-        data: {
-          sampleId: leaf.id,
-          taskId: before.id,
-          concentration: input.concentration ?? null,
-          viability: input.viability ?? null,
-          aggregationRate: input.aggregationRate ?? null,
-          qcResult: input.qcResult,
-          riskLevel: input.riskLevel,
-          reason: input.reason ?? null,
-          feedback: input.feedback ?? null,
-          createdBy: operator.id,
-        },
-        include: { createdByUser: { select: taskUserSelect } },
-      })
-      created.push(qc)
-    }
+    const qc = await tx.qcRecord.create({
+      data: {
+        sampleId: targetSampleId,
+        taskId: before.id,
+        concentration: input.concentration ?? null,
+        viability: input.viability ?? null,
+        aggregationRate: input.aggregationRate ?? null,
+        volume: input.volume ?? null,
+        qcResult: input.qcResult,
+        riskLevel: input.riskLevel,
+        reason: input.reason ?? null,
+        feedback: input.feedback ?? null,
+        createdBy: operator.id,
+      },
+      include: { createdByUser: { select: taskUserSelect } },
+    })
 
     await recordOperation({
       tx,
@@ -707,16 +736,16 @@ export async function recordTaskQc(
       entityId: id,
       action: OperationAction.create,
       operatorId: operator.id,
-      after: { qcRecords: created, kind: "qc_record" },
+      after: { qcRecords: [qc], kind: "qc_record" },
     })
 
-    return created[0]
+    return qc
   })
 }
 
 /**
- * 录入产出指标（§6.8 经验视图）：实验完成后补录到样本叶子（悬液类型/测序量/捕获数/基因中位数）。
- * 不改任务执行态、可重复订正；权限含生信分析员（下机数据到手者）。M1 单样本任务写其唯一叶子。
+ * 录入产出指标（§6.8 经验视图）：实验完成后补录到样本叶子（悬液类型/测序量/捕获数/基因中位数/细胞注释）。
+ * 不改任务执行态、可重复订正；权限含生信分析员（下机数据到手者）。需求 2026-07：按样本名各自录入。
  */
 export async function recordRunMetrics(
   operator: ExperimentTaskOperator,
@@ -730,6 +759,10 @@ export async function recordRunMetrics(
   if (leaves.length === 0) {
     throw new ExperimentTaskDomainError("该任务尚未关联样本，无法录入产出指标", 409)
   }
+  const targetSampleId = input.sampleId ?? leaves[0].id
+  if (!leaves.find((l) => l.id === targetSampleId)) {
+    throw new ExperimentTaskDomainError("所选样本不属于本任务", 409)
+  }
 
   const data = Object.fromEntries(
     Object.entries({
@@ -737,13 +770,12 @@ export async function recordRunMetrics(
       sequencingAmount: input.sequencingAmount,
       capturedCells: input.capturedCells,
       medianGenes: input.medianGenes,
+      cellAnnotation: input.cellAnnotation ?? null,
     }).filter(([, value]) => value !== undefined)
   ) as Prisma.SampleUpdateInput
 
   return prisma.$transaction(async (tx) => {
-    for (const leaf of leaves) {
-      await tx.sample.update({ where: { id: leaf.id }, data })
-    }
+    await tx.sample.update({ where: { id: targetSampleId }, data })
     const updated = await tx.experimentTask.findUniqueOrThrow({ where: { id }, include: taskInclude })
     await recordOperation({
       tx,
@@ -791,7 +823,10 @@ async function advanceSamplesToLab(
 
 export function handleExperimentTaskDomainError(error: unknown) {
   if (error instanceof ExperimentTaskDomainError) {
-    return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json(
+      { error: error.message, code: error.code },
+      { status: error.status }
+    )
   }
   return null
 }
@@ -835,7 +870,7 @@ export async function listExperimentAppointmentBatches(
       experimentType: true,
       receivedAt: true,
       sampleCount: true,
-      project: { select: { id: true, projectNo: true, customerOrg: true } },
+      project: { select: { id: true, projectNo: true, contractNo: true, customerOrg: true } },
       _count: {
         select: {
           samples: { where: appointmentSampleWhere },

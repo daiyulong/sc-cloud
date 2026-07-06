@@ -135,11 +135,13 @@ export const submitFeedbackSchema = z.object({
 })
 export type SubmitFeedbackInput = z.infer<typeof submitFeedbackSchema>
 
-/** 录入质控：结论 + 风险等级必填；活率/结团率 0-100（§8.4），与任务执行态正交（不改任务状态） */
+/** 录入质控：结论 + 风险等级必填；活率/结团率/体积 0-100（§8.4），与任务执行态正交（不改任务状态）；需求 2026-07：按样本名录入 */
 export const recordQcSchema = z.object({
+  sampleId: optionalString,
   concentration: nullableNonNegativeNumber,
   viability: nullablePercent,
   aggregationRate: nullablePercent,
+  volume: nullableNonNegativeNumber,
   qcResult: qcResultSchema,
   riskLevel: riskLevelSchema,
   reason: nullableString,
@@ -148,15 +150,18 @@ export const recordQcSchema = z.object({
 export type RecordQcInput = z.infer<typeof recordQcSchema>
 
 /**
- * 录入产出指标（§6.8 经验视图）：实验完成后补录细胞核/测序量(G)/捕获细胞数/基因中位数。
+ * 录入产出指标（§6.8 经验视图）：实验完成后补录细胞核/测序量(G)/捕获细胞数/基因中位数/细胞注释。
  * 全部可选但至少填一项；不改任务执行态。活率/结团率/浓度走质控（recordQc）。
+ * 需求 2026-07：cellAnnotation 新增，生信任务录入时按样本名各自录入。
  */
 export const recordRunMetricsSchema = z
   .object({
+    sampleId: optionalString,
     suspensionType: suspensionTypeSchema,
     sequencingAmount: nullableNonNegativeNumber,
     capturedCells: nullableNonNegativeInt,
     medianGenes: nullableNonNegativeInt,
+    cellAnnotation: nullableString,
   })
   .refine(
     // 空串经 preprocess 归一为 null（非 undefined），故按「非空」判定，避免全空提交清掉所有指标

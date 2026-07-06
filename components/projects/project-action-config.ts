@@ -26,7 +26,15 @@ export type ProjectActionDescriptor = {
 }
 
 const descriptors: Record<ProjectAction, ProjectActionDescriptor> = {
-  confirm: { action: "confirm", label: "确认项目", path: "confirm", icon: Check, kind: "confirmForm" },
+  confirm: { action: "confirm", label: "确认项目", path: "confirm", icon: Check, kind: "direct" },
+  fillProjectNo: {
+    action: "fillProjectNo",
+    label: "补填项目编号",
+    path: "fill-project-no",
+    icon: Check,
+    kind: "confirmForm",
+    description: "在样本接收后、排期前补填合同编号与项目编号，填入后不可修改。",
+  },
   deliver: {
     action: "deliver",
     label: "确认交付",

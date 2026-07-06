@@ -24,22 +24,17 @@ const baseProps = {
 }
 
 describe("ProjectActionMenu", () => {
-  it("draft：「确认项目」弹表单，填项目编号后提交带 projectNo", async () => {
+  it("draft：「确认项目」直接执行（无需弹窗），项目编号在样本接收后补填", async () => {
     const user = userEvent.setup()
     render(<ProjectActionMenu {...baseProps} status={ProjectStatus.draft} />)
 
     await user.click(screen.getByRole("button", { name: "确认项目" }))
-    expect(fetchMock).not.toHaveBeenCalled()
-    const dialog = screen.getByRole("dialog")
-    fireEvent.change(within(dialog).getByLabelText(/项目编号/), {
-      target: { value: "BP-G260504587" },
-    })
-    await user.click(within(dialog).getByRole("button", { name: "确认项目" }))
 
+    // confirm 改为 direct，点击即执行，无 dialog
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe("/api/projects/p1/confirm")
-    expect(JSON.parse(String(init.body))).toEqual({ projectNo: "BP-G260504587" })
+    expect(JSON.parse(String(init.body))).toEqual({})
   })
 
   it("waiting_delivery：「确认交付」先弹轻确认，确认后执行（直接关项目）", async () => {

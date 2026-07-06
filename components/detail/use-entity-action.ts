@@ -7,13 +7,20 @@ import { toast } from "sonner"
 /**
  * 实体动作执行：POST 语义化动作 API + toast + router.refresh。
  * 成功时调用 onSuccess（关 Dialog 等），失败 toast 错误并保持现场。
+ * onError：可选回调，接收 { error, code, status }，若返回 true 则不显示默认 toast。
  */
 export function useEntityAction() {
   const router = useRouter()
   const [isPending, startTransition] = React.useTransition()
 
   const run = React.useCallback(
-    (url: string, label: string, body?: Record<string, unknown>, onSuccess?: () => void) => {
+    (
+      url: string,
+      label: string,
+      body?: Record<string, unknown>,
+      onSuccess?: () => void,
+      onError?: (result: { error: string; code?: string; status: number }) => boolean
+    ) => {
       startTransition(async () => {
         const response = await fetch(url, {
           method: "POST",
@@ -22,7 +29,12 @@ export function useEntityAction() {
         })
         const result = await response.json().catch(() => null)
         if (!response.ok) {
-          toast.error(result?.error || `${label}失败`)
+          const handled =
+            onError?.({ error: result?.error || "", code: result?.code, status: response.status }) ??
+            false
+          if (!handled) {
+            toast.error(result?.error || `${label}失败`)
+          }
           return
         }
         toast.success(`${label}成功`)

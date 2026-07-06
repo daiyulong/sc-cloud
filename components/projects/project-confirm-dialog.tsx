@@ -20,17 +20,25 @@ type ProjectConfirmDialogProps = {
   onOpenChange: (open: boolean) => void
   isPending: boolean
   onConfirm: (body: ConfirmProjectBody) => void
+  /** 覆盖默认描述文字 */
+  description?: string
+  /** 是否强制要求填写项目编号（默认 false，确认项目时允许留空；补填编号时为 true） */
+  projectNoRequired?: boolean
 }
 
 /**
  * 确认项目 Dialog：PM 录入项目编号（委托单号，上游给定）后进入收样流程。
  * 项目编号在确认这一刻才有，故确认动作是表单而非直接按钮。
+ * 需求 2026-07：确认时 projectNo 可留空（推迟到样本接收后补填）；
+ * fillProjectNo 动作用同一 Dialog，projectNoRequired=true。
  */
 export function ProjectConfirmDialog({
   open,
   onOpenChange,
   isPending,
   onConfirm,
+  description = "录入项目编号（委托单号）后项目进入收样流程；确认时如尚无样本批次，会同时创建 1 个待到样批次。",
+  projectNoRequired = false,
 }: ProjectConfirmDialogProps) {
   const [projectNo, setProjectNo] = React.useState("")
   const [showError, setShowError] = React.useState(false)
@@ -46,23 +54,22 @@ export function ProjectConfirmDialog({
 
   function handleConfirm() {
     const trimmed = projectNo.trim()
-    if (!trimmed) {
+    if (projectNoRequired && !trimmed) {
       setShowError(true)
       return
     }
+    // 传空字符串时后端按 null 处理（confirmProjectSchema.projectNo 为 nullableString）
     onConfirm({ projectNo: trimmed })
   }
 
-  const invalid = showError && !projectNo.trim()
+  const invalid = showError && projectNoRequired && !projectNo.trim()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>确认项目</DialogTitle>
-          <DialogDescription>
-            录入项目编号（委托单号）后项目进入收样流程；确认时如尚无样本批次，会同时创建 1 个待到样批次。
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <Field data-invalid={invalid || undefined}>
           <FieldLabel htmlFor="confirm-project-no">项目编号（委托单号）</FieldLabel>
@@ -75,7 +82,9 @@ export function ProjectConfirmDialog({
             autoComplete="off"
           />
           {invalid && (
-            <FieldDescription className="text-destructive">请输入项目编号。</FieldDescription>
+            <FieldDescription className="text-destructive">
+              {projectNoRequired ? "请输入项目编号。" : "请输入项目编号（委托单号）。"}
+            </FieldDescription>
           )}
         </Field>
         <DialogFooter>

@@ -21,6 +21,8 @@ export type ExperimentTaskActionDescriptor = {
   /** workItem=进入工作项主任务；inlineSection=在工作项分区内处理 */
   kind: "workItem" | "inlineSection"
   description?: string
+  /** 是否在执行前检查项目合同编号与项目编号，缺失则弹窗补填后再执行（需求 2026-07） */
+  needProjectNo?: boolean
 }
 
 const descriptors: Record<ExperimentTaskAction, ExperimentTaskActionDescriptor> = {
@@ -30,6 +32,7 @@ const descriptors: Record<ExperimentTaskAction, ExperimentTaskActionDescriptor> 
     path: "schedule",
     icon: CalendarClock,
     kind: "workItem",
+    needProjectNo: true,
   },
   start: {
     action: "start",

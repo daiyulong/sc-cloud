@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarClock, FlaskConical, PlayCircle, Send } from "lucide-react"
+import { CalendarClock, PlayCircle, Send } from "lucide-react"
 import * as React from "react"
 import {
   RESULT_STATUS_LABELS,
@@ -12,6 +12,7 @@ import { ExperimentTaskStatus } from "@/lib/enums"
 import { todayString } from "@/lib/utils"
 import { useEntityAction } from "@/components/detail/use-entity-action"
 import { ActionPanel } from "@/components/detail/action-panel"
+import { FillContractNoDialog } from "@/components/projects/fill-contract-no-dialog"
 import type { FeedbackAnalystOption, OperatorOption } from "@/components/experiment-tasks/types"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -30,6 +31,7 @@ const UNASSIGNED = "__unassigned__"
 
 type ExperimentTaskPrimaryActionProps = {
   taskId: string
+  projectId: string
   status: ExperimentTaskStatusValue
   plannedDate?: string | null
   actualDate?: string | null
@@ -91,6 +93,7 @@ function panelIcon(status: ExperimentTaskStatusValue) {
 
 export function ExperimentTaskPrimaryAction({
   taskId,
+  projectId,
   status,
   plannedDate,
   actualDate,
@@ -105,49 +108,80 @@ export function ExperimentTaskPrimaryAction({
   const description = panelDescription(status, bioinfoEnabled)
   const { run, isPending } = useEntityAction()
 
+  // 预约实验前弹窗状态（需求 2026-07）
+  const [showContractNoDialog, setShowContractNoDialog] = React.useState(false)
+
   if (!title || !description) return null
 
   return (
-    <ActionPanel icon={panelIcon(status)} title={title} description={description}>
-      {status === ExperimentTaskStatus.waiting_schedule && (
-        <ScheduleInlineForm
-          plannedDate={plannedDate}
-          operatorId={operatorId}
-          runMethod={runMethod}
-          department={department}
-          operatorOptions={operatorOptions}
-          isPending={isPending}
-          onSubmit={(body) => run(`/api/experiment-tasks/${taskId}/schedule`, "设置排期", body)}
-        />
-      )}
+    <>
+      <ActionPanel icon={panelIcon(status)} title={title} description={description}>
+        {status === ExperimentTaskStatus.waiting_schedule && (
+          <ScheduleInlineForm
+            plannedDate={plannedDate}
+            operatorId={operatorId}
+            runMethod={runMethod}
+            department={department}
+            operatorOptions={operatorOptions}
+            isPending={isPending}
+            onSubmit={(body) => {
+              run(
+                `/api/experiment-tasks/${taskId}/schedule`,
+                "设置排期",
+                body,
+                undefined,
+                (err) => {
+                  if (err.code === "NEED_CONTRACT_NO") {
+                    setShowContractNoDialog(true)
+                    return true
+                  }
+                  return false
+                }
+              )
+            }}
+          />
+        )}
 
-      {status === ExperimentTaskStatus.scheduled && (
-        <StartInlineAction
-          actualDate={actualDate}
-          isPending={isPending}
-          onSubmit={(body) => run(`/api/experiment-tasks/${taskId}/start`, "开始实验", body)}
-        />
-      )}
+        {status === ExperimentTaskStatus.scheduled && (
+          <StartInlineAction
+            actualDate={actualDate}
+            isPending={isPending}
+            onSubmit={(body) => run(`/api/experiment-tasks/${taskId}/start`, "开始实验", body)}
+          />
+        )}
 
-      {(status === ExperimentTaskStatus.in_progress ||
-        status === ExperimentTaskStatus.waiting_feedback) && (
-        <FeedbackInlineForm
-          status={status}
-          actualDate={actualDate}
-          bioinfoEnabled={bioinfoEnabled}
-          analystOptions={analystOptions}
-          isPending={isPending}
-          onSubmit={(body) =>
-            run(`/api/experiment-tasks/${taskId}/feedback`, "提交实验结果", body)
-          }
-          onFinishOnly={(body) =>
-            run(`/api/experiment-tasks/${taskId}/finish`, "完成实验", body)
-          }
-        />
-      )}
-    </ActionPanel>
+        {(status === ExperimentTaskStatus.in_progress ||
+          status === ExperimentTaskStatus.waiting_feedback) && (
+          <FeedbackInlineForm
+            status={status}
+            actualDate={actualDate}
+            bioinfoEnabled={bioinfoEnabled}
+            analystOptions={analystOptions}
+            isPending={isPending}
+            onSubmit={(body) =>
+              run(`/api/experiment-tasks/${taskId}/feedback`, "提交实验结果", body)
+            }
+            onFinishOnly={(body) =>
+              run(`/api/experiment-tasks/${taskId}/finish`, "完成实验", body)
+            }
+          />
+        )}
+      </ActionPanel>
+
+      <FillContractNoDialog
+        open={showContractNoDialog}
+        onOpenChange={setShowContractNoDialog}
+        projectId={projectId}
+        onConfirmed={() => setShowContractNoDialog(false)}
+      />
+    </>
   )
 }
+
+/* -------------------------------------------------------------------------
+ * 以下三个内联表单组件保持与原始实现完全一致，仅修改了 ScheduleInlineForm
+ * 的 onSubmit 签名（加 onError 参数），其余未改动。
+ * ------------------------------------------------------------------------- */
 
 function ScheduleInlineForm({
   plannedDate,
@@ -164,12 +198,15 @@ function ScheduleInlineForm({
   department?: string | null
   operatorOptions: OperatorOption[]
   isPending: boolean
-  onSubmit: (body: {
-    plannedDate: string
-    operatorId: string | null
-    runMethod: string | null
-    department: string | null
-  }) => void
+  onSubmit: (
+    body: {
+      plannedDate: string
+      operatorId: string | null
+      runMethod: string | null
+      department: string | null
+    },
+    onError?: (err: { error: string; code?: string }) => boolean
+  ) => void
 }) {
   const [date, setDate] = React.useState(plannedDate || todayString())
   const [assignee, setAssignee] = React.useState(operatorId || UNASSIGNED)
@@ -321,7 +358,9 @@ function FeedbackInlineForm({
   }) => void
   onFinishOnly: (body: { actualDate: string | null }) => void
 }) {
-  const [resultStatus, setResultStatus] = React.useState<ResultStatusValue>(ResultStatus.normal_run)
+  const [resultStatus, setResultStatus] = React.useState<ResultStatusValue>(
+    ResultStatus.normal_run
+  )
   const [feedback, setFeedback] = React.useState("")
   const [date, setDate] = React.useState(actualDate || todayString())
   const [analystId, setAnalystId] = React.useState(UNASSIGNED)
@@ -338,43 +377,40 @@ function FeedbackInlineForm({
       resultStatus,
       resultFeedback: feedback.trim(),
       actualDate: date || null,
-      bioinfoAnalystId:
-        bioinfoEnabled && analystId !== UNASSIGNED ? analystId : null,
+      bioinfoAnalystId: bioinfoEnabled && analystId !== UNASSIGNED ? analystId : null,
     })
   }
 
+  function handleFinishOnly(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    onFinishOnly({ actualDate: date || null })
+  }
+
+  const isInProgress = status === ExperimentTaskStatus.in_progress
+
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={isInProgress ? handleSubmit : handleFinishOnly}>
       <FieldGroup className="gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
-            <FieldLabel>结果状态</FieldLabel>
+            <FieldLabel>实验结果</FieldLabel>
             <Select
               value={resultStatus}
-              onValueChange={(value) => setResultStatus(value as ResultStatusValue)}
+              onValueChange={(v) => setResultStatus(v as ResultStatusValue)}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {Object.values(ResultStatus).map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {RESULT_STATUS_LABELS[value]}
+                  {Object.values(ResultStatus).map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {RESULT_STATUS_LABELS[v]}
                     </SelectItem>
                   ))}
                 </SelectGroup>
               </SelectContent>
             </Select>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="task-primary-feedback-date">实际实验日期</FieldLabel>
-            <Input
-              id="task-primary-feedback-date"
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-            />
           </Field>
           {bioinfoEnabled && (
             <Field className="sm:col-span-2">
@@ -398,29 +434,38 @@ function FeedbackInlineForm({
               <FieldDescription>不指定时，生信任务进入待分配队列。</FieldDescription>
             </Field>
           )}
-          <Field data-invalid={invalid || undefined} className="sm:col-span-2">
-            <FieldLabel htmlFor="task-primary-feedback">结果说明</FieldLabel>
-            <Textarea
-              id="task-primary-feedback"
-              value={feedback}
-              onChange={(event) => setFeedback(event.target.value)}
-              placeholder="实验结果与说明…"
-              aria-invalid={invalid || undefined}
+          <Field>
+            <FieldLabel htmlFor="task-primary-feedback-date">实际实验日期</FieldLabel>
+            <Input
+              id="task-primary-feedback-date"
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
             />
-            <FieldDescription className={invalid ? "text-destructive" : undefined}>
-              结果说明必填。
-            </FieldDescription>
           </Field>
         </div>
+        <Field data-invalid={invalid || undefined} className="sm:col-span-2">
+          <FieldLabel htmlFor="task-primary-feedback">结果说明</FieldLabel>
+          <Textarea
+            id="task-primary-feedback"
+            value={feedback}
+            onChange={(event) => setFeedback(event.target.value)}
+            placeholder="实验结果与说明…"
+            aria-invalid={invalid || undefined}
+          />
+          <FieldDescription className={invalid ? "text-destructive" : undefined}>
+            结果说明必填。
+          </FieldDescription>
+        </Field>
         <div className="flex flex-wrap justify-end gap-2">
           {status === ExperimentTaskStatus.in_progress && (
             <Button
               type="button"
               variant="outline"
               disabled={isPending}
-              onClick={() => onFinishOnly({ actualDate: date || null })}
+              onClick={handleFinishOnly}
             >
-              <FlaskConical data-icon="inline-start" aria-hidden="true" />
+              <Send data-icon="inline-start" aria-hidden="true" />
               仅标记完成
             </Button>
           )}

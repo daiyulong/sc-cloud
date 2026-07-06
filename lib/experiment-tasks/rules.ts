@@ -13,7 +13,8 @@ export type ExperimentTaskAction = "schedule" | "start" | "finish" | "feedback" 
 export class ExperimentTaskDomainError extends Error {
   constructor(
     message: string,
-    public readonly status = 400
+    public readonly status = 400,
+    public readonly code?: string
   ) {
     super(message)
     this.name = "ExperimentTaskDomainError"

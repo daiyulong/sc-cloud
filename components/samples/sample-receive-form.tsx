@@ -1,7 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import { Upload } from "lucide-react"
 import * as React from "react"
+import { toast } from "sonner"
 import {
   RECEIVE_STATUS_LABELS,
   ReceiveStatus,
@@ -30,6 +32,44 @@ function nowInputValue() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`
 }
 
+/**
+ * 从 Excel 第一张表提取第 3 列（C 列）文本。
+ * 空单元格跳过；返回去空后的样本名数组（未 trim）。
+ */
+function extractSampleNamesFromSheet(
+  workbook: import("xlsx").WorkBook
+): string[] | null {
+  const sheetName = workbook.SheetNames[0]
+  if (!sheetName) return null
+  const sheet = workbook.Sheets[sheetName]
+  if (!sheet) return null
+  const range = sheet["!ref"]
+  if (!range) return null
+
+  // 解析 ref 如 "A1:Z100" 获取最大行号
+  const refMatch = range.match(/([A-Z]+)(\d+):([A-Z]+)(\d+)/)
+  if (!refMatch) return null
+  const [, , startRowStr, , endRowStr] = refMatch
+  const startRow = parseInt(startRowStr, 10)
+  const endRow = parseInt(endRowStr, 10)
+
+  const names: string[] = []
+  // 从第 2 行起取（第 1 行为表头，跳过不取）
+  for (let row = startRow + 1; row <= endRow; row++) {
+    // 第 3 列 = 列号 3（C），A=1, B=2, C=3
+    const colIndex = 3
+    const cellRef =
+      String.fromCharCode(64 + colIndex) + row /* e.g. C2, C3 … */
+    const cell = sheet[cellRef]
+    const val =
+      cell?.v !== undefined && cell?.v !== null
+        ? String(cell.v).trim()
+        : ""
+    if (val) names.push(val)
+  }
+  return names.length > 0 ? names : null
+}
+
 export type ReceiveSampleBody = {
   batchNo: string | null
   species: string
@@ -40,6 +80,7 @@ export type ReceiveSampleBody = {
   receivedAt: string | null
   receiveStatus: ReceiveStatusValue
   abnormalNote: string | null
+  sampleNames?: string[]
 }
 
 type SampleReceiveFormProps = {
@@ -91,6 +132,7 @@ export function SampleReceiveForm({
   )
   const [abnormalNote, setAbnormalNote] = React.useState("")
   const [issues, setIssues] = React.useState<Set<string>>(() => new Set())
+  const [sampleNamesText, setSampleNamesText] = React.useState("")
   const [showError, setShowError] = React.useState(false)
   const closePanel = useCloseWorkItemPanel(param)
   const { run, isPending } = useEntityAction()
@@ -114,6 +156,20 @@ export function SampleReceiveForm({
     projectNo || (expectedArrival && expectedArrival !== "-") || sampleCount != null
   )
 
+  // 解析 sampleNamesText 为数组（供校验 / 提交用）
+  const sampleNamesArray = sampleNamesText
+    .split(/[、，]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  // 样本名数量与样本数量不一致时阻断
+  const namesCountMismatch =
+    sampleNamesText.trim().length > 0 &&
+    sampleNamesArray.length !== countValue
+
+  // 单条样本名超长检测（取第一个超长的显示）
+  const nameTooLong = sampleNamesArray.find((n) => n.length > 64)
+
   function toggleIssue(issue: string) {
     setIssues((prev) => {
       const next = new Set(prev)
@@ -129,13 +185,38 @@ export function SampleReceiveForm({
     return [tags, abnormalNote.trim()].filter(Boolean).join(" · ") || null
   }
 
+  async function handleExcelUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      toast.error("请上传 .xlsx 或 .xls 文件")
+      return
+    }
+    try {
+      const XLSX = await import("xlsx")
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data, { type: "array" })
+      const names = extractSampleNamesFromSheet(workbook)
+      if (!names) {
+        toast.error("Excel 第 3 列为空，请检查文件内容")
+        return
+      }
+      setSampleNamesText(names.join("、"))
+      toast.success(`已提取 ${names.length} 个样本名`)
+    } catch {
+      toast.error("Excel 解析失败，请检查文件格式")
+    }
+    // 清空 input 以便重复选择同一文件时仍能触发 change
+    event.target.value = ""
+  }
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (missingInfo || noteMissing) {
+    if (missingInfo || noteMissing || namesCountMismatch || nameTooLong) {
       setShowError(true)
       return
     }
-    run(endpoint, "登记接收", {
+    const body: ReceiveSampleBody = {
       batchNo: batchNo.trim() || null,
       species: species.trim(),
       tissueType: tissueType.trim(),
@@ -145,7 +226,11 @@ export function SampleReceiveForm({
       receivedAt: receivedAt || null,
       receiveStatus,
       abnormalNote: composeAbnormalNote(),
-    })
+    }
+    if (sampleNamesArray.length > 0) {
+      body.sampleNames = sampleNamesArray
+    }
+    run(endpoint, "登记接收", body)
   }
 
   function infoInvalid(value: string) {
@@ -271,6 +356,54 @@ export function SampleReceiveForm({
               物种 / 组织类型 / 实验类型 / 运输条件 / 样本数量为必填，样本数量至少为 1。
             </FieldDescription>
           )}
+
+          {/* 样品名录入 */}
+          <Field
+            data-invalid={
+              (showError && (namesCountMismatch || Boolean(nameTooLong))) || undefined
+            }
+          >
+            <FieldLabel htmlFor="receive-sample-names">样品名</FieldLabel>
+            <div className="flex items-start gap-2">
+              <Textarea
+                id="receive-sample-names"
+                value={sampleNamesText}
+                onChange={(event) => setSampleNamesText(event.target.value)}
+                placeholder="多个样本名用「、」分隔，如 S1、S2、S3"
+                className="min-h-20 flex-1 resize-y"
+              />
+              <label
+                htmlFor="excel-upload"
+                className={cn(
+                  "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border bg-background px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+                  "file:hidden"
+                )}
+              >
+                <Upload data-icon="inline-start" aria-hidden="true" />
+                Excel 提取
+                <input
+                  id="excel-upload"
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleExcelUpload}
+                />
+              </label>
+            </div>
+            <FieldDescription>
+              手动输入或上传 Excel（提取第 3 列样本名）。填写后需与样本数量一致方可提交。
+            </FieldDescription>
+            {showError && namesCountMismatch && (
+              <FieldDescription className="text-destructive">
+                样本名数量（{sampleNamesArray.length}）与样本数量（{countValue}）不一致，请补齐或删减。
+              </FieldDescription>
+            )}
+            {showError && nameTooLong && (
+              <FieldDescription className="text-destructive">
+                样本名「{nameTooLong}」超过 64 字符，请缩短。
+              </FieldDescription>
+            )}
+          </Field>
 
           <Field>
             <FieldLabel>接收状态</FieldLabel>

@@ -124,6 +124,8 @@ export function ProjectActionMenu({
         onOpenChange={(next) => !next && setActive(null)}
         isPending={isPending}
         onConfirm={(body: ConfirmProjectBody) => active && execute(active, body)}
+        description={active?.description}
+        projectNoRequired={active?.action === "fillProjectNo"}
       />
       <ReasonDialog
         open={active?.kind === "reasonDialog"}

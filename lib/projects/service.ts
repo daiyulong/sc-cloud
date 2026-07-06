@@ -15,6 +15,7 @@ import type {
   ConfirmProjectInput,
   CreateProjectInput,
   DeliverProjectInput,
+  FillContractNoInput,
   OptionalProjectReasonInput,
   ProjectListQuery,
   ProjectReasonInput,
@@ -399,13 +400,9 @@ export async function confirmProject(
   const before = await getWritableProject(id)
   ensureProjectStatus(before.status, [ProjectStatus.draft], "确认项目")
 
-  // 项目编号（委托单号）确认时录入并校验唯一
-  const projectNo = input.projectNo.trim()
-  const clash = await prisma.project.findFirst({
-    where: { projectNo, id: { not: id } },
-    select: { id: true },
-  })
-  if (clash) throw new ProjectDomainError(`项目编号 ${projectNo} 已存在`, 409)
+  // 项目编号（委托单号）留空：推迟到样本接收后补填（需求 2026-07）
+  // 仅有值时才写入（确认动作本身不要求必填）
+  const projectNo = input.projectNo?.trim() || null
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.project.update({
@@ -457,6 +454,53 @@ export async function confirmProject(
     return updated
   })
 }
+
+/**
+ * 补填合同编号与项目编号（需求 2026-07）：在预约实验之前填写。
+ * 仅允许 sample_received 状态的项目，校验项目编号唯一性。
+ */
+export async function fillContractNo(
+  operator: ProjectOperator,
+  id: string,
+  input: FillContractNoInput
+) {
+  ensureProjectRole(operator.role, [UserRole.admin, UserRole.project_manager], "补填合同编号与项目编号")
+  const before = await getWritableProject(id)
+  if (before.status !== ProjectStatus.sample_received) {
+    throw new ProjectDomainError("只能在样本接收后补填合同编号与项目编号", 409)
+  }
+
+  const projectNo = input.projectNo.trim()
+  const contractNo = input.contractNo.trim()
+  const clash = await prisma.project.findFirst({
+    where: { projectNo, id: { not: id } },
+    select: { id: true },
+  })
+  if (clash) throw new ProjectDomainError(`项目编号 ${projectNo} 已存在`, 409)
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.project.update({
+      where: { id },
+      data: { projectNo, contractNo },
+      include: projectInclude,
+    })
+
+    await recordOperation({
+      tx,
+      entityType: "project",
+      entityId: id,
+      action: OperationAction.update,
+      operatorId: operator.id,
+      before,
+      after: updated,
+    })
+
+    return updated
+  })
+}
+
+/** 兼容旧名（代码迁移用） */
+export const fillProjectNo = fillContractNo
 
 export async function markProjectAbnormal(
   operator: ProjectOperator,

@@ -61,9 +61,14 @@ function checkArrivalNotBeforeSampling(
   }
 }
 
+/** 样品名数组：每条 1–64 字符，收样时按叶子顺序 1:1 写入 sample.sample_name */
+const sampleNamesArray = z
+  .array(z.string().trim().min(1, "样本名不能为空").max(64, "样本名最多 64 字符"))
+  .optional()
+
 // 更新不含 projectId（批次不支持跨项目移动）、不含接收/状态字段（只能走 receive 动作）
 export const updateSampleSchema = z
-  .object(batchBaseFields)
+  .object({ ...batchBaseFields, sampleNames: sampleNamesArray })
   .partial()
   .superRefine(checkArrivalNotBeforeSampling)
   .refine(
@@ -72,7 +77,7 @@ export const updateSampleSchema = z
   )
 export type UpdateSampleInput = z.infer<typeof updateSampleSchema>
 
-// 登记接收 = 录批次编号(YP) + 补全批次信息 + 记录到样；数量必填 ≥1（据此生成样本叶子）
+// 登记接收 = 录批次编号(YP) + 补全批次信息 + 记录到样 + 样品名；数量必填 ≥1（据此生成样本叶子）
 export const receiveSampleSchema = z
   .object({
     batchNo: nullableString,
@@ -84,6 +89,8 @@ export const receiveSampleSchema = z
     receivedAt: nullableDate,
     receiveStatus: receiveStatusSchema.default(ReceiveStatus.normal),
     abnormalNote: nullableString,
+    /** 样品名列表（与叶子顺序 1:1），由前端按「、」切分或 Excel 第 3 列提取后传入 */
+    sampleNames: sampleNamesArray,
   })
   .superRefine((value, ctx) => {
     if (value.receiveStatus === ReceiveStatus.abnormal && !value.abnormalNote) {
@@ -91,6 +98,13 @@ export const receiveSampleSchema = z
         code: "custom",
         path: ["abnormalNote"],
         message: "异常接收必须填写异常说明",
+      })
+    }
+    if (value.sampleNames && value.sampleNames.length !== value.sampleCount) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sampleNames"],
+        message: `样本名数量（${value.sampleNames.length}）与样本数量（${value.sampleCount}）不一致`,
       })
     }
   })

@@ -43,6 +43,19 @@ export type EditableSectionField = {
   multiline?: boolean
   span?: "full"
   href?: string
+  /**
+   * 提交前对 draft 值做转换再发 body。
+   * - `"json"`: draft 为 string，提交时 JSON.stringify 再发（接收端解析为数组/对象）。
+   *   配合 `valueToDraft` 使用可实现"显示拼接文本、提交解析为数组"的往返语义。
+   */
+  submitAs?: "json"
+}
+
+/** 将 JSON 值转显示用拼接字符串（如 string[] → "S1、S2"） */
+function jsonToDisplay(value: unknown): string {
+  if (Array.isArray(value)) return value.join("、")
+  if (value == null) return ""
+  return String(value)
 }
 
 type EditableSectionProps = {
@@ -59,11 +72,16 @@ function valueToDraft(value: string | number | null | undefined) {
   return String(value)
 }
 
+function fieldToDraft(field: EditableSectionField): string {
+  if (field.submitAs === "json") return jsonToDisplay(field.value)
+  return valueToDraft(field.value)
+}
+
 function getInitialDraft(fields: EditableSectionField[]) {
   return Object.fromEntries(
     fields
       .filter((field) => field.editable !== false)
-      .map((field) => [field.name, valueToDraft(field.value)])
+      .map((field) => [field.name, fieldToDraft(field)])
   )
 }
 
@@ -72,7 +90,8 @@ function getSpanClass(field: EditableSectionField) {
 }
 
 function ReadField({ field }: { field: EditableSectionField }) {
-  const displayValue = field.displayValue ?? valueToDraft(field.value)
+  const displayValue =
+    field.displayValue ?? (field.submitAs === "json" ? jsonToDisplay(field.value) : valueToDraft(field.value))
   const hasValue = String(displayValue).trim().length > 0
   const content =
     field.href && hasValue ? (
@@ -123,18 +142,20 @@ export function EditableSection({
   }
 
   function buildChangedBody() {
-    const body: Record<string, string> = {}
+    const body: Record<string, unknown> = {}
     for (const field of fields) {
       if (field.editable === false) continue
       const current = draft[field.name] ?? ""
-      const initial = valueToDraft(field.value)
+      const initial = fieldToDraft(field)
       if (field.required && current.trim().length === 0) {
         toast.error(`请填写${field.label}`)
         return null
       }
-      if (current !== initial) body[field.name] = current
+      if (current !== initial) {
+        body[field.name] = field.submitAs === "json" ? current.split("、").filter(Boolean) : current
+      }
     }
-    return body
+    return body as Record<string, string>
   }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {

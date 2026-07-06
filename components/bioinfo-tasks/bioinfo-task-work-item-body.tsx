@@ -15,6 +15,7 @@ import { BioinfoTaskActionMenu } from "@/components/bioinfo-tasks/bioinfo-task-a
 import type { AnalystOption } from "@/components/bioinfo-tasks/bioinfo-task-form"
 import { BioinfoTaskPrimaryAction } from "@/components/bioinfo-tasks/bioinfo-task-primary-action"
 import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
+import type { RunMetricsLeafSample } from "@/components/experiment-tasks/run-metrics-section"
 import { pickRunMetrics } from "@/components/experiment-tasks/run-metrics"
 import { BIOINFO_TASK_STATUS_DOT } from "@/components/status-dot"
 import { Separator } from "@/components/ui/separator"
@@ -166,6 +167,19 @@ export function BioinfoTaskWorkItemBody({
             status={task.experimentTask.status as ExperimentTaskStatusValue}
             role={role}
             metrics={pickRunMetrics(task.experimentTask.taskSamples)}
+            taskSamples={task.experimentTask.taskSamples.map(
+              (ts): RunMetricsLeafSample => ({
+                id: ts.sample.id,
+                sampleName: ts.sample.sampleName,
+                metrics: {
+                  suspensionType: ts.sample.suspensionType ?? null,
+                  sequencingAmount: ts.sample.sequencingAmount ?? null,
+                  capturedCells: ts.sample.capturedCells ?? null,
+                  medianGenes: ts.sample.medianGenes ?? null,
+                  cellAnnotation: ts.sample.cellAnnotation ?? null,
+                },
+              })
+            )}
           />
         </div>
       </main>

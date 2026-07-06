@@ -7,6 +7,7 @@ export type RunMetricsView = {
   sequencingAmount: number | null
   capturedCells: number | null
   medianGenes: number | null
+  cellAnnotation: string | null
 }
 
 const EMPTY_METRICS: RunMetricsView = {
@@ -14,6 +15,7 @@ const EMPTY_METRICS: RunMetricsView = {
   sequencingAmount: null,
   capturedCells: null,
   medianGenes: null,
+  cellAnnotation: null,
 }
 
 /**
@@ -30,5 +32,6 @@ export function pickRunMetrics(
     sequencingAmount: leaf.sequencingAmount ?? null,
     capturedCells: leaf.capturedCells ?? null,
     medianGenes: leaf.medianGenes ?? null,
+    cellAnnotation: leaf.cellAnnotation ?? null,
   }
 }

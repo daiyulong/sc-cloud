@@ -16,6 +16,7 @@ import { EditableSection } from "@/components/detail/editable-section"
 import { WorkItemHeader } from "@/components/detail/work-item-header"
 import { ExperimentTaskPrimaryAction } from "@/components/experiment-tasks/experiment-task-primary-action"
 import { QcSection } from "@/components/experiment-tasks/qc-section"
+import type { QcLeafSample } from "@/components/experiment-tasks/qc-section"
 import { RunMetricsSection } from "@/components/experiment-tasks/run-metrics-section"
 import { pickRunMetrics } from "@/components/experiment-tasks/run-metrics"
 import type {
@@ -187,6 +188,7 @@ export function ExperimentTaskWorkItemBody({
             <>
               <ExperimentTaskPrimaryAction
                 taskId={task.id}
+                projectId={project.id}
                 status={status}
                 plannedDate={plannedDateValue}
                 actualDate={actualDateValue}
@@ -219,6 +221,7 @@ export function ExperimentTaskWorkItemBody({
             status={status}
             role={role}
             records={task.qcRecords}
+            taskSamples={leaves.map((s): QcLeafSample => ({ id: s.id, sampleName: s.sampleName }))}
           />
           <Separator />
           <RunMetricsSection

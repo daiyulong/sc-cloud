@@ -17,7 +17,8 @@ export type ExperimentScheduleAppointmentBatch = {
   id: string
   batchNo: string | null
   projectId: string
-  projectNo: string
+  projectNo: string | null
+  contractNo: string | null
   customerOrg: string
   experimentType: string | null
   receivedAt: string | null

@@ -335,6 +335,7 @@ model Sample {
   sequencingAmount Float?          @map("sequencing_amount") // 测序量(G)
   capturedCells    Int?            @map("captured_cells") // 捕获细胞数
   medianGenes      Int?            @map("median_genes") // 基因中位数
+  cellAnnotation  String?         @map("cell_annotation") // 细胞注释（生信分析时填写）
   remark           String?
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
@@ -404,6 +405,7 @@ model QcRecord {
   concentration   Float? // 悬液浓度
   viability       Float? // 活率
   aggregationRate Float?     @map("aggregation_rate") // 结团率
+  volume          Float?     @map("volume") // 体积（mL）
   qcResult        QCResult   @map("qc_result")
   riskLevel       RiskLevel  @map("risk_level")
   reason          String?

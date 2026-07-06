@@ -1,4 +1,3 @@
-import Link from "next/link"
 import {
   PROJECT_STATUS_LABELS,
   SampleBatchStatus,
@@ -44,6 +43,7 @@ export function SampleWorkItemBody({
               `${s.sampleName || "未命名"}（${SAMPLE_STATUS_LABELS[s.status as SampleStatusValue]}）`,
           )
           .join("、")
+  const sampleNamesValue = sample.samples.map((s) => s.sampleName || "")
   const sampleInfoFields = [
     {
       name: "batchNo",
@@ -120,6 +120,16 @@ export function SampleWorkItemBody({
       label: "创建时间",
       displayValue: formatDateTime(sample.createdAt),
       editable: false,
+    },
+    {
+      name: "sampleNames",
+      label: `样品名（${sample.samples.length}）`,
+      value: sampleNamesValue,
+      type: "textarea" as const,
+      placeholder: "多个样本名用「、」分隔，如 S1、S2、S3",
+      multiline: true,
+      span: "full" as const,
+      submitAs: "json" as const,
     },
     {
       name: "leafSummary",
