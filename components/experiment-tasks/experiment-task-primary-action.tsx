@@ -381,15 +381,19 @@ function FeedbackInlineForm({
     })
   }
 
-  function handleFinishOnly(event: React.FormEvent<HTMLFormElement>) {
+  function handleFinishOnlySubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    onFinishOnly({ actualDate: date || null })
+  }
+
+  function handleFinishOnlyClick() {
     onFinishOnly({ actualDate: date || null })
   }
 
   const isInProgress = status === ExperimentTaskStatus.in_progress
 
   return (
-    <form onSubmit={isInProgress ? handleSubmit : handleFinishOnly}>
+    <form onSubmit={isInProgress ? handleSubmit : handleFinishOnlySubmit}>
       <FieldGroup className="gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
@@ -463,7 +467,7 @@ function FeedbackInlineForm({
               type="button"
               variant="outline"
               disabled={isPending}
-              onClick={handleFinishOnly}
+              onClick={handleFinishOnlyClick}
             >
               <Send data-icon="inline-start" aria-hidden="true" />
               仅标记完成
